@@ -29,6 +29,17 @@ export default defineConfig([
     rules: { 'no-console': 'off' },
   },
   {
+    // Tests inspect raw database rows on purpose.
+    files: ['server/test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  {
     // Browser code: vanilla ES modules, no build step.
     files: ['web/js/**/*.js'],
     languageOptions: { globals: globals.browser, sourceType: 'module' },

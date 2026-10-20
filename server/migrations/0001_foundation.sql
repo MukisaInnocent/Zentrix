@@ -45,6 +45,9 @@ BEGIN
   EXECUTE format('GRANT zentrix_app TO %I', current_user);
   GRANT USAGE ON SCHEMA public TO zentrix_app;
   GRANT SELECT ON system_meta TO zentrix_app;
+  -- node-pg-migrate creates its table before this migration runs, so default privileges miss it. The
+  -- app reads it for the pending-migrations gate and /readyz.
+  GRANT SELECT ON pgmigrations TO zentrix_app;
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO zentrix_app', current_user);
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO zentrix_app', current_user);
 EXCEPTION WHEN insufficient_privilege THEN
