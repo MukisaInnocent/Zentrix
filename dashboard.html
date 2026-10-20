@@ -2,28 +2,20 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard · Zentrix</title><link rel="stylesheet" href="css/style.css"></head>
 <body data-page="dashboard">
 <main>
-<div class="ph"><h1>Dashboard</h1><p>Welcome back, Demo User. Here’s your account at a glance.</p></div>
+<div class="ph"><h1>Dashboard</h1><p>Your current account balance and recent wallet activity.</p></div>
 <div class="grid g4">
-  <div class="card stat"><i data-i="wallet"></i><small>Available balance</small><b>UGX 13,887</b><small class="down">−2.1% vs last week</small></div>
-  <div class="card stat"><i data-i="trend"></i><small>Total earnings</small><b>UGX 1,250,000</b><small class="up">+8.4% vs last week</small></div>
-  <div class="card stat"><i data-i="up"></i><small>Total withdrawn</small><b>UGX 982,000</b><small>Last withdrawal 3 days ago</small></div>
-  <div class="card stat"><i data-i="gift"></i><small>Referral bonus</small><b>UGX 42,500</b><small class="up">+12 new this month</small></div>
+  <div class="card stat"><i data-i="wallet"></i><small>Available balance</small><b data-money="availableBalance">UGX 0</b><small>Withdrawable wallet funds</small></div>
+  <div class="card stat"><i data-i="wallet"></i><small>Reserved for withdrawals</small><b data-money="reservedBalance">UGX 0</b><small>Pending payout requests</small></div>
+  <div class="card stat"><i data-i="down"></i><small>Completed deposits</small><b data-money="totalDeposited">UGX 0</b><small>All time</small></div>
+  <div class="card stat"><i data-i="up"></i><small>Completed withdrawals</small><b data-money="totalWithdrawn">UGX 0</b><small>All time</small></div>
 </div>
-<div class="mt"><div class="grid g4"><div class="card stat"><i data-i="message"></i><small>Whatsapp earnings</small><b>UGX 0</b><small>Daily orders</small></div><div class="card stat"><i data-i="wallet"></i><small>Deposit balance</small><b>UGX 220</b><small>Deposits</small></div><div class="card stat"><i data-i="monitor"></i><small>Ads earnings</small><b>UGX 0</b><small>Ads sales</small></div><div class="card stat"><i data-i="music"></i><small>TikTok earnings</small><b>UGX 0</b><small>TikTok views</small></div></div></div><div class="mt"><div class="grid g4"><div class="card stat"><i data-i="refresh"></i><small>Spin & Win</small><b>UGX 0</b><small>Rewards</small></div><div class="card stat"><i data-i="video"></i><small>YouTube earnings</small><b>UGX 280</b><small>YouTube views</small></div><div class="card stat"><i data-i="help"></i><small>Trivia earnings</small><b>UGX 1,400</b><small>Trivia questions</small></div><div class="card stat"><i data-i="news"></i><small>Article earnings</small><b>UGX 0</b><small>Articles</small></div></div></div>
+<div class="mt"><p class="sub">Product earnings and task activity will appear here when those modules are connected.</p></div>
 <div class="grid g21 mt">
-  <div class="card"><h3>Earnings this week</h3><p class="sub">UGX per day</p>
-    <div class="bars"><div><em style="height:45%"></em>Mon</div><div><em style="height:70%"></em>Tue</div><div><em style="height:55%"></em>Wed</div><div><em style="height:85%"></em>Thu</div><div><em style="height:60%"></em>Fri</div><div><em style="height:35%"></em>Sat</div><div><em style="height:50%"></em>Sun</div></div></div>
-  <div class="card"><h3>Your referral link</h3><p class="sub">Share it to grow your network.</p>
-    <div class="inline"><input id="rl" readonly value="https://example.com/join?ref=demo_user"></div>
-    <button class="btn full" data-copy="#rl"><i data-i="copy"></i> Copy link</button></div>
+  <div class="card"><h3>Product activity</h3><p class="sub">Earnings charts will appear when product modules are connected.</p></div>
+  <div class="card"><h3>Account security</h3><p class="sub">Use a unique password and keep your sign-in details private.</p><a class="btn full" href="profile.html">Manage profile</a></div>
 </div>
 <div class="card mt"><div class="between"><h3>Recent transactions</h3><a href="accounts.html#statements">View all</a></div>
-  <div class="tw"><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead><tbody>
-  <tr><td>18 Oct 2026</td><td>Deposit via mobile money</td><td class="up">+ UGX 220</td><td><span class="badge">Completed</span></td></tr>
-  <tr><td>16 Oct 2026</td><td>Referral bonus</td><td class="up">+ UGX 4,200</td><td><span class="badge">Completed</span></td></tr>
-  <tr><td>15 Oct 2026</td><td>Withdrawal to mobile money</td><td class="down">− UGX 50,000</td><td><span class="badge w">Pending</span></td></tr>
-  <tr><td>12 Oct 2026</td><td>Course reward</td><td class="up">+ UGX 1,400</td><td><span class="badge">Completed</span></td></tr>
-  </tbody></table></div></div>
+  <div class="tw"><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead><tbody data-transactions></tbody></table></div></div>
 </main>
 <script src="js/app.js"></script>
 </body></html>

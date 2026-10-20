@@ -2,15 +2,20 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Zentrix</title><link rel="stylesheet" href="css/style.css"></head>
 <body data-page="login">
 <div class="auth">
-  <div class="art"><h2>Manage your wallet, network and learning in one place.</h2><p>A clean member portal demo. Replace this panel with your own brand message or illustration.</p></div>
-  <form data-demo="dashboard.html">
+  <div class="art"><h2>Manage your wallet, network and learning in one place.</h2><p>Create an account to access your Zentrix member portal.</p></div>
+  <form id="auth-form" data-mode="login">
     <a class="logo" href="login.html"><span class="mark"></span>Zentrix</a>
-    <h1>Sign in</h1><p style="color:var(--muted);margin:0">Welcome back. Log in to your account.</p>
-    <label for="u">Username or email</label><input id="u" value="demo_user" autocomplete="username">
-    <div class="between" style="margin-top:12px"><label for="p">Password</label><a href="#">Forgot password?</a></div>
-    <div class="pw"><input id="p" type="password" value="demo1234" autocomplete="current-password"><button type="button" data-toggle="p" aria-label="Show password"><i data-i="eye"></i></button></div>
+    <h1 id="auth-title">Sign in</h1><p id="auth-description" style="color:var(--muted);margin:0">Welcome back. Log in to your account.</p>
+    <div data-register-field hidden><label for="username">Username</label><input id="username" name="username" minlength="3" maxlength="30" autocomplete="username" data-required="true"></div>
+    <div data-register-field hidden><label for="email">Email address</label><input id="email" name="email" type="email" maxlength="254" autocomplete="email" data-required="true"></div>
+    <div data-register-field hidden><label for="phone">Mobile money phone number</label><input id="phone" name="phone" type="tel" autocomplete="tel" minlength="5" maxlength="30" data-required="true"></div>
+    <p data-register-field hidden class="sub">A UGX 20,000 initial deposit is required. The next page provides a clearly labeled demo payment; it does not charge real money.</p>
+    <div id="identifier-field"><label for="u">Username or email</label><input id="u" name="identifier" autocomplete="username" required></div>
+    <div class="between" style="margin-top:12px"><label for="p">Password</label><span>Forgot password?</span></div>
+    <div class="pw"><input id="p" name="password" type="password" minlength="8" maxlength="72" autocomplete="current-password" required><button type="button" data-toggle="p" aria-label="Show password"><i data-i="eye"></i></button></div>
     <button class="btn full" type="submit">Sign in</button>
-    <p style="text-align:center;color:var(--muted);font-size:14px;margin-top:20px">Don’t have an account? <a href="#">Sign up</a></p>
+    <p data-api-message role="status" aria-live="polite" style="min-height:1.5em"></p>
+    <p style="text-align:center;color:var(--muted);font-size:14px;margin-top:20px"><a id="auth-switch" href="#register">Don’t have an account? Sign up</a></p>
   </form>
 </div>
 <script src="js/app.js"></script>

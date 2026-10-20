@@ -24,7 +24,7 @@ main{margin-left:var(--side);padding:84px 24px 24px}
 .grid{display:grid;gap:18px}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}.g21{grid-template-columns:2fr 1fr}.mt{margin-top:18px}
 .stat small{color:var(--muted)}.stat b{display:block;font-size:24px;margin:4px 0}
 .stat .ic{float:right;box-sizing:content-box;padding:8px;border-radius:10px;color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,transparent)}
-.up{color:var(--ok)}.down{color:var(--bad)}
+.up{color:var(--ok)}.down{color:var(--bad)}.pending{color:#92400e}
 .tw{overflow-x:auto}table{width:100%;border-collapse:collapse}
 th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font-size:12px;text-transform:uppercase;color:var(--muted)}
@@ -44,6 +44,10 @@ input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);
 .art{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;display:flex;flex-direction:column;justify-content:center;padding:8%}
 .art h2{font-size:30px;margin:0 0 10px}.art p{opacity:.85;max-width:380px}
 .auth form{padding:8vh 10%;display:flex;flex-direction:column;justify-content:center;max-width:560px;width:100%;margin:auto}
+.payment-main{padding:8vh 10%;display:flex;flex-direction:column;justify-content:center;max-width:620px;width:100%;margin:auto}
+.payment-main h1{margin:24px 0 4px}
+.payment-amount{display:block;font-size:32px;margin:6px 0 12px}
+.payment-note{margin:16px 0 0}
 .auth h1{margin:24px 0 4px}.pw{position:relative}.pw button{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);cursor:pointer}
 .between{display:flex;justify-content:space-between;align-items:center}.between label{margin-bottom:6px}
 .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}body.open .ov{display:block}
