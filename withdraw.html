@@ -1,9 +1,0 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Withdraw · Zentrix</title><link rel="stylesheet" href="css/style.css"></head>
-<body data-page="withdraw">
-<main>
-<div class="ph"><h1>Withdraw</h1><p>Request a payout and track its status.</p></div>
-<section data-tab="request" data-title="Request"><div class="grid g2"><div class="card stat"><i data-i="wallet"></i><small>Available balance</small><b data-money="availableBalance">UGX 0</b><small>Minimum withdrawal UGX 5,000</small></div></div><form class="card mt narrow" data-wallet-form="withdrawals"><h3>Withdraw funds</h3><p class="sub">Requests are recorded as pending; no payout is sent by the mock provider.</p><label for="f12">Amount (UGX)</label><input id="f12" name="amount" type="number" min="5000" step="1" placeholder="e.g. 5000" required><label for="f13">Method</label><select id="f13" name="method"><option value="mobile_money">Mobile money</option><option value="bank_transfer">Bank transfer</option></select><label for="f14">Phone / account number</label><input id="f14" name="destination" placeholder="2567XXXXXXXX" minlength="5" maxlength="100" required><button class="btn full" type="submit"><i data-i="up"></i> Request withdrawal</button><p data-api-message role="status" aria-live="polite"></p></form></section><section data-tab="history" data-title="History"><div class="card mt"><h3>Withdrawal history</h3><div class="tw"><table><thead><tr><th>Date</th><th>Reference</th><th>Amount</th><th>Status</th></tr></thead><tbody data-transactions></tbody></table></div></div></section>
-</main>
-<script src="js/app.js"></script>
-</body></html>
