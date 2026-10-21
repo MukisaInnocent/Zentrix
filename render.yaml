@@ -10,7 +10,7 @@ databases:
     databaseName: zentrix
     user: zentrix
     region: frankfurt
-    plan: basic-256mb
+    plan: free               # free Postgres expires after 30 days; upgrade (or export) before then
     postgresMajorVersion: "17"
     ipAllowList: []          # no public access; only services in the same region/account connect (internal URL)
 
@@ -19,12 +19,12 @@ services:
     name: zentrix
     runtime: node
     region: frankfurt        # must match the database region
-    plan: starter
+    plan: free               # sleeps after 15 min idle (first request is slow); no persistent disk
     # devDependencies are needed to compile TypeScript, so install them even though NODE_ENV=production.
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /healthz
-    autoDeployTrigger: "off" # flip to "commit" when you want pushes to main to deploy
+    autoDeployTrigger: commit # every push to the linked branch (main) deploys
     envVars:
       - key: NODE_VERSION
         value: "24"
@@ -57,8 +57,9 @@ services:
       # "true" once, read the generated passwords from the logs, then set it back to "false".
       - key: SEED_ON_START
         value: "false"
-      # Run scheduled jobs (reconciliation, referral release) inside the web process so no second paid
-      # service is needed. Split into a worker service once traffic justifies it.
+      # Run scheduled jobs (reconciliation, referral release) inside the web process; background workers are
+      # not free. On the free plan they only run while the instance is awake. Split into a worker service
+      # before going live.
       - key: RUN_JOBS_IN_WEB
         value: "true"
       - key: LOG_LEVEL
