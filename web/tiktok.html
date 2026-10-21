@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TikTok Earn · Zentrix</title>
+<meta name="description" content="Complete TikTok tasks, watch reels, and earn rewards.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="tiktok" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>TikTok Tasks</h1>
+      <p>Watch sponsored reels, follow creator partners, and earn rewards.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#music"></use></svg></div>
+      <div id="tt-earnings" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">TikTok Earnings</div>
+      <div class="zx-stat__note">Credited to your wallet</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#trophy"></use></svg></div>
+      <div id="tt-completed-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Tasks Completed</div>
+      <div class="zx-stat__note">Approved submissions</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title"><h2>Available TikTok Tasks</h2></div>
+    <div id="tt-tasks-container">
+      <p class="zx-empty">Loading tasks...</p>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Completed TikTok Submissions</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">Reward</th><th scope="col">Status</th></tr></thead>
+        <tbody id="tt-submissions-body">
+          <tr><td colspan="4" class="zx-td-empty">Loading submissions...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

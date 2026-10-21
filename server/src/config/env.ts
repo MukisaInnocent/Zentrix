@@ -69,9 +69,21 @@ export function liveOnlyKeys(env: NodeJS.ProcessEnv): string[] {
   return Object.keys(env).filter(k => /(^|_)LIVE(_|$)/.test(k) && (env[k] ?? '') !== '');
 }
 
-function isLocalOrigin(origin: string): boolean {
-  const { hostname } = new URL(origin);
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+export function isLocalOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]' ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      hostname.endsWith('.local')
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {

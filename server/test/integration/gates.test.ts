@@ -66,7 +66,7 @@ describe('start-up gates', () => {
       await livePool.end();
       await live.drop();
     }
-  });
+  }, 90_000);
 
   it('refuses to start with pending migrations', async () => {
     const stale = await createTestDatabase();

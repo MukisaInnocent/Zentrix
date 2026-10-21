@@ -1,16 +1,65 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contact · Zentrix</title><link rel="stylesheet" href="css/style.css"></head>
-<body data-page="contact">
-<main>
-<div class="ph"><h1>Contact us</h1><p>We’re here to help.</p></div>
-<div class="grid g2" style="max-width:900px">
-  <div class="card"><h3>Get in touch</h3><p class="sub">Reach the support team directly.</p>
-    <p style="display:flex;gap:10px;align-items:center"><i data-i="mail"></i> support@example.com</p>
-    <p style="display:flex;gap:10px;align-items:center"><i data-i="phone"></i> +256 700 000 000 (WhatsApp)</p></div>
-  <form class="card" data-demo=""><h3>Send a message</h3>
-    <label for="m1">Subject</label><input id="m1"><label for="m2">Message</label><textarea id="m2" rows="4"></textarea>
-    <button class="btn full" type="submit"><i data-i="send"></i> Send message</button></form>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contact us · Zentrix</title>
+<meta name="description" content="Get in touch with the Zentrix support team.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="contact" data-shell="auto">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Contact Support</h1>
+      <p>We are here to assist with your member account, deposits, withdrawals, and tasks.</p>
+    </div>
+  </div>
+  <div class="zx-split">
+    <div class="zx-card">
+      <h2>Get in Touch</h2>
+      <div class="zx-stack-3">
+        <div class="zx-contact-row">
+          <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#mail"></use></svg>
+          <div>
+            <div class="zx-strong">Email Support</div>
+            <div class="zx-hint">support@zentrix.test</div>
+          </div>
+        </div>
+        <div class="zx-contact-row">
+          <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#message"></use></svg>
+          <div>
+            <div class="zx-strong">WhatsApp Support</div>
+            <div class="zx-hint">+256 700 000 000 (Mon - Sat, 8am - 8pm EAT)</div>
+          </div>
+        </div>
+        <div class="zx-card zx-card--warn zx-card--soft">
+          <div class="zx-strong">Need to change your mobile money number?</div>
+          <p class="zx-hint">For your security, mobile numbers used for withdrawals require support verification before changes take effect.</p>
+        </div>
+      </div>
+    </div>
+    <div class="zx-card">
+      <h2>Send us a Message</h2>
+      <form id="contact-form" class="zx-form">
+        <div class="zx-field">
+          <label for="contact-subject">Subject</label>
+          <input id="contact-subject" class="zx-input" required placeholder="e.g. Question about withdrawal">
+        </div>
+        <div class="zx-field">
+          <label for="contact-msg">Message</label>
+          <textarea id="contact-msg" class="zx-textarea" required rows="4" placeholder="How can we help you?"></textarea>
+        </div>
+        <button id="contact-submit" class="zx-btn zx-btn--block" type="submit">Send Message</button>
+      </form>
+    </div>
+  </div>
 </div>
 </main>
-<script src="js/app.js"></script>
-</body></html>
+</body>
+</html>

@@ -72,7 +72,30 @@ export function sameOriginJson(config: Config) {
     if (!isUnsafe(req.method)) return next();
     if (!req.is('application/json')) return next(new AppError(415, 'unsupported_media_type', 'Send JSON.'));
     const origin = req.get('origin');
-    if (origin !== undefined && origin !== config.publicOrigin) return next(forbidden('csrf.origin', 'Cross-origin request blocked.'));
+    const host = req.get('host');
+    const sameHostOrigin = host ? `${req.protocol}://${host}` : undefined;
+    const isAllowed = origin === undefined || origin === config.publicOrigin || origin === sameHostOrigin;
+    if (!isAllowed) {
+      if (config.appMode === 'test' && origin) {
+        try {
+          const { hostname } = new URL(origin);
+          if (
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname === '[::1]' ||
+            /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+            /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+            /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+            hostname.endsWith('.local')
+          ) {
+            return next();
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+      return next(forbidden('csrf.origin', 'Cross-origin request blocked.'));
+    }
     if (origin === undefined && req.get('sec-fetch-site') === 'cross-site') {
       return next(forbidden('csrf.origin', 'Cross-origin request blocked.'));
     }

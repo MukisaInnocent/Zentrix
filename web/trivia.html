@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trivia Challenge · Zentrix</title>
+<meta name="description" content="Answer quiz questions correctly to win trivia rewards.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="trivia" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Trivia Challenges</h1>
+      <p>Test your knowledge, answer questions, and earn rewards for every correct answer.</p>
+    </div>
+    <div class="zx-page-head__actions"><a href="/leaderboard.html" class="zx-btn zx-btn--secondary zx-btn--sm">View Leaderboard</a></div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#help"></use></svg></div>
+      <div id="trivia-earnings" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Trivia Earnings</div>
+      <div class="zx-stat__note">Credited to your wallet</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#trophy"></use></svg></div>
+      <div id="trivia-completed-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Correct Answers</div>
+      <div class="zx-stat__note">UGX 500 per question</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title"><h2>Active Trivia Questions</h2></div>
+    <div id="trivia-container">
+      <p class="zx-empty">Loading quiz questions...</p>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

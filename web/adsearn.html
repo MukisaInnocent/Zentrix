@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ad Viewing Earn · Zentrix</title>
+<meta name="description" content="View sponsored promotional ads and earn rewards into your wallet.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="adsearn" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Ad Viewing Rewards</h1>
+      <p>View verified advertiser campaigns and earn instant earnings into your wallet.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#pointer"></use></svg></div>
+      <div id="ads-earnings" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Ads Earnings</div>
+      <div class="zx-stat__note">Credited to your wallet</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#trophy"></use></svg></div>
+      <div id="ads-completed-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Ads Viewed</div>
+      <div class="zx-stat__note">Approved views</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title"><h2>Available Sponsored Ads</h2></div>
+    <div id="ads-container">
+      <p class="zx-empty">Loading ads...</p>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Completed Ad Views</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Advertiser</th><th scope="col">Reward</th><th scope="col">Status</th></tr></thead>
+        <tbody id="ads-submissions-body">
+          <tr><td colspan="4" class="zx-td-empty">Loading submissions...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

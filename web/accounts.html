@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balances & Accounts · Zentrix</title>
+<meta name="description" content="Overview of all wallet balances and full account statements.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="accounts" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Balances &amp; Statements</h1>
+      <p>View your main wallet, per-module earnings, and transaction history.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
+      <div id="acc-main-balance" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Available Main Balance</div>
+      <div class="zx-stat__note">Withdrawable wallet funds</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
+      <div id="acc-ref-balance" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Referral Commissions</div>
+      <div class="zx-stat__note">From team levels 1, 2, 3</div>
+    </div>
+    <div class="zx-stat zx-stat--rose">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#deposit"></use></svg></div>
+      <div id="acc-deposited" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Total Deposited</div>
+      <div class="zx-stat__note">All time</div>
+    </div>
+    <div class="zx-stat zx-stat--lilac">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#withdraw"></use></svg></div>
+      <div id="acc-withdrawn" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Total Withdrawn</div>
+      <div class="zx-stat__note">All time</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title"><h2>Per-Module Earnings Balances</h2></div>
+    <div class="zx-auto-grid">
+      <div class="zx-module"><span class="zx-dot-icon zx-dot-icon--youtube"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#play"></use></svg></span><div><div class="zx-module__label">YouTube Earnings</div><div id="acc-youtube" class="zx-module__value">UGX 0</div></div></div>
+      <div class="zx-module"><span class="zx-dot-icon zx-dot-icon--music"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#music"></use></svg></span><div><div class="zx-module__label">TikTok Earnings</div><div id="acc-tiktok" class="zx-module__value">UGX 0</div></div></div>
+      <div class="zx-module"><span class="zx-dot-icon zx-dot-icon--ads"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#pointer"></use></svg></span><div><div class="zx-module__label">Ads Viewing Earnings</div><div id="acc-ads" class="zx-module__value">UGX 0</div></div></div>
+      <div class="zx-module"><span class="zx-dot-icon zx-dot-icon--trivia"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#help"></use></svg></span><div><div class="zx-module__label">Trivia Challenges</div><div id="acc-trivia" class="zx-module__value">UGX 0</div></div></div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Account Statement</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Description</th><th scope="col">Amount</th><th scope="col">Balance After</th></tr></thead>
+        <tbody id="statement-body">
+          <tr><td colspan="5" class="zx-td-empty">Loading account statement...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

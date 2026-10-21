@@ -1,21 +1,137 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard · Zentrix</title><link rel="stylesheet" href="css/style.css"></head>
-<body data-page="dashboard">
-<main>
-<div class="ph"><h1>Dashboard</h1><p>Your current account balance and recent wallet activity.</p></div>
-<div class="grid g4">
-  <div class="card stat"><i data-i="wallet"></i><small>Available balance</small><b data-money="availableBalance">UGX 0</b><small>Withdrawable wallet funds</small></div>
-  <div class="card stat"><i data-i="wallet"></i><small>Reserved for withdrawals</small><b data-money="reservedBalance">UGX 0</b><small>Pending payout requests</small></div>
-  <div class="card stat"><i data-i="down"></i><small>Completed deposits</small><b data-money="totalDeposited">UGX 0</b><small>All time</small></div>
-  <div class="card stat"><i data-i="up"></i><small>Completed withdrawals</small><b data-money="totalWithdrawn">UGX 0</b><small>All time</small></div>
-</div>
-<div class="mt"><p class="sub">Product earnings and task activity will appear here when those modules are connected.</p></div>
-<div class="grid g21 mt">
-  <div class="card"><h3>Product activity</h3><p class="sub">Earnings charts will appear when product modules are connected.</p></div>
-  <div class="card"><h3>Account security</h3><p class="sub">Use a unique password and keep your sign-in details private.</p><a class="btn full" href="profile.html">Manage profile</a></div>
-</div>
-<div class="card mt"><div class="between"><h3>Recent transactions</h3><a href="accounts.html#statements">View all</a></div>
-  <div class="tw"><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead><tbody data-transactions></tbody></table></div></div>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard · Zentrix</title>
+<meta name="description" content="Your Zentrix wallet, earnings, and multi-level referral network.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="dashboard" data-shell="app">
+<main id="main">
+  <div class="zx-page">
+    <section class="zx-hero" aria-labelledby="welcome-heading">
+      <div class="zx-hero__top">
+        <div>
+          <h1 id="welcome-heading">Welcome back</h1>
+          <p>Manage your digital wallet, task earnings, and multi-level referral network.</p>
+          <div class="zx-hero__label zx-hero__gap">Available balance</div>
+          <div id="stat-available" class="zx-hero__balance">UGX 0</div>
+          <div class="zx-hero__actions">
+            <a href="/deposit.html" class="zx-btn"><svg class="zx-icon"><use href="/img/icons.svg#deposit"></use></svg>Deposit</a>
+            <a href="/withdraw.html" class="zx-btn zx-btn--secondary"><svg class="zx-icon"><use href="/img/icons.svg#withdraw"></use></svg>Withdraw</a>
+          </div>
+        </div>
+        <div class="zx-hero__aside">
+          <span class="zx-hero__label">Withdrawable</span>
+          <strong>Your wallet funds</strong>
+          <a class="zx-hero__link" href="/accounts.html">View all balances</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="zx-stat-grid zx-stat-grid--3">
+      <div class="zx-stat zx-stat--mint">
+        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#users"></use></svg></div>
+        <div id="stat-referrals" class="zx-stat__value">UGX 0</div>
+        <div class="zx-stat__label">Referral Commissions</div>
+        <div class="zx-stat__note">Earned from team levels 1, 2, 3</div>
+        <div class="zx-stat__notch"><a class="zx-stat__go" href="/team.html" aria-label="Team"><svg class="zx-icon"><use href="/img/icons.svg#chevron-right"></use></svg></a></div>
+      </div>
+
+      <div class="zx-stat zx-stat--rose">
+        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#deposit"></use></svg></div>
+        <div id="stat-deposited" class="zx-stat__value">UGX 0</div>
+        <div class="zx-stat__label">Total Deposited</div>
+        <div class="zx-stat__note">Lifetime deposits</div>
+        <div class="zx-stat__notch"><a class="zx-stat__go" href="/deposit.html" aria-label="Deposit"><svg class="zx-icon"><use href="/img/icons.svg#chevron-right"></use></svg></a></div>
+      </div>
+
+      <div class="zx-stat zx-stat--lilac">
+        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#withdraw"></use></svg></div>
+        <div id="stat-withdrawn" class="zx-stat__value">UGX 0</div>
+        <div class="zx-stat__label">Total Withdrawn</div>
+        <div class="zx-stat__note">Paid out to mobile money</div>
+        <div class="zx-stat__notch"><a class="zx-stat__go" href="/withdraw.html" aria-label="Withdraw"><svg class="zx-icon"><use href="/img/icons.svg#chevron-right"></use></svg></a></div>
+      </div>
+    </div>
+
+    <div class="zx-card zx-card--accent zx-ref-card">
+      <div>
+        <h2><svg class="zx-icon"><use href="/img/icons.svg#gift"></use></svg>Multi-Level Referral Program Active</h2>
+        <p class="zx-hint">
+          Earn <strong>UGX 10,000</strong> for Level 1 (direct invites), <strong>UGX 5,000</strong> for Level 2 (when they refer), and <strong>UGX 2,000</strong> for Level 3!
+        </p>
+      </div>
+      <div class="zx-inline-copy">
+        <input id="ref-link-input" class="zx-input" readonly value="Loading referral link..." aria-label="Your referral link">
+        <button id="copy-ref-btn" class="zx-btn zx-btn--secondary zx-btn--sm" type="button">Copy</button>
+      </div>
+    </div>
+
+    <div class="zx-card">
+      <div class="zx-card__title">
+        <h2>Task Modules &amp; Earnings</h2>
+        <a href="/accounts.html">All balances</a>
+      </div>
+      <div class="zx-auto-grid">
+        <a href="/youtube.html" class="zx-module">
+          <span class="zx-dot-icon zx-dot-icon--youtube"><svg class="zx-icon"><use href="/img/icons.svg#play"></use></svg></span>
+          <div>
+            <div class="zx-module__label">YouTube Earn</div>
+            <div id="task-youtube-val" class="zx-module__value">UGX 0</div>
+          </div>
+        </a>
+        <a href="/tiktok.html" class="zx-module">
+          <span class="zx-dot-icon zx-dot-icon--music"><svg class="zx-icon"><use href="/img/icons.svg#music"></use></svg></span>
+          <div>
+            <div class="zx-module__label">TikTok Earn</div>
+            <div id="task-tiktok-val" class="zx-module__value">UGX 0</div>
+          </div>
+        </a>
+        <a href="/adsearn.html" class="zx-module">
+          <span class="zx-dot-icon zx-dot-icon--ads"><svg class="zx-icon"><use href="/img/icons.svg#pointer"></use></svg></span>
+          <div>
+            <div class="zx-module__label">Ad Viewing</div>
+            <div id="task-ads-val" class="zx-module__value">UGX 0</div>
+          </div>
+        </a>
+        <a href="/trivia.html" class="zx-module">
+          <span class="zx-dot-icon zx-dot-icon--trivia"><svg class="zx-icon"><use href="/img/icons.svg#help"></use></svg></span>
+          <div>
+            <div class="zx-module__label">Trivia Challenges</div>
+            <div id="task-trivia-val" class="zx-module__value">UGX 0</div>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <div class="zx-card">
+      <div class="zx-card__title">
+        <h2>Recent Transactions</h2>
+        <a href="/accounts.html">View statement</a>
+      </div>
+      <div class="zx-table-wrap">
+        <table class="zx-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Balance After</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-body">
+            <tr><td colspan="4" class="zx-td-empty">Loading transactions...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </main>
-<script src="js/app.js"></script>
-</body></html>
+</body>
+</html>

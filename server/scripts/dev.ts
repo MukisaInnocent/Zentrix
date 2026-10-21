@@ -55,10 +55,27 @@ if (dbOnly) {
   const services = createServices(config, logger);
   const { seedTestData } = await import('../seeds/test-data.js');
   await seedTestData(services);
+  const { networkInterfaces } = await import('node:os');
+  const nets = networkInterfaces();
+  let lanIp = '127.0.0.1';
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] ?? []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        lanIp = net.address;
+        break;
+      }
+    }
+  }
+
   const { createApp } = await import('../src/app.js');
   const { startJobs } = await import('../src/jobs/runner.js');
-  const http = createApp(services).listen(config.port, '127.0.0.1', () => {
-    console.log(`\nZentrix (TEST MODE: no real money) at ${config.publicOrigin}`);
+  const http = createApp(services).listen(config.port, '0.0.0.0', () => {
+    console.log(`\n========================================`);
+    console.log(` Zentrix Ready for Testing (TEST MODE)`);
+    console.log(`========================================`);
+    console.log(` > Local:   http://localhost:${config.port}`);
+    console.log(` > LAN:     http://${lanIp}:${config.port}`);
+    console.log(`========================================\n`);
     console.log('Seeded staff and member credentials: .data/seed-credentials.txt');
   });
   const stopJobs = startJobs(services);

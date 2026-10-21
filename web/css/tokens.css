@@ -1,0 +1,133 @@
+/* Zentrix design tokens. Own palette, "similar in spirit" to mobile earning dashboards (master prompt,
+   section 1): dark teal surfaces, pastel stat cards, rounded corners. Text colours meet WCAG AA. */
+:root {
+  color-scheme: light;
+  --zx-font: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --zx-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+
+  --zx-bg: #f4f7f9;
+  --zx-surface: #ffffff;
+  --zx-surface-2: #eef3f5;
+  --zx-text: #10232a;
+  --zx-text-muted: #51626a;
+  --zx-border: #dde5e9;
+  --zx-brand: #0e5c63;
+  --zx-brand-strong: #0a474d;
+  --zx-brand-soft: #d8ebec;
+  --zx-on-brand: #ffffff;
+  --zx-accent: #f2b544;
+  --zx-focus: #1d7fd6;
+  --zx-success: #12723f;
+  --zx-success-soft: #dcf3e5;
+  --zx-danger: #b42335;
+  --zx-danger-soft: #fbe2e5;
+  --zx-warning: #8a5300;
+  --zx-warning-soft: #fdf0d5;
+  --zx-info-soft: #e1eefb;
+
+  /* Stat card tones (text on them is --zx-card-ink). */
+  --zx-sky: #6db1f2;
+  --zx-rose: #f1909b;
+  --zx-mint: #bdefcd;
+  --zx-lilac: #edbaf7;
+  --zx-sand: #f6d79a;
+  --zx-card-ink: #10232a;
+
+  --zx-grad-brand: linear-gradient(135deg, #0e5c63 0%, #0b4a63 55%, #17366b 100%);
+  --zx-grad-soft: linear-gradient(160deg, var(--zx-brand-soft) 0%, var(--zx-surface) 70%);
+  --zx-glass: rgb(255 255 255 / 92%);
+  --zx-ring: 0 0 0 1px var(--zx-border);
+  --zx-side-bg: #0a2a30;
+  --zx-side-text: #cfe3e6;
+  --zx-side-muted: #7fa3a9;
+  --zx-side-hover: rgb(255 255 255 / 8%);
+  --zx-side-active: linear-gradient(135deg, #1b8a8f, #0e6b73);
+
+  --zx-radius-sm: 8px;
+  --zx-radius: 14px;
+  --zx-radius-lg: 20px;
+  --zx-radius-pill: 999px;
+  --zx-shadow-sm: 0 1px 2px rgb(16 35 42 / 6%), 0 2px 6px rgb(16 35 42 / 4%);
+  --zx-shadow: 0 10px 30px rgb(16 35 42 / 10%);
+  --zx-shadow-lg: 0 18px 48px rgb(16 35 42 / 16%);
+
+  --zx-space-1: 4px;
+  --zx-space-2: 8px;
+  --zx-space-3: 12px;
+  --zx-space-4: 16px;
+  --zx-space-5: 20px;
+  --zx-space-6: 24px;
+  --zx-space-8: 32px;
+  --zx-space-10: 40px;
+
+  --zx-topbar-h: 64px;
+  --zx-drawer-w: 288px;
+  --zx-bottomnav-h: 64px;
+  --zx-tap: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --zx-bg: #0b1a1e;
+    --zx-surface: #12262b;
+    --zx-surface-2: #183238;
+    --zx-text: #e6f0f2;
+    --zx-text-muted: #a3b7bd;
+    --zx-border: #24424b;
+    --zx-brand: #46b6b8;
+    --zx-brand-strong: #6ccaca;
+    --zx-brand-soft: #163d42;
+    --zx-on-brand: #062022;
+    --zx-success: #5fd394;
+    --zx-success-soft: #123a26;
+    --zx-danger: #ff8a96;
+    --zx-danger-soft: #45161d;
+    --zx-warning: #f5c35b;
+    --zx-warning-soft: #3d2c0a;
+    --zx-info-soft: #13304a;
+    --zx-sky: #1d4a72;
+    --zx-rose: #5c2731;
+    --zx-mint: #1c4a33;
+    --zx-lilac: #4a2a56;
+    --zx-sand: #4d3a14;
+    --zx-card-ink: #f2f7f8;
+    --zx-glass: rgb(18 38 43 / 92%);
+    --zx-grad-soft: linear-gradient(160deg, var(--zx-brand-soft) 0%, var(--zx-surface) 75%);
+    --zx-side-bg: #07191d;
+    --zx-side-text: #cfe3e6;
+    --zx-side-muted: #6f9399;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --zx-bg: #0b1a1e;
+  --zx-surface: #12262b;
+  --zx-surface-2: #183238;
+  --zx-text: #e6f0f2;
+  --zx-text-muted: #a3b7bd;
+  --zx-border: #24424b;
+  --zx-brand: #46b6b8;
+  --zx-brand-strong: #6ccaca;
+  --zx-brand-soft: #163d42;
+  --zx-on-brand: #062022;
+  --zx-success: #5fd394;
+  --zx-success-soft: #123a26;
+  --zx-danger: #ff8a96;
+  --zx-danger-soft: #45161d;
+  --zx-warning: #f5c35b;
+  --zx-warning-soft: #3d2c0a;
+  --zx-info-soft: #13304a;
+  --zx-sky: #1d4a72;
+  --zx-rose: #5c2731;
+  --zx-mint: #1c4a33;
+  --zx-lilac: #4a2a56;
+  --zx-sand: #4d3a14;
+  --zx-card-ink: #f2f7f8;
+  --zx-glass: rgb(18 38 43 / 92%);
+  --zx-grad-soft: linear-gradient(160deg, var(--zx-brand-soft) 0%, var(--zx-surface) 75%);
+  --zx-side-bg: #07191d;
+  --zx-side-text: #cfe3e6;
+  --zx-side-muted: #6f9399;
+}

@@ -1,13 +1,71 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Profile · Zentrix</title><link rel="stylesheet" href="css/style.css"></head>
-<body data-page="profile">
-<main>
-<div class="ph"><h1>Profile</h1><p>Manage your personal information.</p></div>
-<form id="profile-form" class="card" style="max-width:760px"><h3>Personal information</h3>
-  <div class="row2"><div><label for="a">Username</label><input id="a" name="username" readonly></div><div><label for="b">Email address</label><input id="b" name="email" type="email" readonly></div>
-  <div><label for="c">Phone</label><input id="c" name="phone" autocomplete="tel"></div><div><label for="d">Referral code</label><input id="d" name="referralCode" readonly></div>
-  <div><label for="current-password">Current password (to change password)</label><input id="current-password" name="currentPassword" type="password" autocomplete="current-password"></div><div><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" minlength="8" maxlength="72" autocomplete="new-password"></div><div><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" minlength="8" maxlength="72" autocomplete="new-password"></div></div>
-  <button class="btn full" type="submit" style="width:auto">Update profile</button><p data-api-message role="status" aria-live="polite"></p></form>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Profile & Settings · Zentrix</title>
+<meta name="description" content="Manage your personal profile, security, and account preferences.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="profile" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Account Profile &amp; Security</h1>
+      <p>Manage your verified credentials, security, and personal preferences.</p>
+    </div>
+  </div>
+  <div class="zx-split">
+    <div class="zx-card">
+      <div class="zx-card__title"><h2>Personal Information</h2></div>
+      <div class="zx-form">
+        <div class="zx-field">
+          <label for="prof-username">Username</label>
+          <input id="prof-username" class="zx-input" readonly value="Loading...">
+        </div>
+        <div class="zx-field">
+          <label for="prof-email">Email Address</label>
+          <input id="prof-email" class="zx-input" readonly value="Loading...">
+        </div>
+        <div class="zx-field">
+          <label for="prof-phone">Verified Mobile Phone</label>
+          <input id="prof-phone" class="zx-input" readonly value="Loading...">
+          <span class="zx-hint">Payouts only go to this number. Contact admin to change.</span>
+        </div>
+        <div class="zx-field">
+          <label for="prof-ref-code">Your Referral Code</label>
+          <input id="prof-ref-code" class="zx-input" readonly value="Loading...">
+        </div>
+      </div>
+    </div>
+    <div class="zx-card">
+      <div class="zx-card__title"><h2>Change Password</h2></div>
+      <form id="pw-form" class="zx-form">
+        <div id="pw-alert" class="zx-error zx-error--slot" role="alert"></div>
+        <div class="zx-field">
+          <label for="current-password">Current Password</label>
+          <input id="current-password" class="zx-input" name="currentPassword" type="password" required autocomplete="current-password">
+        </div>
+        <div class="zx-form-row zx-form-row--2">
+          <div class="zx-field">
+            <label for="new-password">New Password</label>
+            <input id="new-password" class="zx-input" name="newPassword" type="password" required minlength="8" autocomplete="new-password">
+          </div>
+          <div class="zx-field">
+            <label for="confirm-password">Confirm New Password</label>
+            <input id="confirm-password" class="zx-input" name="confirmPassword" type="password" required minlength="8" autocomplete="new-password">
+          </div>
+        </div>
+        <button id="pw-submit" class="zx-btn zx-btn--fit" type="submit">Update Password</button>
+      </form>
+    </div>
+  </div>
+</div>
 </main>
-<script src="js/app.js"></script>
-</body></html>
+</body>
+</html>

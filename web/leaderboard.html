@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leaderboard · Zentrix</title>
+<meta name="description" content="Top task earners on Zentrix.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="leaderboard" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Leaderboard</h1>
+      <p>Top performing members ranked by funded task completion and platform achievements.</p>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Top 10 Task Earners</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Rank</th><th scope="col">Member</th><th scope="col">Task Score</th></tr></thead>
+        <tbody id="leaderboard-body">
+          <tr><td colspan="3" class="zx-td-empty">Loading leaderboard...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

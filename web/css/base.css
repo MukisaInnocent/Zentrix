@@ -1,0 +1,71 @@
+/* Reset and base elements. Logical properties throughout so right-to-left layouts work (section 5b). */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-block-start: 88px; }
+body {
+  margin: 0;
+  min-block-size: 100vh;
+  font: 400 15px/1.55 var(--zx-font);
+  color: var(--zx-text);
+  background: var(--zx-bg);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { margin: 0 0 var(--zx-space-2); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; }
+h1 { font-size: clamp(1.55rem, 1.2rem + 1.4vw, 2.1rem); font-weight: 800; }
+h2 { font-size: 1.2rem; }
+h3 { font-size: 1.05rem; }
+p { margin: 0 0 var(--zx-space-3); }
+a { color: var(--zx-brand); text-underline-offset: 2px; }
+a:hover { color: var(--zx-brand-strong); }
+img, svg { max-inline-size: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--zx-focus); outline-offset: 2px; border-radius: 4px; }
+[hidden] { display: none !important; }
+::selection { background: var(--zx-brand-soft); }
+hr { border: 0; border-block-start: 1px solid var(--zx-border); margin-block: var(--zx-space-5); }
+code, kbd { font-family: var(--zx-font-mono); font-size: .92em; }
+
+.zx-icon {
+  inline-size: 1.25em;
+  block-size: 1.25em;
+  flex: none;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+.zx-visually-hidden {
+  position: absolute !important;
+  inline-size: 1px; block-size: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.zx-skip-link {
+  position: absolute; inset-inline-start: var(--zx-space-3); inset-block-start: -100px; z-index: 100;
+  padding: var(--zx-space-2) var(--zx-space-4); border-radius: var(--zx-radius-sm);
+  background: var(--zx-brand); color: var(--zx-on-brand); font-weight: 600; text-decoration: none;
+}
+.zx-skip-link:focus { inset-block-start: var(--zx-space-3); color: var(--zx-on-brand); }
+.zx-muted { color: var(--zx-text-muted); }
+.zx-small { font-size: .875rem; }
+.zx-nowrap { white-space: nowrap; }
+.zx-num { font-variant-numeric: tabular-nums; }
+.zx-stack > * + * { margin-block-start: var(--zx-space-4); }
+.zx-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--zx-space-3); }
+.zx-row--between { justify-content: space-between; }
+.zx-grid { display: grid; gap: var(--zx-space-5); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+.zx-center { text-align: center; }
+
+/* Scroll reveal: only active once motion.js has marked the page, so nothing is hidden without JavaScript. */
+html.zx-js [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s cubic-bezier(.2,.7,.2,1), transform .6s cubic-bezier(.2,.7,.2,1); transition-delay: var(--zx-delay, 0s); }
+html.zx-js [data-reveal].zx-in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { html.zx-js [data-reveal] { opacity: 1; transform: none; } }
+body.zx-ready .zx-main > * { animation: zx-rise .45s cubic-bezier(.2,.7,.2,1) both; }
+body.zx-ready .zx-main > *:nth-child(2) { animation-delay: .05s; }
+body.zx-ready .zx-main > *:nth-child(3) { animation-delay: .1s; }
+@keyframes zx-rise { from { opacity: 0; transform: translateY(10px); } }

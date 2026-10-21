@@ -1,48 +1,182 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zentrix · Wallet, tasks and learning in one portal</title>
-<meta name="description" content="Zentrix is a member portal for managing your wallet, team, tasks and learning in one place.">
-<link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/landing.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zentrix · Paid tasks, learning and your wallet</title>
+<meta name="description" content="Complete tasks funded by advertisers, learn new skills, and manage a wallet in your own currency. No income is guaranteed.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
 </head>
-<body data-page="index">
-<header class="nav">
-  <a class="logo" href="index.html"><span class="mark"></span>Zentrix</a>
-  <nav><a href="#features">Features</a><a href="#how">How it works</a><a class="btn" href="login.html">Sign in</a></nav>
+<body data-page="landing" data-shell="plain">
+<a class="zx-skip-link" href="#main" data-i18n="common.skipToContent">Skip to content</a>
+<header class="zx-public-header">
+  <div class="zx-public-header__inner">
+    <a class="zx-brand" href="/"><img src="/img/mark.svg" alt=""><span>Zentrix</span></a>
+    <nav class="zx-public-nav" aria-label="Main menu">
+      <a href="#how" data-i18n="nav.howItWorks">How it works</a>
+      <a href="/membership.html" data-i18n="nav.membership">Membership</a>
+      <a href="/contact.html" data-i18n="nav.contact">Contact us</a>
+    </nav>
+    <div class="zx-public-header__cta">
+      <a class="zx-btn zx-btn--ghost zx-btn--sm" href="/login.html" data-i18n="common.signIn">Sign in</a>
+      <a class="zx-btn zx-btn--sm" href="/register.html" data-i18n="common.join">Create account</a>
+    </div>
+  </div>
 </header>
 
-<section class="hero">
-  <h1>Your wallet, team, tasks and learning in one portal.</h1>
-  <p>Zentrix brings payments, referrals, daily tasks and lessons together in a clean, simple dashboard.</p>
-  <div class="inline"><a class="btn" href="login.html#register">Get started</a><a class="btn alt" href="login.html">Member sign in</a></div>
-</section>
+<main id="main" tabindex="-1">
+  <section class="zx-landing-hero">
+    <span class="zx-orb zx-orb--gold" aria-hidden="true"></span>
+    <span class="zx-orb zx-orb--blue" aria-hidden="true"></span>
+    <div class="zx-landing-hero__inner">
+      <div>
+        <span class="zx-hero-badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#shield"></use></svg>Every balance backed by a ledger</span>
+        <h1 data-i18n="landing.title">Paid tasks, practical learning and your wallet, in one place.</h1>
+        <p class="zx-landing-hero__lead" data-i18n="landing.lead">Complete tasks that advertisers have paid for, learn new skills with courses and e-books, and manage your money in your own currency.</p>
+        <div class="zx-row">
+          <a class="zx-btn zx-btn--lg" href="/register.html" data-i18n="landing.ctaJoin">Create an account</a>
+          <a class="zx-btn zx-btn--ghost zx-btn--lg" href="/login.html" data-i18n="landing.ctaSignIn">Member sign in</a>
+        </div>
+        <ul class="zx-trust">
+          <li><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#check-circle"></use></svg>Fees shown before you confirm</li>
+          <li><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#check-circle"></use></svg>Payouts to your verified number</li>
+          <li><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#check-circle"></use></svg>No income promises</li>
+        </ul>
+        <p class="zx-small" data-i18n="common.noIncomeGuarantee">What you earn depends on the funded tasks available. Zentrix does not guarantee any income.</p>
+      </div>
 
-<section class="sec" id="features">
-  <h2>Everything you need</h2><p>Tools for every part of your account.</p>
-  <div class="grid g3">
-    <div class="card feat"><i data-i="wallet"></i><h3>Wallet and payouts</h3><p>Deposit, withdraw and review every transaction in one place.</p></div>
-    <div class="card feat"><i data-i="users"></i><h3>Team and referrals</h3><p>Share your link, grow your team and track commissions.</p></div>
-    <div class="card feat"><i data-i="video"></i><h3>Daily tasks</h3><p>Complete Whatsapp, TikTok and YouTube tasks and submit proof.</p></div>
-    <div class="card feat"><i data-i="book"></i><h3>Learning</h3><p>Forex lessons, articles and business ebooks to build your skills.</p></div>
-    <div class="card feat"><i data-i="help"></i><h3>Trivia and rewards</h3><p>Play trivia, climb the leaderboard and spin for rewards.</p></div>
-    <div class="card feat"><i data-i="megaphone"></i><h3>Ads tools</h3><p>Create Meta ad campaigns and track their performance.</p></div>
+      <div class="zx-device-stage" aria-hidden="true">
+        <span class="zx-chip-float zx-chip-float--a"><svg class="zx-icon"><use href="/img/icons.svg#check-circle"></use></svg>Task verified</span>
+        <span class="zx-chip-float zx-chip-float--b"><svg class="zx-icon"><use href="/img/icons.svg#wallet"></use></svg>Wallet updated</span>
+        <span class="zx-chip-float zx-chip-float--c"><svg class="zx-icon"><use href="/img/icons.svg#shield"></use></svg>Verified payouts</span>
+        <div class="zx-device">
+          <div class="zx-device__screen">
+            <div class="zx-device__bar"><span>Zentrix</span><span class="zx-device__dots"><i></i><i></i><i></i></span></div>
+            <div class="zx-device__balance"><small>Wallet (illustration)</small><strong>&bull;&bull;&bull;&bull;&bull;&bull;</strong><div class="zx-device__meter"><i></i></div></div>
+            <div class="zx-device__grid">
+              <div class="zx-device__tile"><svg class="zx-icon"><use href="/img/icons.svg#play"></use></svg>Videos</div>
+              <div class="zx-device__tile"><svg class="zx-icon"><use href="/img/icons.svg#book"></use></svg>Learn</div>
+            </div>
+            <div class="zx-device__list">
+              <div class="zx-device__row"><svg class="zx-icon"><use href="/img/icons.svg#check"></use></svg><i></i></div>
+              <div class="zx-device__row"><svg class="zx-icon"><use href="/img/icons.svg#check"></use></svg><i></i></div>
+              <div class="zx-device__row"><svg class="zx-icon"><use href="/img/icons.svg#clock"></use></svg><i></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="zx-strip" data-reveal>
+    <div class="zx-strip__inner">
+      <div class="zx-strip__item"><div class="zx-strip__num" data-count="6">6</div><div class="zx-strip__label">Task modules</div></div>
+      <div class="zx-strip__item"><div class="zx-strip__num" data-count="0.5" data-decimals="1" data-suffix="%">0.5%</div><div class="zx-strip__label">Withdrawal fee</div></div>
+      <div class="zx-strip__item"><div class="zx-strip__num" data-count="100" data-suffix="%">100%</div><div class="zx-strip__label">Movements in the ledger</div></div>
+      <div class="zx-strip__item"><div class="zx-strip__num" data-count="1">1</div><div class="zx-strip__label">Verified payout number</div></div>
+    </div>
   </div>
-</section>
 
-<section class="sec" id="how">
-  <h2>How it works</h2><p>Up and running in three steps.</p>
-  <div class="grid g3 steps">
-    <div class="card"><h3>Create your account</h3><p class="sub">Sign up in a minute with your email or phone number.</p></div>
-    <div class="card"><h3>Pick your products</h3><p class="sub">Choose the tasks, lessons and tools that suit you.</p></div>
-    <div class="card"><h3>Track and withdraw</h3><p class="sub">Watch your balance grow and request a payout any time.</p></div>
+  <section class="zx-section" aria-labelledby="features-title">
+    <div class="zx-section__head" data-reveal>
+      <span class="zx-eyebrow">Features</span>
+      <h2 id="features-title" data-i18n="landing.featuresTitle">What you can do on Zentrix</h2>
+      <p data-i18n="landing.featuresLead">Every task shows its reward before you start, and every balance comes straight from our ledger.</p>
+    </div>
+    <div class="zx-feature-grid">
+      <article class="zx-card zx-feature" data-reveal>
+        <span class="zx-dot-icon zx-dot-icon--youtube"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#play"></use></svg></span>
+        <h3 data-i18n="landing.featureTasksTitle">Funded tasks</h3>
+        <p data-i18n="landing.featureTasksText">YouTube, TikTok, ad viewing, trivia, Fix Tap micro-tasks and music streaming. Rewards come from the advertiser's prepaid budget.</p>
+      </article>
+      <article class="zx-card zx-feature" data-reveal>
+        <span class="zx-dot-icon zx-dot-icon--music"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#graduation"></use></svg></span>
+        <h3 data-i18n="landing.featureLearnTitle">Learning library</h3>
+        <p data-i18n="landing.featureLearnText">Skills development, free e-books and forex classes. Education only, never financial advice.</p>
+      </article>
+      <article class="zx-card zx-feature" data-reveal>
+        <span class="zx-dot-icon zx-dot-icon--main"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></span>
+        <h3 data-i18n="landing.featureWalletTitle">Wallet in your currency</h3>
+        <p data-i18n="landing.featureWalletText">Deposits and withdrawals in your own currency, with every fee shown before you confirm.</p>
+      </article>
+      <article class="zx-card zx-feature" data-reveal>
+        <span class="zx-dot-icon zx-dot-icon--fixtap"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#user-plus"></use></svg></span>
+        <h3 data-i18n="landing.featureInviteTitle">Invite friends</h3>
+        <p data-i18n="landing.featureInviteText">Share your referral link. Referral rewards are fixed, capped and only for people you invite directly.</p>
+      </article>
+      <article class="zx-card zx-feature" data-reveal>
+        <span class="zx-dot-icon zx-dot-icon--trivia"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#megaphone"></use></svg></span>
+        <h3 data-i18n="landing.featureAdsTitle">For advertisers</h3>
+        <p data-i18n="landing.featureAdsText">Businesses fund campaigns that members complete, and see a clear spend report.</p>
+      </article>
+      <article class="zx-card zx-feature" data-reveal>
+        <span class="zx-dot-icon zx-dot-icon--ads"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#shield"></use></svg></span>
+        <h3 data-i18n="landing.featureSafetyTitle">Built for safety</h3>
+        <p data-i18n="landing.featureSafetyText">Two-step verification, payouts only to your verified number, and every money movement recorded.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="zx-section" id="how" aria-labelledby="how-title">
+    <div class="zx-section__head" data-reveal>
+      <span class="zx-eyebrow">Getting started</span>
+      <h2 id="how-title" data-i18n="landing.howTitle">How it works</h2>
+      <p data-i18n="landing.howLead">Three steps, with the costs shown up front.</p>
+    </div>
+    <div class="zx-steps">
+      <div class="zx-card" data-reveal><h3 data-i18n="landing.step1Title">Create your account</h3><p class="zx-muted" data-i18n="landing.step1Text">Choose your country, confirm your email and mobile number.</p></div>
+      <div class="zx-card" data-reveal><h3 data-i18n="landing.step2Title">Activate membership</h3><p class="zx-muted" data-i18n="landing.step2Text">A one-time fee, shown before you pay, unlocks tasks and the learning library.</p></div>
+      <div class="zx-card" data-reveal><h3 data-i18n="landing.step3Title">Do tasks and learn</h3><p class="zx-muted" data-i18n="landing.step3Text">Rewards are credited after each task is checked. Withdraw to your verified mobile number.</p></div>
+    </div>
+  </section>
+
+  <section class="zx-band" aria-labelledby="trust-title">
+    <div class="zx-band__inner">
+      <div data-reveal>
+        <span class="zx-eyebrow">Transparency</span>
+        <h2 id="trust-title">Clear about where money comes from.</h2>
+        <p>No hidden pools and no guesswork. This is how Zentrix keeps the numbers honest.</p>
+      </div>
+      <div class="zx-principles">
+        <div class="zx-principle" data-reveal><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#megaphone"></use></svg><h3>Advertiser funded</h3><p>Task rewards are paid from budgets advertisers deposit first.</p></div>
+        <div class="zx-principle" data-reveal><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#layers"></use></svg><h3>Ledger first</h3><p>Every balance change is a recorded entry that cannot be edited.</p></div>
+        <div class="zx-principle" data-reveal><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#lock"></use></svg><h3>Secure by design</h3><p>We never store your mobile money PIN, and payouts go only to your verified number.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="zx-section zx-faq" aria-labelledby="faq-title">
+    <div class="zx-section__head" data-reveal><span class="zx-eyebrow">FAQ</span><h2 id="faq-title" data-i18n="landing.faqTitle">Questions people ask</h2></div>
+    <details open><summary data-i18n="landing.faq1Q">Is income guaranteed?</summary><p data-i18n="landing.faq1A">No. What you earn depends on the funded tasks available and how many you complete. Zentrix never promises a fixed or typical income.</p></details>
+    <details><summary data-i18n="landing.faq2Q">What does the membership fee buy?</summary><p data-i18n="landing.faq2A">Access to task modules, the learning library and member support. It is a service fee, not an investment, and it is not paid to other members.</p></details>
+    <details><summary data-i18n="landing.faq3Q">Where do task rewards come from?</summary><p data-i18n="landing.faq3A">From budgets that advertisers and clients pay in advance. When a campaign's budget runs out, its tasks stop paying and the app says so.</p></details>
+    <details><summary data-i18n="landing.faq4Q">Can I change my phone number?</summary><p data-i18n="landing.faq4A">Payouts only go to your verified number, so only support can change it after checking your identity. Withdrawals then pause for 48 hours.</p></details>
+  </section>
+
+  <section class="zx-section">
+    <div class="zx-cta" data-reveal>
+      <h2 data-i18n="landing.ctaTitle">Ready to look around?</h2>
+      <p data-i18n="landing.ctaText">Zentrix is in its test stage. Accounts work, but no real money moves yet.</p>
+      <a class="zx-btn zx-btn--lg" href="/register.html" data-i18n="landing.ctaJoin">Create an account</a>
+    </div>
+  </section>
+</main>
+
+<footer class="zx-footer">
+  <div class="zx-footer__inner">
+    <span>&copy; 2026 Zentrix</span>
+    <nav aria-label="Policies">
+      <a href="/terms.html" data-i18n="nav.terms">Terms</a>
+      <a href="/privacy.html" data-i18n="nav.privacy">Privacy</a>
+      <a href="/risk.html" data-i18n="nav.risk">Risk</a>
+      <a href="/refund.html" data-i18n="nav.refund">Refunds</a>
+      <a href="/contact.html" data-i18n="nav.contact">Contact us</a>
+    </nav>
   </div>
-</section>
-
-<section class="cta"><h2>Ready to get started?</h2><a class="btn" href="login.html">Sign in to Zentrix</a></section>
-<p class="lfoot">© <span id="yr">2026</span> Zentrix. <a href="contact.html">Contact</a></p>
-<script src="js/landing.js"></script>
+</footer>
 </body>
 </html>

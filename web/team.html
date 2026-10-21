@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Team & Referrals · Zentrix</title>
+<meta name="description" content="Multi-level referral network and commission tracking.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="team" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Team &amp; Multi-Level Referrals</h1>
+      <p>Track your multi-tiered referral network and view your earnings at every level.</p>
+    </div>
+  </div>
+  <div class="zx-card">
+    <h2>Multi-Level Referral Structure</h2>
+    <p>Referral is UGX 10,000 for the first one, and then if the one who is referred refers, UGX 5,000 is given to the first one to refer, and if they refer at this level then UGX 2,000 is given to the first one to refer, and so on.</p>
+    <div class="zx-auto-grid zx-auto-grid--sm">
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 1 (Direct)</div>
+        <div class="zx-tier__amount">UGX 10,000</div>
+        <div class="zx-hint">For everyone you invite directly</div>
+      </div>
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 2 (Tier 2)</div>
+        <div class="zx-tier__amount">UGX 5,000</div>
+        <div class="zx-hint">When your referral refers someone</div>
+      </div>
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 3 (Tier 3)</div>
+        <div class="zx-tier__amount">UGX 2,000</div>
+        <div class="zx-hint">When level 2 refers someone</div>
+      </div>
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 4 &amp; beyond</div>
+        <div class="zx-tier__amount">UGX 1,000+</div>
+        <div class="zx-hint">Continuous multi-level earnings</div>
+      </div>
+    </div>
+  </div>
+  <div class="zx-card zx-card--accent">
+    <h3>Your Personal Referral Link</h3>
+    <p class="zx-hint">Share this link. Anyone who registers with it joins your Level 1 network automatically.</p>
+    <div class="zx-copy-row zx-copy-row--max">
+      <input id="ref-link" class="zx-input" readonly value="Loading link..." aria-label="Your referral link">
+      <button id="copy-btn" class="zx-btn" type="button">Copy Link</button>
+    </div>
+  </div>
+  <div class="zx-stat-grid">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
+      <div id="stat-total-ref" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Total Team Members</div>
+      <div class="zx-stat__note">Across all referral levels</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
+      <div id="stat-total-comm" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Total Commission</div>
+      <div class="zx-stat__note">Earned and withdrawable</div>
+    </div>
+    <div class="zx-stat zx-stat--sand">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#chevron-right"></use></svg></div>
+      <div id="stat-lvl1-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Level 1 (Direct)</div>
+      <div class="zx-stat__note">UGX 10,000 per referral</div>
+    </div>
+    <div class="zx-stat zx-stat--lilac">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#chevron-right"></use></svg></div>
+      <div id="stat-lvl2-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Level 2 &amp; 3 Downlines</div>
+      <div class="zx-stat__note">UGX 5,000 &amp; UGX 2,000 per referral</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Your Team Members</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Member</th><th scope="col">Level</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Status</th></tr></thead>
+        <tbody id="team-body">
+          <tr><td colspan="5" class="zx-td-empty">Loading team members...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Commission History</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">From Member</th><th scope="col">Level</th><th scope="col">Commission</th><th scope="col">Status</th></tr></thead>
+        <tbody id="commissions-body">
+          <tr><td colspan="5" class="zx-td-empty">Loading commission history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

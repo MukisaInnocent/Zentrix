@@ -47,28 +47,61 @@ interface LoginRow {
   roles: Role[];
 }
 
-function identifierClause(identifier: string): { column: string; value: string } {
-  if (identifier.includes('@')) return { column: 'email', value: identifier.toLowerCase() };
-  if (identifier.startsWith('+')) {
-    const phone = parsePhoneNumberFromString(identifier);
-    if (phone?.isValid()) return { column: 'phone_e164', value: phone.number };
+function findUserByIdentifier(pool: Services['pool'], identifier: string): Promise<LoginRow | null> {
+  const clean = identifier.trim();
+  const lower = clean.toLowerCase();
+
+  if (lower.includes('@')) {
+    return maybeOne<LoginRow>(
+      pool,
+      `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+              coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
+       FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
+       WHERE u.email = $1 AND u.anonymized_at IS NULL`,
+      [lower],
+    );
   }
-  return { column: 'username', value: identifier.toLowerCase() };
+
+  // Check phone variants: national format (0700...) or international (+256...)
+  const digits = clean.replace(/[\s\-()]/g, '');
+  let phoneE164: string | null = null;
+  if (/^\+?\d{8,15}$/.test(digits)) {
+    const parsed =
+      (digits.startsWith('+') ? parsePhoneNumberFromString(digits) : null) ??
+      parsePhoneNumberFromString(digits, 'UG') ??
+      parsePhoneNumberFromString(digits, 'KE') ??
+      parsePhoneNumberFromString(digits, 'TZ') ??
+      parsePhoneNumberFromString(digits, 'RW') ??
+      parsePhoneNumberFromString(digits, 'NG');
+    if (parsed?.isValid()) phoneE164 = parsed.number;
+  }
+
+  if (phoneE164) {
+    return maybeOne<LoginRow>(
+      pool,
+      `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+              coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
+       FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
+       WHERE (u.phone_e164 = $1 OR u.username = $2) AND u.anonymized_at IS NULL`,
+      [phoneE164, lower],
+    );
+  }
+
+  return maybeOne<LoginRow>(
+    pool,
+    `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+            coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
+     FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
+     WHERE u.username = $1 AND u.anonymized_at IS NULL`,
+    [lower],
+  );
 }
 
 export async function login(services: Services, raw: unknown, meta: RequestMeta): Promise<LoginResult> {
   const input = parse(LoginSchema, raw);
   const { pool, config } = services;
   const now = services.now();
-  const { column, value } = identifierClause(input.identifier);
-  const user = await maybeOne<LoginRow>(
-    pool,
-    `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
-            coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
-     FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
-     WHERE u.${column} = $1 AND u.anonymized_at IS NULL`,
-    [value],
-  );
+  const user = await findUserByIdentifier(pool, input.identifier);
   if (!user) {
     await burnPasswordCheck(input.password);
     throw badCredentials();

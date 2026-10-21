@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 160" role="img" aria-label="You, linked to the friends you invite">
+  <g fill="none" stroke="#0E5C63" stroke-width="2" stroke-dasharray="5 6" opacity=".55">
+    <path d="M140 80 52 40"/><path d="M140 80 228 40"/><path d="M140 80 60 128"/><path d="M140 80 220 128"/>
+  </g>
+  <circle cx="140" cy="80" r="34" fill="#0E5C63"/>
+  <circle cx="140" cy="70" r="11" fill="#F4F7F9"/>
+  <path d="M120 102a20 20 0 0 1 40 0" fill="#F4F7F9"/>
+  <g>
+    <circle cx="52" cy="40" r="20" fill="#F1909B"/><circle cx="228" cy="40" r="20" fill="#6DB1F2"/>
+    <circle cx="60" cy="128" r="20" fill="#BDEFCD"/><circle cx="220" cy="128" r="20" fill="#EDBAF7"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="52" cy="35" r="6"/><circle cx="228" cy="35" r="6"/><circle cx="60" cy="123" r="6"/><circle cx="220" cy="123" r="6"/>
+  </g>
+</svg>

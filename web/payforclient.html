@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pay For Client · Zentrix</title>
+<meta name="description" content="Make a membership or wallet deposit payment on behalf of a client.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="payforclient" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Pay For Client</h1>
+      <p>Pay a membership activation or funding transfer directly on behalf of a client.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
+      <div id="pfc-balance" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Available Wallet Balance</div>
+      <div class="zx-stat__note">Funds used to pay for client</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
+      <div id="pfc-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Clients Paid</div>
+      <div class="zx-stat__note">All-time client payments</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <h2>New Client Payment</h2>
+    <p class="zx-hint">Enter the client's information and transfer amount.</p>
+    <form id="pfc-form" class="zx-form">
+      <div id="pfc-alert" class="zx-error zx-error--slot" role="alert"></div>
+      <div class="zx-form-row zx-form-row--2">
+        <div class="zx-field">
+          <label for="client-name">Client Full Name</label>
+          <input id="client-name" class="zx-input" name="clientName" required placeholder="e.g. John Bosco">
+        </div>
+        <div class="zx-field">
+          <label for="client-phone">Client Phone Number</label>
+          <input id="client-phone" class="zx-input" name="clientPhone" required placeholder="e.g. 0770000000">
+        </div>
+      </div>
+      <div class="zx-field">
+        <label for="pfc-amount">Amount (UGX)</label>
+        <input id="pfc-amount" class="zx-input" name="amount" type="number" min="1000" step="1000" required value="19000">
+      </div>
+      <div class="zx-field">
+        <label for="pfc-note">Note / Purpose <span class="zx-hint">(optional)</span></label>
+        <input id="pfc-note" class="zx-input" name="note" placeholder="e.g. Membership activation fee">
+      </div>
+      <button id="pfc-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit Client Payment</button>
+    </form>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Recent Client Payments</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Client Name</th><th scope="col">Phone</th><th scope="col">Amount</th><th scope="col">Reference</th><th scope="col">Status</th></tr></thead>
+        <tbody id="pfc-history-body">
+          <tr><td colspan="6" class="zx-td-empty">Loading client payments...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

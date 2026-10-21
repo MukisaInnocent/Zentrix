@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" role="img" aria-label="A phone showing task and learning cards">
+  <circle cx="250" cy="70" r="46" fill="#D8EBEC" opacity=".55"/>
+  <circle cx="64" cy="232" r="34" fill="#F6D79A" opacity=".6"/>
+  <rect x="88" y="18" width="150" height="270" rx="26" fill="#10232A"/>
+  <rect x="98" y="34" width="130" height="240" rx="18" fill="#F4F7F9"/>
+  <rect x="108" y="48" width="110" height="48" rx="12" fill="#0E5C63"/>
+  <rect x="118" y="60" width="52" height="8" rx="4" fill="#F2B544"/>
+  <rect x="118" y="76" width="80" height="6" rx="3" fill="#D8EBEC"/>
+  <rect x="108" y="106" width="52" height="56" rx="12" fill="#6DB1F2"/>
+  <rect x="166" y="106" width="52" height="56" rx="12" fill="#BDEFCD"/>
+  <circle cx="122" cy="120" r="7" fill="#FFFFFF"/>
+  <circle cx="180" cy="120" r="7" fill="#FFFFFF"/>
+  <rect x="116" y="138" width="34" height="7" rx="3.5" fill="#10232A" opacity=".75"/>
+  <rect x="174" y="138" width="34" height="7" rx="3.5" fill="#10232A" opacity=".75"/>
+  <rect x="108" y="172" width="110" height="88" rx="12" fill="#FFFFFF"/>
+  <g fill="none" stroke="#0E5C63" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m118 188 4 4 7-8"/><path d="m118 212 4 4 7-8"/>
+  </g>
+  <rect x="136" y="186" width="70" height="7" rx="3.5" fill="#DDE5E9"/>
+  <rect x="136" y="210" width="56" height="7" rx="3.5" fill="#DDE5E9"/>
+  <circle cx="122" cy="238" r="6" fill="none" stroke="#9DB2B8" stroke-width="3"/>
+  <rect x="136" y="234" width="64" height="7" rx="3.5" fill="#DDE5E9"/>
+  <rect x="236" y="150" width="62" height="62" rx="16" fill="#EDBAF7"/>
+  <path d="M252 168h30M252 180h22M252 192h26" stroke="#10232A" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+</svg>

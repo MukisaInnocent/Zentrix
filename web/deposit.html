@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deposit · Zentrix</title>
+<meta name="description" content="Add funds to your Zentrix digital wallet.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="deposit" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Deposit Funds</h1>
+      <p>Add funds to your wallet using MTN MoMo, Airtel Money, or bank transfer.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
+      <div id="stat-balance" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Current Balance</div>
+      <div class="zx-stat__note">Available in your wallet</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#deposit"></use></svg></div>
+      <div id="stat-total-deposited" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Total Deposited</div>
+      <div class="zx-stat__note">All-time completed deposits</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <h2>Make a Deposit</h2>
+    <p class="zx-hint">In test mode, simulated mobile-money deposits complete immediately so you can test deposits on LAN and local machine.</p>
+    <form id="deposit-form" class="zx-form">
+      <div id="deposit-alert" class="zx-error zx-error--slot" role="alert"></div>
+      <div class="zx-field">
+        <label for="deposit-amount">Amount (UGX)</label>
+        <input id="deposit-amount" class="zx-input" name="amount" type="number" min="500" step="500" required placeholder="e.g. 20000" value="20000">
+        <div class="zx-chips">
+          <button type="button" class="zx-chip preset-btn" data-val="10000">+10k</button>
+          <button type="button" class="zx-chip preset-btn" data-val="20000">+20k</button>
+          <button type="button" class="zx-chip preset-btn" data-val="50000">+50k</button>
+          <button type="button" class="zx-chip preset-btn" data-val="100000">+100k</button>
+        </div>
+      </div>
+      <div class="zx-form-row zx-form-row--2">
+        <div class="zx-field">
+          <label for="deposit-method">Payment Method</label>
+          <select id="deposit-method" class="zx-select" name="method">
+            <option value="MTN Mobile Money">MTN Mobile Money</option>
+            <option value="Airtel Money">Airtel Money</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
+        </div>
+        <div class="zx-field">
+          <label for="deposit-phone">Mobile Money Phone Number</label>
+          <input id="deposit-phone" class="zx-input" name="phone" type="tel" placeholder="e.g. 0770000000">
+        </div>
+      </div>
+      <button id="deposit-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Complete Deposit</button>
+    </form>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Deposit History</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col">Reference</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
+        <tbody id="deposit-history-body">
+          <tr><td colspan="5" class="zx-td-empty">Loading deposit history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

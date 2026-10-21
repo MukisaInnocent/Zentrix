@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vouchers · Zentrix</title>
+<meta name="description" content="Purchase and redeem membership and wallet vouchers.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="voucher" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Vouchers</h1>
+      <p>Create gift vouchers for downlines or redeem a voucher code into your wallet.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
+      <div id="voucher-wallet-balance" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Available Wallet Balance</div>
+      <div class="zx-stat__note">Usable to purchase vouchers</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#ticket"></use></svg></div>
+      <div id="active-vouchers-count" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">My Active Vouchers</div>
+      <div class="zx-stat__note">Available to share or redeem</div>
+    </div>
+  </div>
+  <div class="zx-split">
+    <div class="zx-card">
+      <h2>Buy a Voucher</h2>
+      <p class="zx-hint">Purchased vouchers are generated with a unique code you can share.</p>
+      <form id="buy-voucher-form" class="zx-form">
+        <div id="buy-alert" class="zx-error zx-error--slot" role="alert"></div>
+        <div class="zx-field">
+          <label for="voucher-value">Voucher Value (UGX)</label>
+          <select id="voucher-value" class="zx-select" name="amount">
+            <option value="5000">UGX 5,000</option>
+            <option value="10000">UGX 10,000</option>
+            <option value="19000" selected>UGX 19,000 (Membership Activation)</option>
+            <option value="20000">UGX 20,000</option>
+            <option value="50000">UGX 50,000</option>
+          </select>
+        </div>
+        <div class="zx-field">
+          <label for="voucher-quantity">Quantity</label>
+          <input id="voucher-quantity" class="zx-input" name="quantity" type="number" min="1" max="5" value="1">
+        </div>
+        <button id="buy-submit" class="zx-btn zx-btn--block" type="submit">Buy Voucher</button>
+      </form>
+    </div>
+    <div class="zx-card">
+      <h2>Redeem a Voucher</h2>
+      <p class="zx-hint">Enter your voucher code to credit the amount directly to your wallet.</p>
+      <form id="redeem-voucher-form" class="zx-form">
+        <div id="redeem-alert" class="zx-error zx-error--slot" role="alert"></div>
+        <div class="zx-field">
+          <label for="redeem-code">Voucher Code</label>
+          <input id="redeem-code" class="zx-input zx-input--code" name="code" required placeholder="ZX-XXXX-XXXX">
+        </div>
+        <button id="redeem-submit" class="zx-btn zx-btn--block zx-btn--secondary" type="submit">Redeem Code</button>
+      </form>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>My Created Vouchers</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Voucher Code</th><th scope="col">Value</th><th scope="col">Created Date</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+        <tbody id="vouchers-body">
+          <tr><td colspan="5" class="zx-td-empty">Loading vouchers...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

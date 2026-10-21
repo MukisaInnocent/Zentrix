@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Withdraw · Zentrix</title>
+<meta name="description" content="Withdraw your available earnings to mobile money or bank.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="withdraw" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Withdraw Funds</h1>
+      <p>Cash out your task rewards and referral commissions to your mobile money number.</p>
+    </div>
+  </div>
+  <div class="zx-stat-grid zx-stat-grid--2">
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
+      <div id="stat-available" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Available for Withdrawal</div>
+      <div class="zx-stat__note">Minimum withdrawal: UGX 1,000</div>
+    </div>
+    <div class="zx-stat zx-stat--lilac">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#withdraw"></use></svg></div>
+      <div id="stat-withdrawn" class="zx-stat__value">UGX 0</div>
+      <div class="zx-stat__label">Total Withdrawn</div>
+      <div class="zx-stat__note">Processed payouts to date</div>
+    </div>
+  </div>
+  <div class="zx-card">
+    <h2>Request a Payout</h2>
+    <p class="zx-hint">Withdrawal fee is 0.5% (50 basis points) of the amount withdrawn. Minimum payout is UGX 1,000.</p>
+    <form id="withdraw-form" class="zx-form">
+      <div id="withdraw-alert" class="zx-error zx-error--slot" role="alert"></div>
+      <div class="zx-field">
+        <label for="withdraw-amount">Amount (UGX)</label>
+        <input id="withdraw-amount" class="zx-input" name="amount" type="number" min="1000" step="500" required placeholder="e.g. 10000" value="10000">
+      </div>
+      <div class="zx-calc">
+        <div><span>Processing fee (0.5%):</span> <strong id="calc-fee">UGX 50</strong></div>
+        <div><span>Total deducted:</span> <strong id="calc-total">UGX 10,050</strong></div>
+      </div>
+      <div class="zx-form-row zx-form-row--2">
+        <div class="zx-field">
+          <label for="withdraw-method">Payout Method</label>
+          <select id="withdraw-method" class="zx-select" name="method">
+            <option value="MTN Mobile Money">MTN Mobile Money</option>
+            <option value="Airtel Money">Airtel Money</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
+        </div>
+        <div class="zx-field">
+          <label for="withdraw-destination">Payout Phone / Account Number</label>
+          <input id="withdraw-destination" class="zx-input" name="destination" type="tel" required placeholder="e.g. 0770000000">
+        </div>
+      </div>
+      <button id="withdraw-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit Withdrawal</button>
+    </form>
+  </div>
+  <div class="zx-card">
+    <div class="zx-card__title">
+      <h2>Withdrawal History</h2>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col">Reference</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
+        <tbody id="withdraw-history-body">
+          <tr><td colspan="5" class="zx-td-empty">Loading withdrawal history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>
