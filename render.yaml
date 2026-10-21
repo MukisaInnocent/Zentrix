@@ -1,25 +1,67 @@
+# Render Blueprint for Zentrix (test stage: APP_MODE=test, simulators only, no real money).
+# Create it with: Render dashboard > New > Blueprint > pick this repository.
+# Render prompts once for every variable marked `sync: false` (see PUBLIC_ORIGIN below).
+#
+# Moving to live later needs more than flipping APP_MODE: a new database stamped "live", SMTP_URL, signed-off
+# go-live checklist items and the real provider keys. See CLAUDE.md ("Delivery modes") before doing it.
+
 databases:
   - name: zentrix-db
     databaseName: zentrix
     user: zentrix
+    region: frankfurt
     plan: basic-256mb
+    postgresMajorVersion: "17"
+    ipAllowList: []          # no public access; only services in the same region/account connect (internal URL)
 
 services:
   - type: web
     name: zentrix
     runtime: node
+    region: frankfurt        # must match the database region
     plan: starter
-    buildCommand: npm ci
+    # devDependencies are needed to compile TypeScript, so install them even though NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /healthz
+    autoDeployTrigger: "off" # flip to "commit" when you want pushes to main to deploy
     envVars:
+      - key: NODE_VERSION
+        value: "24"
       - key: NODE_ENV
         value: production
+      - key: APP_MODE
+        value: test
+      # The public https URL of this service, no trailing slash, e.g. https://zentrix.onrender.com
+      # (or your custom domain). Used for cookies, the Origin check and referral links.
+      - key: PUBLIC_ORIGIN
+        sync: false
+      - key: TRUST_PROXY       # Render terminates TLS in front of the app: trust exactly one proxy hop
+        value: "1"
       - key: DATABASE_URL
         fromDatabase:
           name: zentrix-db
           property: connectionString
       - key: DATABASE_SSL
+        value: require
+      # Generated once by Render and kept across deploys. Do not rotate DATA_ENCRYPTION_KEY casually:
+      # it encrypts TOTP secrets at rest and existing ones would stop decrypting.
+      - key: CSRF_SECRET
+        generateValue: true
+      - key: DATA_ENCRYPTION_KEY   # 32 random bytes, base64: exactly what generateValue produces
+        generateValue: true
+      # Apply migrations (and stamp the database "test") on every start. Safe to repeat.
+      - key: MIGRATE_ON_START
         value: "true"
-      - key: DEMO_PAYMENTS_ENABLED
+      # Fake seed data (members, admin, campaigns). Leave off on a public URL. For a private demo set it to
+      # "true" once, read the generated passwords from the logs, then set it back to "false".
+      - key: SEED_ON_START
         value: "false"
+      # Run scheduled jobs (reconciliation, referral release) inside the web process so no second paid
+      # service is needed. Split into a worker service once traffic justifies it.
+      - key: RUN_JOBS_IN_WEB
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      # Real payment keys must NOT be set while APP_MODE=test: the server refuses to start if any variable
+      # with a LIVE word in its name is present.
