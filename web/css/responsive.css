@@ -1,0 +1,129 @@
+/* Responsive layer, loaded last. Targets phones from 320 px (small Android, iPhone SE), 360 to 430 px
+   (most phones), small tablets and landscape phones. Desktop rules live in the other files. */
+
+html { -webkit-tap-highlight-color: transparent; }
+body { overflow-x: clip; }
+img, svg, video { max-inline-size: 100%; }
+.zx-main, .zx-section, .zx-public-header__inner, .zx-landing-hero__inner, .zx-footer__inner {
+  padding-inline-start: max(var(--zx-space-4), env(safe-area-inset-left));
+  padding-inline-end: max(var(--zx-space-4), env(safe-area-inset-right));
+}
+@media (min-width: 1024px) {
+  .zx-main { padding-inline: var(--zx-space-8); }
+}
+.zx-card, .zx-tile, .zx-stat, .zx-hero { min-inline-size: 0; }
+.zx-tile__main { min-inline-size: min(220px, 100%); }
+.zx-copy-row .zx-input { min-inline-size: min(220px, 100%); }
+.zx-inline-copy { min-inline-size: min(260px, 100%); }
+.zx-page > *, .zx-split > * { min-inline-size: 0; }
+
+/* Two-column forms and panels: only where there is room (the sidebar takes 288 px from 1024 px up). */
+@media (min-width: 900px) { .zx-split, .zx-split--wide { grid-template-columns: 1fr; } }
+@media (min-width: 760px) and (max-width: 1023px) { .zx-split { grid-template-columns: 1fr 1fr; } .zx-split--wide { grid-template-columns: 1.3fr 1fr; } }
+@media (min-width: 1240px) { .zx-split { grid-template-columns: 1fr 1fr; } .zx-split--wide { grid-template-columns: 1.4fr 1fr; } }
+
+/* Public header: the menu drops to its own scrollable row on phones and tablets. */
+@media (max-width: 899px) {
+  .zx-public-header__inner { flex-wrap: wrap; gap: var(--zx-space-2) var(--zx-space-3); padding-block: var(--zx-space-2); }
+  .zx-public-nav {
+    display: flex; order: 3; inline-size: 100%; margin: 0; gap: var(--zx-space-1); overflow-x: auto; scrollbar-width: none;
+    padding-block-end: var(--zx-space-1);
+  }
+  .zx-public-nav::-webkit-scrollbar { display: none; }
+  .zx-public-nav a { flex: none; padding: 6px 12px; font-size: .875rem; background: var(--zx-surface-2); }
+}
+
+/* Phones */
+@media (max-width: 639px) {
+  .zx-input, .zx-select, .zx-textarea { font-size: 16px; } /* stops iOS zooming into focused fields */
+  .zx-main { padding-block-start: var(--zx-space-4); }
+  .zx-page, .zx-container, .zx-dash { gap: var(--zx-space-4); }
+  .zx-card { padding: var(--zx-space-4); border-radius: var(--zx-radius); }
+  .zx-card--soft { padding: var(--zx-space-3) var(--zx-space-4); }
+  .zx-legal { padding: var(--zx-space-5) var(--zx-space-4); }
+  .zx-page-head { align-items: stretch; }
+  .zx-page-head__actions { inline-size: 100%; }
+  .zx-page-head__actions .zx-btn { flex: 1; }
+  .zx-stat { min-block-size: 0; padding: var(--zx-space-4); }
+  .zx-stat__badge { inline-size: 40px; block-size: 40px; margin-block-end: var(--zx-space-2); }
+  .zx-hero { padding: var(--zx-space-5) var(--zx-space-4); }
+  .zx-hero__aside { inline-size: 100%; }
+  .zx-hero__actions .zx-btn { flex: 1; }
+  .zx-status-card { align-items: stretch; }
+  .zx-status-card .zx-btn { inline-size: 100%; }
+  .zx-ref-card { align-items: stretch; }
+  .zx-inline-copy { max-inline-size: none; inline-size: 100%; }
+  .zx-copy-row .zx-btn { inline-size: 100%; }
+  .zx-tile { padding: var(--zx-space-4); }
+  .zx-tile > .zx-btn, .zx-tile > span.zx-btn { inline-size: 100%; }
+  .zx-quiz { padding: var(--zx-space-4); }
+  .zx-auth-panel { align-items: flex-start; padding: var(--zx-space-5) var(--zx-space-4) var(--zx-space-8); }
+  .zx-auth-card > .zx-brand { margin-block-end: var(--zx-space-4); }
+  .zx-auth-card h1 { font-size: 1.5rem; }
+  .zx-dialog__actions { flex-direction: column-reverse; }
+  .zx-dialog__actions .zx-btn { inline-size: 100%; }
+
+  /* Landing */
+  .zx-landing-hero__inner { padding-block: var(--zx-space-8) 64px; gap: var(--zx-space-6); }
+  .zx-landing-hero .zx-row .zx-btn { flex: 1 1 100%; }
+  .zx-trust { flex-direction: column; gap: var(--zx-space-2); }
+  .zx-device-stage { min-block-size: 380px; }
+  .zx-device { inline-size: min(270px, 78vw); }
+  .zx-chip-float { padding: 8px 10px; font-size: .75rem; }
+  .zx-chip-float--a { inset-inline-start: -4px; inset-block-start: 20px; }
+  .zx-chip-float--b { inset-inline-end: -4px; inset-block-start: 170px; }
+  .zx-chip-float--c { inset-inline-start: 0; inset-block-end: 20px; }
+  .zx-strip { margin-block-start: -36px; }
+  .zx-strip__item { padding: var(--zx-space-4) var(--zx-space-3); }
+  .zx-section { padding-block-start: 56px; }
+  .zx-section__head { margin-block-end: var(--zx-space-6); }
+  .zx-band { margin-block-start: 56px; padding-block: 48px; }
+  .zx-cta { padding: var(--zx-space-8) var(--zx-space-4); border-radius: var(--zx-radius-lg); }
+  .zx-cta .zx-btn { inline-size: 100%; }
+  .zx-footer nav { gap: var(--zx-space-3) var(--zx-space-4); }
+
+  /* Tables become stacked cards. tables.js copies each column heading onto its cells as data-label. */
+  .zx-table-wrap { overflow: visible; border: 0; border-radius: 0; }
+  .zx-table, .zx-table tbody, .zx-table tr, .zx-table td { display: block; inline-size: 100%; }
+  .zx-table thead { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .zx-table tr { margin-block-end: var(--zx-space-3); padding: var(--zx-space-2) var(--zx-space-4); border: 1px solid var(--zx-border); border-radius: var(--zx-radius); background: var(--zx-surface); }
+  .zx-table tbody tr:hover { background: var(--zx-surface); }
+  .zx-table tr:last-child { margin-block-end: 0; }
+  .zx-table th, .zx-table td { padding: 8px 0; }
+  .zx-table td { display: flex; align-items: center; justify-content: space-between; gap: var(--zx-space-4); border: 0; border-block-end: 1px dashed var(--zx-border); text-align: end; overflow-wrap: anywhere; }
+  .zx-table td:last-child { border-block-end: 0; }
+  .zx-table td[data-label]::before { content: attr(data-label); flex: none; color: var(--zx-text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; text-align: start; }
+  .zx-table td.zx-td-empty { display: block; text-align: center !important; border: 0; padding: var(--zx-space-5) 0 !important; }
+}
+
+/* Very small phones (320 to 359 px) */
+@media (max-width: 359px) {
+  .zx-brand { font-size: 1.05rem; }
+  .zx-brand img { inline-size: 32px; block-size: 32px; }
+  .zx-public-header__cta .zx-btn--ghost { display: none; }
+  .zx-topbar { padding-inline: var(--zx-space-3); gap: var(--zx-space-2); }
+  .zx-icon-btn { inline-size: 40px; block-size: 40px; }
+  .zx-hero__balance { font-size: 1.75rem; }
+  .zx-bottomnav a, .zx-bottomnav button { font-size: .64rem; }
+  .zx-strip__num { font-size: 1.4rem; }
+  .zx-btn--lg { padding-inline: var(--zx-space-4); }
+}
+
+/* Large phones and small tablets in portrait */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .zx-auth-panel { padding-block: var(--zx-space-8); }
+  .zx-page-head__actions { margin-inline-start: auto; }
+}
+
+/* Landscape phones: keep sticky bars from eating the screen */
+@media (max-height: 480px) and (orientation: landscape) {
+  :root { --zx-topbar-h: 52px; --zx-bottomnav-h: 52px; }
+  .zx-bottomnav a, .zx-bottomnav button { flex-direction: row; gap: 6px; }
+  .zx-drawer__body { padding-block-end: var(--zx-space-4); }
+  .zx-landing-hero__inner { padding-block: var(--zx-space-6); }
+}
+
+/* Touch devices: no hover lift that sticks after a tap */
+@media (hover: none) {
+  .zx-card--lift:hover, .zx-stat:hover, .zx-module:hover, .zx-feature:hover, .zx-principle:hover, .zx-btn:hover { transform: none; }
+}

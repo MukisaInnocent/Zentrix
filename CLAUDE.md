@@ -6,6 +6,7 @@ Loaded at the start of every session. Requirements come from the owner's Zentrix
 
 - 2026-10-21: the owner answered the plan's questions; their answers count as approval with changes. Phase 1 (foundation) is in progress on branch `rebuild/phase-1-foundation`.
 - Owner decisions are logged in `docs/PLAN.md` section 12. Unanswered items use the defaults in section 10, marked `TODO(owner)` in code and settings.
+- 2026-10-21 (later): the owner asked that referral levels stop at level 3 (UGX 10,000 / 5,000 / 2,000). The code now caps at `MAX_REFERRAL_LEVEL = 3` (service, migration 0006, UI, tests). It is still multi-level, so rules 3.1 and 3.2 remain unresolved and need the owner's decision before launch.
 - The owner asked for multi-level referral payouts (UGX 10,000 / 5,000 / 2,000 "and so on"). That breaks rules 3.1 and 3.2 and was declined. Build single-level only. The reward amount is still `TODO(owner)` and must stay within the 10% cap.
 
 ## How to operate

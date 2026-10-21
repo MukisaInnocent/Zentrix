@@ -5,9 +5,10 @@ export const REFERRAL_TIERS_UGX: Record<number, bigint> = {
   1: 10_000n, // Level 1 (Direct referrer): UGX 10,000
   2: 5_000n,  // Level 2 (Referrer of referrer): UGX 5,000
   3: 2_000n,  // Level 3 (Third level): UGX 2,000
-  4: 1_000n,  // Level 4: UGX 1,000
-  5: 500n,    // Level 5: UGX 500
 };
+
+/** Referral rewards stop at level 3. Nothing is paid above this level. */
+export const MAX_REFERRAL_LEVEL = 3;
 
 export interface ReferralStat {
   referralCode: string;
@@ -43,8 +44,7 @@ export interface CommissionItem {
  * Level 1: UGX 10,000
  * Level 2: UGX 5,000
  * Level 3: UGX 2,000
- * Level 4: UGX 1,000
- * Level 5: UGX 500
+ * Nothing is paid beyond level 3.
  */
 export async function distributeReferralRewards(
   db: Db,
@@ -66,8 +66,9 @@ export async function distributeReferralRewards(
   let distributedCount = 0;
   let totalDistributedMinor = 0n;
 
-  while (currentReferrerId && level <= 5) {
-    const rewardMinor = REFERRAL_TIERS_UGX[level] ?? 500n;
+  while (currentReferrerId && level <= MAX_REFERRAL_LEVEL) {
+    const rewardMinor = REFERRAL_TIERS_UGX[level];
+    if (rewardMinor === undefined) break;
 
     // Record the commission in referral_rewards
     await db.query(
@@ -215,8 +216,6 @@ export async function getReferralOverview(
       { level: 1, amount: '10000' },
       { level: 2, amount: '5000' },
       { level: 3, amount: '2000' },
-      { level: 4, amount: '1000' },
-      { level: 5, amount: '500' },
     ],
   };
 

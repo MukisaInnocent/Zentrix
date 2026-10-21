@@ -20,7 +20,7 @@ afterAll(async () => {
 });
 
 describe('multi-level referrals and wallet integration', () => {
-  it('distributes UGX 10,000 for level 1, UGX 5,000 for level 2, UGX 2,000 for level 3, and UGX 1,000 for level 4', async () => {
+  it('distributes UGX 10,000 for level 1, UGX 5,000 for level 2, UGX 2,000 for level 3, and nothing beyond level 3', async () => {
     // Create user chain: A -> B -> C -> D -> E
     const create = async (username: string, referrerId: number | null) => {
       const res = await pool.query<{ id: string }>(
@@ -55,18 +55,18 @@ describe('multi-level referrals and wallet integration', () => {
 
     // Distribute rewards when E joins
     const resE = await distributeReferralRewards(pool, userE);
-    expect(resE.distributedCount).toBe(4);
-    expect(resE.totalDistributedMinor).toBe(18_000n); // 10k to D, 5k to C, 2k to B, 1k to A
+    expect(resE.distributedCount).toBe(3);
+    expect(resE.totalDistributedMinor).toBe(17_000n); // 10k to D, 5k to C, 2k to B; A is level 4 and gets nothing
 
     // Check User A's wallet:
     // From B (Level 1): 10,000
     // From C (Level 2): 5,000
     // From D (Level 3): 2,000
-    // From E (Level 4): 1,000
-    // Total = 18,000 UGX
+    // From E (Level 4): nothing, rewards stop at level 3
+    // Total = 17,000 UGX
     const summaryA = await getWalletSummary(pool, userA);
-    expect(summaryA.availableBalanceMinor).toBe('18000');
-    expect(summaryA.totalReferralEarnedMinor).toBe('18000');
+    expect(summaryA.availableBalanceMinor).toBe('17000');
+    expect(summaryA.totalReferralEarnedMinor).toBe('17000');
 
     // Check User B's wallet:
     // From C (Level 1): 10,000
@@ -91,8 +91,9 @@ describe('multi-level referrals and wallet integration', () => {
     // Check overview for User A
     const overviewA = await getReferralOverview(pool, userA);
     expect(overviewA.stats.level1Count).toBe(1);
-    expect(overviewA.stats.totalCommissionsMinor).toBe('18000');
-    expect(overviewA.commissions.length).toBe(4);
+    expect(overviewA.stats.totalCommissionsMinor).toBe('17000');
+    expect(overviewA.commissions.length).toBe(3);
+    expect(overviewA.commissions.every(c => c.level <= 3)).toBe(true);
   });
 
   it('handles deposits and withdrawals with 0.5% fee accurately', async () => {
