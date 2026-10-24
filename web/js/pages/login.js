@@ -44,6 +44,29 @@ export function init() {
     }
   });
 
+  let challengeToken = null;
+  function showCodeStep() {
+    for (const id of ['identifier', 'password']) {
+      const field = $(`#${id}`)?.closest('.zx-field');
+      if (field) field.hidden = true;
+      $(`#${id}`)?.removeAttribute('required');
+    }
+    const field = document.createElement('div');
+    field.className = 'zx-field';
+    const label = document.createElement('label');
+    label.htmlFor = 'login-code';
+    label.textContent = 'Authenticator code';
+    const input = document.createElement('input');
+    Object.assign(input, { id: 'login-code', name: 'code', className: 'zx-input zx-code-input', inputMode: 'numeric', autocomplete: 'one-time-code', required: true, maxLength: 12 });
+    const hint = document.createElement('span');
+    hint.className = 'zx-hint';
+    hint.textContent = 'Staff accounts need the 6-digit code from your authenticator app. In test mode run: npm run totp -- <username>';
+    field.append(label, input, hint);
+    submitBtn.before(field);
+    submitBtn.textContent = 'Confirm code';
+    input.focus();
+  }
+
   form?.addEventListener('submit', async e => {
     e.preventDefault();
     clearErrors();
@@ -55,10 +78,27 @@ export function init() {
     const password = String(data.get('password') || '');
 
     try {
-      await api.post('/api/auth/login', { identifier, password });
-      const next = new URLSearchParams(location.search).get('next') || '/dashboard.html';
+      if (challengeToken) {
+        await api.post('/api/auth/login/mfa', { challengeToken, code: String(data.get('code') || '').trim() });
+      } else {
+        const res = await api.post('/api/auth/login', { identifier, password });
+        // Staff accounts need a second step: the 6-digit code from the authenticator app.
+        if (res?.mfaRequired) {
+          challengeToken = res.challengeToken;
+          showCodeStep();
+          submitBtn.removeAttribute('aria-busy');
+          submitBtn.disabled = false;
+          return;
+        }
+      }
+      const next = new URLSearchParams(location.search).get('next') || (challengeToken ? '/admin/index.html' : '/dashboard.html');
       location.assign(next);
     } catch (err) {
+      if (challengeToken && err instanceof ApiError && err.code === 'auth.mfa_expired') {
+        challengeToken = null;
+        location.reload();
+        return;
+      }
       submitBtn.removeAttribute('aria-busy');
       submitBtn.disabled = false;
 
