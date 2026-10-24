@@ -24,12 +24,13 @@ export function init() {
     });
   });
 
+  // Test shortcuts fill the username only; passwords never live in page code.
   $('#fill-test-member')?.addEventListener('click', () => {
     const idInput = $('#identifier');
     const pwdInput = $('#password');
     if (idInput && pwdInput) {
       idInput.value = 'test_member_01';
-      pwdInput.value = 'Member-kcyDG72VN_Nt';
+      pwdInput.focus();
       clearErrors();
     }
   });
@@ -39,7 +40,7 @@ export function init() {
     const pwdInput = $('#password');
     if (idInput && pwdInput) {
       idInput.value = 'zx_admin';
-      pwdInput.value = 'Staff-Jcba_P99ZOe2';
+      pwdInput.focus();
       clearErrors();
     }
   });
