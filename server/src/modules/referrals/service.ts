@@ -1,14 +1,11 @@
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 
-export const REFERRAL_TIERS_UGX: Record<number, bigint> = {
-  1: 10_000n, // Level 1 (Direct referrer): UGX 10,000
-  2: 5_000n,  // Level 2 (Referrer of referrer): UGX 5,000
-  3: 2_000n,  // Level 3 (Third level): UGX 2,000
-};
-
-/** Referral rewards stop at level 3. Nothing is paid above this level. */
-export const MAX_REFERRAL_LEVEL = 3;
+// Single level, flat amount (rules 3.1 and 3.2). The owner asked for UGX 10,000 / 5,000 / 2,000 over three
+// levels; that is a multi-level commission, so it is not built. Until the owner picks a single-level amount
+// within the 10% cap (UGX 1,900 of the UGX 19,000 fee), the plan's default UGX 1,000 applies: TODO(owner).
+// Rewards are recorded as pending and nothing is paid until the release flow from referral_budget exists.
+export const REFERRAL_REWARD_MINOR: Record<string, bigint> = { UGX: 1_000n };
 
 export interface ReferralStat {
   referralCode: string;
@@ -37,85 +34,24 @@ export interface CommissionItem {
   level: number;
   amountMinor: string;
   currency: string;
+  status: string;
 }
 
-/**
- * Distributes multi-level referral rewards up the sponsor hierarchy for a user.
- * Level 1: UGX 10,000
- * Level 2: UGX 5,000
- * Level 3: UGX 2,000
- * Nothing is paid beyond level 3.
- */
-export async function distributeReferralRewards(
-  db: Db,
-  newUserId: number,
-): Promise<{ distributedCount: number; totalDistributedMinor: bigint }> {
-  // Check if rewards were already distributed for this user
-  const already = await maybeOne(db, 'SELECT 1 FROM referral_rewards WHERE referred_user_id = $1', [newUserId]);
-  if (already) return { distributedCount: 0, totalDistributedMinor: 0n };
-
-  const newUser = await maybeOne<{ id: string; username: string; referred_by_user_id: string | null; currency_code: string }>(
-    db,
-    'SELECT id, username, referred_by_user_id, currency_code FROM users WHERE id = $1',
-    [newUserId],
+// Records the direct referrer's reward when a referred member pays the membership fee. No money moves here:
+// the reward stays pending (hold period, caps and the referral_budget payout come with Phase 4).
+export async function recordReferralReward(db: Db, referredUserId: number): Promise<boolean> {
+  const user = await maybeOne<{ referred_by_user_id: string | null; currency_code: string }>(
+    db, 'SELECT referred_by_user_id, currency_code FROM users WHERE id = $1', [referredUserId],
   );
-  if (!newUser || !newUser.referred_by_user_id) return { distributedCount: 0, totalDistributedMinor: 0n };
-
-  let currentReferrerId: number | null = Number(newUser.referred_by_user_id);
-  let level = 1;
-  let distributedCount = 0;
-  let totalDistributedMinor = 0n;
-
-  while (currentReferrerId && level <= MAX_REFERRAL_LEVEL) {
-    const rewardMinor = REFERRAL_TIERS_UGX[level];
-    if (rewardMinor === undefined) break;
-
-    // Record the commission in referral_rewards
-    await db.query(
-      `INSERT INTO referral_rewards (referrer_user_id, referred_user_id, level, amount_minor, currency_code, status)
-       VALUES ($1, $2, $3, $4, 'UGX', 'credited')`,
-      [currentReferrerId, newUserId, level, rewardMinor.toString()],
-    );
-
-    // Update referrer's wallet
-    const updatedWallet = await one<{ balance_minor: string }>(
-      db,
-      `UPDATE wallets
-       SET balance_minor = balance_minor + $1,
-           total_referral_earned_minor = total_referral_earned_minor + $1,
-           updated_at = now()
-       WHERE user_id = $2
-       RETURNING balance_minor`,
-      [rewardMinor.toString(), currentReferrerId],
-    );
-
-    // Record in wallet_transactions
-    await db.query(
-      `INSERT INTO wallet_transactions (user_id, kind, amount_minor, currency_code, balance_after_minor, description, reference)
-       VALUES ($1, 'referral_bonus', $2, 'UGX', $3, $4, $5)`,
-      [
-        currentReferrerId,
-        rewardMinor.toString(),
-        updatedWallet.balance_minor,
-        `Level ${level} referral commission from @${newUser.username}`,
-        `REF-L${level}-${newUser.id}`,
-      ],
-    );
-
-    distributedCount++;
-    totalDistributedMinor += rewardMinor;
-
-    // Move to next upstream referrer in the chain
-    const referrer: { referred_by_user_id: string | null } | null = await maybeOne<{ referred_by_user_id: string | null }>(
-      db,
-      'SELECT referred_by_user_id FROM users WHERE id = $1',
-      [currentReferrerId],
-    );
-    currentReferrerId = referrer?.referred_by_user_id ? Number(referrer.referred_by_user_id) : null;
-    level++;
-  }
-
-  return { distributedCount, totalDistributedMinor };
+  const amount = user ? REFERRAL_REWARD_MINOR[user.currency_code] : undefined;
+  if (!user?.referred_by_user_id || amount === undefined) return false;
+  if (await maybeOne(db, 'SELECT 1 FROM referral_rewards WHERE referred_user_id = $1', [referredUserId])) return false;
+  await db.query(
+    `INSERT INTO referral_rewards (referrer_user_id, referred_user_id, level, amount_minor, currency_code, status)
+     VALUES ($1, $2, 1, $3, $4, 'pending')`,
+    [user.referred_by_user_id, referredUserId, amount.toString(), user.currency_code],
+  );
+  return true;
 }
 
 /**
@@ -174,7 +110,7 @@ export async function getReferralOverview(
 
   const totalCommissions = await one<{ total: string }>(
     db,
-    'SELECT coalesce(sum(amount_minor), 0)::text AS total FROM referral_rewards WHERE referrer_user_id = $1',
+    `SELECT coalesce(sum(amount_minor), 0)::text AS total FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited'`,
     [userId],
   );
 
@@ -183,11 +119,12 @@ export async function getReferralOverview(
     level: number;
     amount_minor: string;
     currency_code: string;
+    status: string;
     created_at: Date;
     from_username: string;
   }>(
     db,
-    `SELECT r.id, r.level, r.amount_minor, r.currency_code, r.created_at, u.username AS from_username
+    `SELECT r.id, r.level, r.amount_minor, r.currency_code, r.status, r.created_at, u.username AS from_username
      FROM referral_rewards r
      JOIN users u ON u.id = r.referred_user_id
      WHERE r.referrer_user_id = $1
@@ -202,6 +139,7 @@ export async function getReferralOverview(
     level: c.level,
     amountMinor: c.amount_minor,
     currency: c.currency_code,
+    status: c.status,
   }));
 
   const stats: ReferralStat = {
@@ -212,11 +150,7 @@ export async function getReferralOverview(
     level1Count: level1Users.length,
     level2Count: level2Users.length,
     level3Count: level3Users.length,
-    tierAmounts: [
-      { level: 1, amount: '10000' },
-      { level: 2, amount: '5000' },
-      { level: 3, amount: '2000' },
-    ],
+    tierAmounts: [{ level: 1, amount: String(REFERRAL_REWARD_MINOR[user.currency_code] ?? 0n) }],
   };
 
   return { stats, team, commissions };

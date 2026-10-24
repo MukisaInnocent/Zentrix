@@ -1,4 +1,4 @@
-import { api, ApiError } from '../core/api.js';
+import { api, ApiError, newIdempotencyKey } from '../core/api.js';
 import { $ } from '../core/dom.js';
 import { formatMoney } from '../core/format.js';
 import { toast } from '../core/toast.js';
@@ -62,7 +62,7 @@ export async function init() {
               const answer = btn.getAttribute('data-answer');
               btn.setAttribute('aria-busy', 'true');
               try {
-                await api.post(`/api/tasks/${taskId}/complete`, { answer });
+                await api.post(`/api/tasks/${taskId}/complete`, { answer }, { idempotencyKey: newIdempotencyKey() });
                 toast.success('Correct answer! UGX 500 added to your wallet.');
                 await refresh();
               } catch (err) {

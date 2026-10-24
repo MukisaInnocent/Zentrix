@@ -20,6 +20,7 @@ export const forbidden = (code = 'auth.forbidden', message = 'You do not have ac
   new AppError(403, code, message);
 export const notFound = (code = 'not_found', message = 'Not found.') => new AppError(404, code, message);
 export const conflict = (code: string, message: string) => new AppError(409, code, message);
+export const serviceUnavailable = (code: string, message: string) => new AppError(503, code, message);
 export const tooManyRequests = (message = 'Too many attempts. Please wait and try again.') =>
   new AppError(429, 'rate_limited', message);
 

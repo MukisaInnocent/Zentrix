@@ -10,6 +10,7 @@ import { adminRouter } from './modules/admin/routes.js';
 import { csrfProtection, loadSession } from './modules/auth/middleware.js';
 import { authRouter } from './modules/auth/routes.js';
 import { metaRouter, referenceRouter } from './modules/countries/routes.js';
+import { paymentsRouter } from './modules/payments/routes.js';
 import { referralsRouter } from './modules/referrals/routes.js';
 import { tasksRouter } from './modules/tasks/routes.js';
 import { meRouter } from './modules/users/routes.js';
@@ -52,6 +53,7 @@ export function createApp(services: Services): express.Express {
   api.use('/meta', metaRouter(services));
   api.use('/admin', adminRouter(services));
   api.use('/wallet', walletRouter(services));
+  api.use('/payments', paymentsRouter(services));
   api.use('/membership', walletRouter(services));
   api.use('/referrals', referralsRouter(services));
   api.use('/team', referralsRouter(services));

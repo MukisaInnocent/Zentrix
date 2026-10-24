@@ -1,4 +1,4 @@
-import { api, ApiError } from '../core/api.js';
+import { api, ApiError, newIdempotencyKey } from '../core/api.js';
 import { $ } from '../core/dom.js';
 import { formatMoney } from '../core/format.js';
 import { toast } from '../core/toast.js';
@@ -48,7 +48,7 @@ export async function init() {
               btn.setAttribute('aria-busy', 'true');
               btn.disabled = true;
               try {
-                await api.post(`/api/tasks/${taskId}/complete`, { answer: 'watched_video' });
+                await api.post(`/api/tasks/${taskId}/complete`, { answer: 'watched_video' }, { idempotencyKey: newIdempotencyKey() });
                 toast.success('Task completed! Reward added to your wallet.');
                 await refresh();
               } catch (err) {

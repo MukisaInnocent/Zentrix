@@ -1,26 +1,26 @@
-import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { maybeOne, one, rows } from '../../db/sql.js';
-import { badRequest, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse } from '../../http/validate.js';
+import { randomCode } from '../../lib/crypto.js';
 import type { Services } from '../../services.js';
 import { requireAuth } from '../auth/middleware.js';
+import { idempotent } from '../ledger/idempotency.js';
+import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
+import { AmountInput, amountToMinor } from '../payments/routes.js';
+import { memberInfo, newReference, requireActive } from '../wallet/service.js';
 
+// Vouchers: the buyer's main balance moves to voucher_liability; redeeming moves it to the redeemer's main
+// balance. Full Phase 4 vouchers (expiry, encrypted codes) are still to come.
 export function vouchersRouter(services: Services): Router {
+  const { pool } = services;
   const router = Router();
   router.use(requireAuth);
 
   router.get('/', async (req, res) => {
-    const list = await rows<{
-      id: string;
-      code: string;
-      amount_minor: string;
-      currency_code: string;
-      status: string;
-      created_at: Date;
-    }>(
-      services.pool,
+    const list = await rows<{ id: string; code: string; amount_minor: string; currency_code: string; status: string; created_at: Date }>(
+      pool,
       'SELECT id, code, amount_minor, currency_code, status, created_at FROM vouchers WHERE creator_user_id = $1 ORDER BY created_at DESC',
       [req.auth!.userId],
     );
@@ -28,134 +28,77 @@ export function vouchersRouter(services: Services): Router {
   });
 
   router.post('/buy', async (req, res) => {
-    const input = parse(
-      z.strictObject({
-        amount: z.coerce.number().int().positive({ error: 'Enter a valid voucher amount.' }),
-        quantity: z.coerce.number().int().min(1).max(10).default(1),
-      }),
-      req.body,
-    );
-
-    const totalCost = BigInt(input.amount) * BigInt(input.quantity);
-    const wallet = await one<{ balance_minor: string; currency_code: string }>(
-      services.pool,
-      'SELECT balance_minor, currency_code FROM wallets WHERE user_id = $1 FOR UPDATE',
-      [req.auth!.userId],
-    );
-
-    if (BigInt(wallet.balance_minor) < totalCost) {
-      throw badRequest('insufficient_funds', 'Insufficient balance to purchase voucher(s).');
-    }
-
-    const createdVouchers = [];
-    for (let i = 0; i < input.quantity; i++) {
-      const code = `ZX-${randomBytes(2).toString('hex').toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
-      await services.pool.query(
-        'INSERT INTO vouchers (code, creator_user_id, amount_minor, currency_code, status) VALUES ($1, $2, $3, $4, $5)',
-        [code, req.auth!.userId, input.amount.toString(), wallet.currency_code, 'active'],
-      );
-      createdVouchers.push({ code, amount: input.amount.toString(), currency: wallet.currency_code });
-    }
-
-    const updated = await one<{ balance_minor: string }>(
-      services.pool,
-      'UPDATE wallets SET balance_minor = balance_minor - $1, updated_at = now() WHERE user_id = $2 RETURNING balance_minor',
-      [totalCost.toString(), req.auth!.userId],
-    );
-
-    await services.pool.query(
-      `INSERT INTO wallet_transactions (user_id, kind, amount_minor, currency_code, balance_after_minor, description)
-       VALUES ($1, 'voucher_purchase', $2, $3, $4, $5)`,
-      [
-        req.auth!.userId,
-        (-totalCost).toString(),
-        wallet.currency_code,
-        updated.balance_minor,
-        `Purchased ${input.quantity} voucher(s) worth UGX ${input.amount}`,
-      ],
-    );
-
-    res.status(201).json({ ok: true, vouchers: createdVouchers, balance: updated.balance_minor });
+    const input = parse(z.strictObject({ amount: AmountInput, quantity: z.coerce.number().int().min(1).max(10).default(1) }), req.body);
+    const result = await idempotent(pool, req, 'voucher.buy', async db => {
+      const userId = req.auth!.userId;
+      const member = await memberInfo(db, userId);
+      requireActive(member);
+      const each = await amountToMinor(db, member.currency, input.amount);
+      const main = await accountId(db, { kind: 'member_main', userId, currency: member.currency });
+      const liability = await accountId(db, { kind: 'voucher_liability', currency: member.currency });
+      let txn: number;
+      try {
+        txn = await post(db, { kind: 'voucher_purchase', memo: `Bought ${input.quantity} voucher(s)`, refType: 'voucher', actorUserId: userId, legs: move(main, liability, each * BigInt(input.quantity)) });
+      } catch (err) {
+        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your main balance is too low for these vouchers.');
+        throw err;
+      }
+      const vouchers = [];
+      for (let i = 0; i < input.quantity; i++) {
+        const code = `ZX-${randomCode(4)}-${randomCode(4)}-${randomCode(4)}`;
+        await db.query(
+          `INSERT INTO vouchers (code, creator_user_id, amount_minor, currency_code, status, ledger_transaction_id) VALUES ($1, $2, $3, $4, 'active', $5)`,
+          [code, userId, each.toString(), member.currency, txn],
+        );
+        vouchers.push({ code, amountMinor: each.toString(), currency: member.currency });
+      }
+      return { status: 201, body: { ok: true, vouchers, balance: (await balanceOf(db, main)).toString() } };
+    });
+    res.status(result.status).json(result.body);
   });
 
   router.post('/redeem', async (req, res) => {
-    const input = parse(
-      z.strictObject({
-        code: z.string().trim().toUpperCase(),
-      }),
-      req.body,
-    );
-
-    const voucher = await maybeOne<{
-      id: string;
-      code: string;
-      amount_minor: string;
-      currency_code: string;
-      status: string;
-    }>(services.pool, 'SELECT id, code, amount_minor, currency_code, status FROM vouchers WHERE code = $1 FOR UPDATE', [input.code]);
-
-    if (!voucher) throw notFound('voucher.not_found', 'Voucher code not found.');
-    if (voucher.status !== 'active') throw badRequest('voucher.already_used', 'This voucher has already been redeemed or cancelled.');
-
-    await services.pool.query(
-      `UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`,
-      [req.auth!.userId, voucher.id],
-    );
-
-    const updated = await one<{ balance_minor: string }>(
-      services.pool,
-      'UPDATE wallets SET balance_minor = balance_minor + $1, updated_at = now() WHERE user_id = $2 RETURNING balance_minor',
-      [voucher.amount_minor, req.auth!.userId],
-    );
-
-    await services.pool.query(
-      `INSERT INTO wallet_transactions (user_id, kind, amount_minor, currency_code, balance_after_minor, description, reference)
-       VALUES ($1, 'voucher_redeem', $2, $3, $4, $5, $6)`,
-      [
-        req.auth!.userId,
-        voucher.amount_minor,
-        voucher.currency_code,
-        updated.balance_minor,
-        `Redeemed voucher ${voucher.code}`,
-        voucher.code,
-      ],
-    );
-
-    res.json({ ok: true, amount: voucher.amount_minor, currency: voucher.currency_code, balance: updated.balance_minor });
+    const input = parse(z.strictObject({ code: z.string().trim().toUpperCase().max(25) }), req.body);
+    const result = await idempotent(pool, req, 'voucher.redeem', async db => {
+      const userId = req.auth!.userId;
+      const member = await memberInfo(db, userId);
+      requireActive(member);
+      const voucher = await maybeOne<{ id: string; code: string; amount_minor: string; currency_code: string; status: string }>(
+        db, 'SELECT id, code, amount_minor, currency_code, status FROM vouchers WHERE code = $1 FOR UPDATE', [input.code],
+      );
+      if (!voucher) throw notFound('voucher.not_found', 'Voucher code not found.');
+      if (voucher.status !== 'active') throw badRequest('voucher.already_used', 'This voucher has already been redeemed or cancelled.');
+      if (voucher.currency_code !== member.currency) throw badRequest('voucher.currency', 'This voucher is in another currency.');
+      const liability = await accountId(db, { kind: 'voucher_liability', currency: member.currency });
+      const main = await accountId(db, { kind: 'member_main', userId, currency: member.currency });
+      await post(db, { kind: 'voucher_redeem', memo: `Redeemed voucher ${voucher.code}`, refType: 'voucher', refId: voucher.code, actorUserId: userId, legs: move(liability, main, BigInt(voucher.amount_minor)) });
+      await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [userId, voucher.id]);
+      return { status: 200, body: { ok: true, amount: voucher.amount_minor, currency: voucher.currency_code, balance: (await balanceOf(db, main)).toString() } };
+    });
+    res.status(result.status).json(result.body);
   });
 
   return router;
 }
 
+// Pay For Client: a wallet-to-wallet payment to another verified member (by username or phone), same currency.
 export function clientPaymentsRouter(services: Services): Router {
+  const { pool } = services;
   const router = Router();
   router.use(requireAuth);
 
   router.get('/', async (req, res) => {
-    const list = await rows<{
-      id: string;
-      client_name: string;
-      client_phone: string;
-      amount_minor: string;
-      currency_code: string;
-      status: string;
-      reference: string;
-      created_at: Date;
-    }>(
-      services.pool,
-      'SELECT id, client_name, client_phone, amount_minor, currency_code, status, reference, created_at FROM client_payments WHERE payer_user_id = $1 ORDER BY created_at DESC',
+    const list = await rows<{ reference: string; amount_minor: string; currency_code: string; note: string | null; created_at: Date; payer: string; payee: string; outgoing: boolean }>(
+      pool,
+      `SELECT t.reference, t.amount_minor, t.currency_code, t.note, t.created_at, p.username AS payer, q.username AS payee, t.payer_user_id = $1 AS outgoing
+       FROM member_transfers t JOIN users p ON p.id = t.payer_user_id JOIN users q ON q.id = t.payee_user_id
+       WHERE t.payer_user_id = $1 OR t.payee_user_id = $1 ORDER BY t.id DESC LIMIT 50`,
       [req.auth!.userId],
     );
     res.json({
       payments: list.map(p => ({
-        id: p.id,
-        clientName: p.client_name,
-        clientPhone: p.client_phone,
-        amountMinor: p.amount_minor,
-        currency: p.currency_code,
-        status: p.status,
-        reference: p.reference,
-        createdAt: p.created_at,
+        reference: p.reference, amountMinor: p.amount_minor, currency: p.currency_code, note: p.note, createdAt: p.created_at,
+        direction: p.outgoing ? 'out' : 'in', counterparty: p.outgoing ? p.payee : p.payer, status: 'completed',
       })),
     });
   });
@@ -163,52 +106,47 @@ export function clientPaymentsRouter(services: Services): Router {
   router.post('/', async (req, res) => {
     const input = parse(
       z.strictObject({
-        clientName: z.string().trim().min(2, { error: 'Client name is required.' }),
-        clientPhone: z.string().trim().min(4, { error: 'Client phone is required.' }),
-        amount: z.coerce.number().int().positive({ error: 'Enter a valid amount.' }),
-        note: z.string().trim().max(500).optional(),
+        recipient: z.string().trim().min(3, { error: 'Enter the member\'s username or phone number.' }).max(40),
+        amount: AmountInput,
+        note: z.string().trim().max(200).optional(),
       }),
       req.body,
     );
-
-    const cost = BigInt(input.amount);
-    const wallet = await one<{ balance_minor: string; currency_code: string }>(
-      services.pool,
-      'SELECT balance_minor, currency_code FROM wallets WHERE user_id = $1 FOR UPDATE',
-      [req.auth!.userId],
-    );
-
-    if (BigInt(wallet.balance_minor) < cost) {
-      throw badRequest('insufficient_funds', 'Insufficient funds for client payment.');
-    }
-
-    const ref = `PFC-${randomBytes(4).toString('hex').toUpperCase()}`;
-    await services.pool.query(
-      `INSERT INTO client_payments (payer_user_id, client_name, client_phone, amount_minor, currency_code, note, status, reference)
-       VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7)`,
-      [req.auth!.userId, input.clientName, input.clientPhone, cost.toString(), wallet.currency_code, input.note ?? null, ref],
-    );
-
-    const updated = await one<{ balance_minor: string }>(
-      services.pool,
-      'UPDATE wallets SET balance_minor = balance_minor - $1, updated_at = now() WHERE user_id = $2 RETURNING balance_minor',
-      [cost.toString(), req.auth!.userId],
-    );
-
-    await services.pool.query(
-      `INSERT INTO wallet_transactions (user_id, kind, amount_minor, currency_code, balance_after_minor, description, reference)
-       VALUES ($1, 'client_payment', $2, $3, $4, $5, $6)`,
-      [
-        req.auth!.userId,
-        (-cost).toString(),
-        wallet.currency_code,
-        updated.balance_minor,
-        `Pay For Client: ${input.clientName} (${input.clientPhone})`,
-        ref,
-      ],
-    );
-
-    res.status(201).json({ ok: true, reference: ref, balance: updated.balance_minor });
+    const result = await idempotent(pool, req, 'transfer.send', async db => {
+      const userId = req.auth!.userId;
+      const payer = await memberInfo(db, userId);
+      requireActive(payer);
+      const handle = input.recipient.toLowerCase().replace(/^@/, '');
+      const payee = await maybeOne<{ id: string; username: string; currency_code: string; status: string; phone_ok: boolean }>(
+        db,
+        `SELECT id, username, currency_code, status, phone_verified_at IS NOT NULL AS phone_ok FROM users
+         WHERE anonymized_at IS NULL AND (username = $1 OR phone_e164 = $2)`,
+        [handle, input.recipient.replace(/\s+/g, '')],
+      );
+      const fail = () => badRequest('validation_failed', 'No verified member matches that username or phone.', { recipient: ['No verified member matches.'] });
+      if (!payee || payee.status !== 'active' || !payee.phone_ok) throw fail();
+      if (Number(payee.id) === userId) throw badRequest('validation_failed', 'You cannot pay yourself.', { recipient: ['You cannot pay yourself.'] });
+      if (payee.currency_code !== payer.currency) throw conflict('transfer.currency', 'That member uses another currency. Currency conversion is not available yet.');
+      const amount = await amountToMinor(db, payer.currency, input.amount);
+      const from = await accountId(db, { kind: 'member_main', userId, currency: payer.currency });
+      const to = await accountId(db, { kind: 'member_main', userId: Number(payee.id), currency: payer.currency });
+      const reference = newReference('PT');
+      let txn: number;
+      try {
+        txn = await post(db, { kind: 'member_transfer', memo: `Payment to @${payee.username}`, refType: 'transfer', refId: reference, actorUserId: userId, legs: move(from, to, amount) });
+      } catch (err) {
+        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your main balance is too low for this payment.');
+        throw err;
+      }
+      await one(
+        db,
+        `INSERT INTO member_transfers (reference, payer_user_id, payee_user_id, amount_minor, currency_code, note, ledger_transaction_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [reference, userId, payee.id, amount.toString(), payer.currency, input.note ?? null, txn],
+      );
+      return { status: 201, body: { ok: true, reference, payee: payee.username, balance: (await balanceOf(db, from)).toString() } };
+    });
+    res.status(result.status).json(result.body);
   });
 
   return router;

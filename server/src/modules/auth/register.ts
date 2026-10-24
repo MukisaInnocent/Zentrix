@@ -161,7 +161,5 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
 
   await sendEmailVerification(services, registration.email, registration.emailToken);
   await sendPhoneCode(services, registration.phoneE164, registration.phoneCode);
-  const { distributeReferralRewards } = await import('../referrals/service.js');
-  await distributeReferralRewards(services.pool, registration.userId).catch(() => undefined);
   return { userId: registration.userId, session: registration.session };
 }

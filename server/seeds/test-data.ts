@@ -11,6 +11,11 @@ import { DATA_DIR } from '../src/lib/paths.js';
 import type { Role } from '../src/modules/auth/context.js';
 import { newTotpSecret, otpauthUrl } from '../src/modules/auth/totp.js';
 import { createUserDirect } from '../src/modules/users/create.js';
+import type { PoolClient } from '../src/db/pool.js';
+import { confirmDeposit, submitDeposit } from '../src/modules/payments/deposits.js';
+import { decideTreasury, requestTreasury } from '../src/modules/payments/treasury.js';
+import { requestWithdrawal } from '../src/modules/payments/withdrawals.js';
+import { activateMembership } from '../src/modules/wallet/service.js';
 import type { Services } from '../src/services.js';
 
 interface ConfigSeed {
@@ -89,13 +94,14 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
       );
     }
 
+    const staffIds: Record<string, number> = {};
     for (const [i, s] of STAFF.entries()) {
       const totpSecret = newTotpSecret();
       const email = `${s.username}@zentrix.test`;
-      await createUserDirect(db, config.dataEncryptionKey, {
+      staffIds[s.username] = (await createUserDirect(db, config.dataEncryptionKey, {
         username: s.username, email, phone: `+25670020${String(i + 1).padStart(4, '0')}`, country: 'UG', dateOfBirth: '1990-01-01',
         password: report.staffPassword, roles: s.roles, verified: true, totpSecret,
-      });
+      })).id;
       report.staff.push({ username: s.username, email, roles: s.roles, totpSecret, otpauthUrl: otpauthUrl(totpSecret, s.username) });
     }
 
@@ -105,13 +111,7 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
       for (let k = 1; k <= group.count; k++) {
         n += 1;
         const username = `test_member_${String(n).padStart(2, '0')}`;
-        // Multi-level chain:
-        // member 1 has no referrer
-        // member 2 referred by member 1 (level 1 to m1)
-        // member 3 referred by member 2 (level 1 to m2, level 2 to m1)
-        // member 4 referred by member 3 (level 1 to m3, level 2 to m2, level 3 to m1)
-        // member 5 referred by member 1
-        // member 6 referred by member 5
+        // A few referral links so the Team page has data (rewards are single level, recorded on membership).
         let referrerId: number | null = null;
         if (n === 2) referrerId = memberIds[0] ?? null;
         else if (n === 3) referrerId = memberIds[1] ?? null;
@@ -128,38 +128,9 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
       }
     }
 
-    // Distribute referral rewards and set up initial wallet balances for test members
-    const { distributeReferralRewards } = await import('../src/modules/referrals/service.js');
     const { ensureDefaultTasks } = await import('../src/modules/tasks/service.js');
     await ensureDefaultTasks(db);
-
-    for (let i = 1; i < memberIds.length; i++) {
-      const mid = memberIds[i];
-      if (mid) await distributeReferralRewards(db, mid);
-    }
-
-    // Activate membership and give initial demo funds to test_member_01
-    const m1Id = memberIds[0];
-    if (m1Id) {
-      await db.query(
-        `UPDATE wallets
-         SET balance_minor = balance_minor + 35000,
-             total_deposited_minor = total_deposited_minor + 50000,
-             task_balance_youtube_minor = 2500,
-             task_balance_tiktok_minor = 2000,
-             task_balance_ads_minor = 1300,
-             task_balance_trivia_minor = 1000,
-             membership_active = true,
-             membership_activated_at = now() - interval '2 days'
-         WHERE user_id = $1`,
-        [m1Id],
-      );
-      await db.query(
-        `INSERT INTO wallet_transactions (user_id, kind, amount_minor, currency_code, balance_after_minor, description, reference)
-         VALUES ($1, 'deposit', 50000, 'UGX', 50000, 'Initial Test Deposit (MTN Mobile Money)', 'DP-SEED-01')`,
-        [m1Id],
-      );
-    }
+    await seedPayments(db, staffIds, memberIds);
   });
 
   const lines = [
@@ -176,4 +147,36 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
   }
   logger.warn({ credentials: lines }, 'test seed created: fake accounts and their one-time credentials');
   return report;
+}
+
+// Fake money through the real flows: two test channels with placeholder numbers, owner capital and a task
+// budget approved by a second admin (maker-checker), one confirmed deposit and membership, and open items
+// so the staff console has something in every queue.
+async function seedPayments(db: PoolClient, staffIds: Record<string, number>, memberIds: number[]): Promise<void> {
+  const admin = staffIds.zx_admin!;
+  const finance = staffIds.zx_finance!;
+  for (const c of [
+    { code: 'mtn_ug_test', name: 'MTN Mobile Money', number: '0700 000 001' },
+    { code: 'airtel_ug_test', name: 'Airtel Money', number: '0750 000 001' },
+  ]) {
+    await db.query(
+      `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, instructions)
+       VALUES ($1, $2, 'UG', 'UGX', 'ZENTRIX TEST', $3, 'TEST MODE: placeholder number. Do not send real money.')`,
+      [c.code, c.name, c.number],
+    );
+  }
+  const capital = await requestTreasury(db, finance, { kind: 'capital_in', currency: 'UGX', amountMinor: 2_000_000n, channel: 'mtn_ug_test', externalRef: 'SEED-CAPITAL-1', note: 'Fake test capital' });
+  await decideTreasury(db, admin, capital, true, 'Seed');
+  const budget = await requestTreasury(db, finance, { kind: 'fund_budget', currency: 'UGX', amountMinor: 500_000n, source: 'owner_capital', budget: 'promotions_budget', note: 'Fake task budget' });
+  await decideTreasury(db, admin, budget, true, 'Seed');
+
+  const [m1, m2, m3] = memberIds;
+  if (m1 === undefined || m2 === undefined || m3 === undefined) return;
+  const phoneOf = async (id: number) => (await db.query<{ phone_e164: string }>('SELECT phone_e164 FROM users WHERE id = $1', [id])).rows[0]!.phone_e164;
+  const d1 = await submitDeposit(db, m1, { channelCode: 'mtn_ug_test', amountMinor: 50_000n, senderPhone: await phoneOf(m1), providerTxnId: 'SEED-MTN-0001' });
+  await confirmDeposit(db, finance, d1.id, 50_000n, null);
+  await activateMembership(db, m1);
+  await requestWithdrawal(db, m1, { source: 'main', amountMinor: 5_000n, channelCode: 'mtn_ug_test' });
+  await submitDeposit(db, m2, { channelCode: 'mtn_ug_test', amountMinor: 19_000n, senderPhone: await phoneOf(m2), providerTxnId: 'SEED-MTN-0002', note: 'For membership' });
+  await submitDeposit(db, m3, { channelCode: 'airtel_ug_test', amountMinor: 25_000n, senderPhone: await phoneOf(m3), providerTxnId: 'SEED-AIR-0001' });
 }

@@ -1,6 +1,8 @@
+import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, notFound } from '../../lib/errors.js';
+import { accountId, balanceOf, InsufficientFundsError, move, post, type TaskModule } from '../ledger/ledger.js';
 
 export interface TaskItem {
   id: string;
@@ -111,7 +113,8 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
     currency: t.currency_code,
     url: t.url,
     durationSec: t.duration_sec,
-    details: t.details || {},
+    // Never send a trivia answer to the browser.
+    details: Object.fromEntries(Object.entries(t.details || {}).filter(([key]) => key !== 'answer')),
     completed: completedSet.has(t.id),
   }));
 }
@@ -151,8 +154,10 @@ export async function listSubmissions(db: Db, userId: number, module?: string): 
   }));
 }
 
+// Pays a verified task from the promotions budget (rule 1: rewards come only from money budgeted in advance)
+// to the member's balance for that module. An empty budget stops payouts. Runs inside moneyTx.
 export async function completeTask(
-  db: Db,
+  db: PoolClient,
   userId: number,
   taskId: number,
   answerOrProof?: string,
@@ -167,16 +172,20 @@ export async function completeTask(
   }>(db, 'SELECT id, module, title, reward_minor, currency_code, details FROM tasks WHERE id = $1 AND is_active = true', [taskId]);
 
   if (!task) throw notFound('task.not_found', 'Task not found.');
+  const member = await one<{ currency_code: string; status: string }>(db, 'SELECT currency_code, status FROM users WHERE id = $1 FOR UPDATE', [userId]);
+  if (member.status !== 'active') throw badRequest('account.frozen', 'Your account is on hold. Contact support.');
+  if (member.currency_code !== task.currency_code) {
+    throw badRequest('task.currency_unavailable', 'This task pays in another currency. Currency conversion is not available yet.');
+  }
 
-  // If trivia, verify correct answer
+  // Trivia answers are checked here and never sent to the browser.
   if (task.module === 'trivia') {
     const correctAnswer = (task.details as { answer?: string })?.answer;
     if (correctAnswer && answerOrProof?.trim().toLowerCase() !== correctAnswer.trim().toLowerCase()) {
-      throw badRequest('wrong_answer', `Incorrect answer. The correct answer was ${correctAnswer}.`);
+      throw badRequest('wrong_answer', 'That answer is not correct.');
     }
   }
 
-  // Check if already completed
   const prior = await maybeOne(
     db,
     'SELECT 1 FROM task_submissions WHERE user_id = $1 AND task_id = $2 AND status = $3',
@@ -185,56 +194,28 @@ export async function completeTask(
   if (prior) throw badRequest('already_completed', 'You have already completed this task.');
 
   const rewardMinor = BigInt(task.reward_minor);
+  const budget = await accountId(db, { kind: 'promotions_budget', currency: task.currency_code });
+  const earnings = await accountId(db, { kind: 'member_task', userId, module: task.module as TaskModule, currency: task.currency_code });
+  let txn: number;
+  try {
+    txn = await post(db, {
+      kind: 'task_reward', memo: `${task.module.toUpperCase()} reward: ${task.title}`, refType: 'task', refId: task.id, actorUserId: userId,
+      legs: move(budget, earnings, rewardMinor),
+    });
+  } catch (err) {
+    if (err instanceof InsufficientFundsError) throw badRequest('task.budget_empty', 'This task has no budget left right now. Try again later.');
+    throw err;
+  }
 
-  // Insert submission
   await db.query(
-    `INSERT INTO task_submissions (user_id, task_id, proof_text, status, reward_minor, currency_code)
-     VALUES ($1, $2, $3, 'approved', $4, $5)`,
-    [userId, taskId, answerOrProof ?? 'completed', rewardMinor.toString(), task.currency_code],
-  );
-
-  // Update specific module balance and main balance
-  const balanceColumn =
-    task.module === 'youtube'
-      ? 'task_balance_youtube_minor'
-      : task.module === 'tiktok'
-        ? 'task_balance_tiktok_minor'
-        : task.module === 'ads'
-          ? 'task_balance_ads_minor'
-          : task.module === 'trivia'
-            ? 'task_balance_trivia_minor'
-            : task.module === 'fixtap'
-              ? 'task_balance_fixtap_minor'
-              : 'task_balance_music_minor';
-
-  const updatedWallet = await one<{ balance_minor: string }>(
-    db,
-    `UPDATE wallets
-     SET balance_minor = balance_minor + $1,
-         ${balanceColumn} = ${balanceColumn} + $1,
-         updated_at = now()
-     WHERE user_id = $2
-     RETURNING balance_minor`,
-    [rewardMinor.toString(), userId],
-  );
-
-  // Record in wallet_transactions
-  await db.query(
-    `INSERT INTO wallet_transactions (user_id, kind, amount_minor, currency_code, balance_after_minor, description, reference)
-     VALUES ($1, 'task_reward', $2, $3, $4, $5, $6)`,
-    [
-      userId,
-      rewardMinor.toString(),
-      task.currency_code,
-      updatedWallet.balance_minor,
-      `${task.module.toUpperCase()} Reward: ${task.title}`,
-      `TASK-${task.id}`,
-    ],
+    `INSERT INTO task_submissions (user_id, task_id, proof_text, status, reward_minor, currency_code, ledger_transaction_id)
+     VALUES ($1, $2, $3, 'approved', $4, $5, $6)`,
+    [userId, taskId, answerOrProof ?? 'completed', rewardMinor.toString(), task.currency_code, txn],
   );
 
   return {
     rewardMinor: task.reward_minor,
-    newBalanceMinor: updatedWallet.balance_minor,
+    newBalanceMinor: (await balanceOf(db, earnings)).toString(),
     module: task.module,
   };
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { parse } from '../../http/validate.js';
 import type { Services } from '../../services.js';
 import { requireAuth } from '../auth/middleware.js';
+import { idempotent } from '../ledger/idempotency.js';
 import { completeTask, getLeaderboard, listSubmissions, listTasks } from './service.js';
 
 const CompleteSchema = z.strictObject({
@@ -38,10 +39,12 @@ export function tasksRouter(services: Services): Router {
   });
 
   router.post('/:id/complete', async (req, res) => {
-    const taskId = Number(req.params.id);
+    const taskId = parse(z.coerce.number().int().positive(), req.params.id);
     const input = parse(CompleteSchema, req.body);
-    const result = await completeTask(services.pool, req.auth!.userId, taskId, input.answer);
-    res.json({ ok: true, ...result });
+    const result = await idempotent(services.pool, req, `task.complete.${taskId}`, async db => ({
+      status: 200, body: { ok: true, ...(await completeTask(db, req.auth!.userId, taskId, input.answer)) },
+    }));
+    res.status(result.status).json(result.body);
   });
 
   return router;
