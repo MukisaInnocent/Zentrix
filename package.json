@@ -17,6 +17,7 @@
     "migrate": "tsx server/scripts/migrate.ts",
     "seed": "tsx server/scripts/seed.ts",
     "admin:create": "tsx server/scripts/admin-create.ts",
+    "totp": "tsx server/scripts/totp-code.ts",
     "golive": "tsx server/scripts/golive.ts",
     "gen:reference-data": "tsx server/scripts/gen-reference-data.ts",
     "test": "vitest run",
