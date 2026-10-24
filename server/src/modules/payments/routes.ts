@@ -13,6 +13,7 @@ import { cancelDeposit, listMemberDeposits, submitDeposit } from './deposits.js'
 import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messagesOf, openIssue, type IssueRow } from './issues.js';
 import { listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
 import { rows } from '../../db/sql.js';
+import { notifyPayment } from '../notifications/notify.js';
 
 const HOUR = 3_600_000;
 
@@ -89,6 +90,7 @@ export function paymentsRouter(services: Services): Router {
       const deposit = await submitDeposit(db, req.auth!.userId, { channelCode: input.channel, amountMinor, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note });
       return { status: 201, body: { deposit } };
     });
+    if (!result.replayed) void notifyPayment(services, 'deposit_submitted', (result.body.deposit as { reference: string }).reference);
     res.status(result.status).json(result.body);
   });
 
@@ -117,12 +119,14 @@ export function paymentsRouter(services: Services): Router {
       const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor, channelCode: input.channel });
       return { status: 201, body: { withdrawal, quote } };
     });
+    if (!result.replayed) void notifyPayment(services, 'withdrawal_requested', (result.body.withdrawal as { reference: string }).reference);
     res.status(result.status).json(result.body);
   });
 
   router.post('/withdrawals/:id/cancel', async (req, res) => {
     const id = publicId(req.params.id);
     const result = await idempotent(pool, req, `withdrawal.cancel.${id}`, async db => ({ status: 200, body: { withdrawal: await memberCancelWithdrawal(db, req.auth!.userId, id) } }));
+    if (!result.replayed) void notifyPayment(services, 'withdrawal_cancelled', (result.body.withdrawal as { reference: string }).reference, 'Cancelled at your request.');
     res.status(result.status).json(result.body);
   });
 

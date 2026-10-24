@@ -77,7 +77,12 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
     logger.info('seed data already present; skipping');
     return null;
   }
-  const report: SeedReport = { staffPassword: `Staff-${randomToken(9)}`, memberPassword: `Member-${randomToken(9)}`, staff: [], members: [] };
+  // SEED_STAFF_PASSWORD / SEED_MEMBER_PASSWORD keep test logins the same across environments (owner, 2026-10-24).
+  const report: SeedReport = {
+    staffPassword: process.env.SEED_STAFF_PASSWORD?.trim() || `Staff-${randomToken(9)}`,
+    memberPassword: process.env.SEED_MEMBER_PASSWORD?.trim() || `Member-${randomToken(9)}`,
+    staff: [], members: [],
+  };
   await withTransaction(pool, async db => {
     for (const c of CONFIGS) {
       const { currency_code: currency, exponent } = await one<{ currency_code: string; exponent: number }>(

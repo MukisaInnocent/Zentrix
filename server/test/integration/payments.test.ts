@@ -71,6 +71,11 @@ describe('manual deposits', () => {
     const replay = await financeClient.post<Body>(`/api/admin/payments/deposits/${res.body.deposit.id}/confirm`, { amount: '20000' }, headers);
     expect(first.status).toBe(200);
     expect(replay.body).toEqual(first.body);
+    await new Promise(r => setTimeout(r, 300));
+    const mails = (await app.outbox(member.input.email)).map(m => m.subject);
+    expect(mails).toContain(`Zentrix: Deposit ${res.body.deposit.reference} credited`);
+    expect(mails).toContain(`Zentrix: Deposit ${res.body.deposit.reference} received for review`);
+    expect(mails.filter(m => m?.endsWith('credited'))).toHaveLength(1); // the replay sends nothing
     const again = await financeClient.post<Body>(`/api/admin/payments/deposits/${res.body.deposit.id}/confirm`, { amount: '20000' }, key());
     expect(again.body.error?.code).toBe('deposit.not_pending');
     expect((await summary(member)).availableBalanceMinor).toBe('20000');
@@ -185,6 +190,9 @@ describe('manual withdrawals', () => {
     const paid = await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/paid`, { payoutTxnId: `PAY${txnId()}` }, key());
     expect(paid.status, JSON.stringify(paid.body)).toBe(200);
     expect(paid.body.withdrawal.status).toBe('paid');
+    await new Promise(r => setTimeout(r, 300));
+    const paidMail = (await app.outbox(member.input.email)).find(m => m.subject?.endsWith(`${res.body.withdrawal.reference} paid`));
+    expect(paidMail?.body).toContain('UGX 20,000');
     s = await summary(member);
     expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['29900', '0', '20000']);
     const fees = await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'fees' AND currency_code = 'UGX'`);

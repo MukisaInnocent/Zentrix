@@ -8,6 +8,8 @@ import { badRequest, conflict, DB_ERRORS, pgErrorCode } from '../../lib/errors.j
 export interface StoredResponse {
   status: number;
   body: Record<string, unknown>;
+  // True when this is a stored answer to a repeated request (nothing new happened).
+  replayed?: boolean;
 }
 
 const KEY = /^[A-Za-z0-9_-]{16,80}$/;
@@ -33,7 +35,7 @@ export async function idempotent(pool: Pool, req: Request, scope: string, fn: (d
           if (prior.scope !== scope || prior.request_hash !== hash) {
             throw conflict('idempotency.mismatch', 'This Idempotency-Key was already used for a different request.');
           }
-          return { status: prior.response_status, body: prior.response_body };
+          return { status: prior.response_status, body: prior.response_body, replayed: true };
         }
         const result = await fn(db);
         await db.query(

@@ -71,6 +71,11 @@ services:
       # Email address given to the seeded zx_admin account, so its sign-in codes reach a real inbox.
       - key: SEED_ADMIN_EMAIL
         sync: false
+      # Test seed passwords, so test logins match the local ones. Set in the dashboard, never in this file.
+      - key: SEED_STAFF_PASSWORD
+        sync: false
+      - key: SEED_MEMBER_PASSWORD
+        sync: false
       - key: LOG_LEVEL
         value: info
       # Real payment keys must NOT be set while APP_MODE=test: the server refuses to start if any variable

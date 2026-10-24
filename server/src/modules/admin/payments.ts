@@ -16,6 +16,7 @@ import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { decideTreasury, listTreasury, requestTreasury, TREASURY_KINDS } from '../payments/treasury.js';
 import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type StaffAction, type WithdrawalRow } from '../payments/withdrawals.js';
 import { getTransactions, getWalletSummary } from '../wallet/service.js';
+import { notifyPayment, type PaymentEvent } from '../notifications/notify.js';
 
 // Staff payments console: live overview, deposit and withdrawal queues, member issues, the balance check,
 // the ledger explorer, channels, pause switches, alerts and treasury. Viewing needs support, finance or
@@ -23,6 +24,8 @@ import { getTransactions, getWalletSummary } from '../wallet/service.js';
 // approvals). Every change writes the audit log in the same transaction.
 
 const VIEW = ['support', 'finance', 'compliance'] as const;
+// Which staff withdrawal actions email the member (starting a payout does not).
+const WITHDRAWAL_EMAIL: Partial<Record<StaffAction, PaymentEvent>> = { approve: 'withdrawal_approved', paid: 'withdrawal_paid', fail: 'withdrawal_failed', cancel: 'withdrawal_cancelled' };
 const Uuid = z.uuid();
 const ListQuery = z.object({
   status: z.string().trim().max(20).optional(),
@@ -186,6 +189,7 @@ export function paymentsAdminRouter(services: Services): Router {
       await audit(db, req, { action: 'deposit.confirmed', targetType: 'deposit', targetId: after.reference, before, after, reason: body.note });
       return { status: 200, body: { deposit: after } };
     });
+    if (!result.replayed) void notifyPayment(services, 'deposit_confirmed', (result.body.deposit as { reference: string }).reference);
     res.status(result.status).json(result.body);
   });
 
@@ -197,6 +201,7 @@ export function paymentsAdminRouter(services: Services): Router {
       await audit(db, req, { action: 'deposit.rejected', targetType: 'deposit', targetId: after.reference, before, after, reason });
       return after;
     });
+    void notifyPayment(services, 'deposit_rejected', deposit.reference, reason);
     res.json({ deposit });
   });
 
@@ -259,6 +264,11 @@ export function paymentsAdminRouter(services: Services): Router {
         await audit(db, req, { action: `withdrawal.${action}`, targetType: 'withdrawal', targetId: after.reference, before, after, reason: body.note });
         return { status: 200, body: { withdrawal: after } };
       });
+      const event = WITHDRAWAL_EMAIL[action];
+      if (event && !result.replayed) {
+        const w = result.body.withdrawal as { reference: string; payoutTxnId: string | null };
+        void notifyPayment(services, event, w.reference, action === 'paid' ? w.payoutTxnId : (body.note ?? null));
+      }
       res.status(result.status).json(result.body);
     });
   }
