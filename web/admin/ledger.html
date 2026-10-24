@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ledger · Zentrix Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-ledger" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Ledger</h1>
+      <p>Every money movement as balanced debit and credit entries. Read only: corrections are new transactions.</p>
+    </div>
+    <div class="zx-page-head__actions"></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <select id="kind" class="zx-select" aria-label="Filter by kind">
+        <option value="">All kinds</option>
+        <option value="deposit">Deposits</option>
+        <option value="withdrawal_hold">Withdrawal holds</option>
+        <option value="withdrawal_paid">Withdrawals paid</option>
+        <option value="withdrawal_failed">Withdrawals failed</option>
+        <option value="withdrawal_cancelled">Withdrawals cancelled</option>
+        <option value="membership_fee">Membership fees</option>
+        <option value="task_reward">Task rewards</option>
+        <option value="member_transfer">Member payments</option>
+        <option value="voucher_purchase">Voucher purchases</option>
+        <option value="voucher_redeem">Voucher redemptions</option>
+      </select>
+      <input id="search" class="zx-input" type="search" placeholder="Search reference, memo or username" aria-label="Search the ledger">
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">When</th><th scope="col">Kind</th><th scope="col">Reference</th><th scope="col">Entries</th><th scope="col">By</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="zx-pager"></div>
+  </div>
+</div>
+</main>
+</body>
+</html>

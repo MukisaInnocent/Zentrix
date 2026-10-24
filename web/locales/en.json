@@ -78,7 +78,14 @@
   },
   "admin": {
     "nav": {
-      "group": { "overview": "Overview", "people": "People", "config": "Configuration", "records": "Records", "exit": "Leave" },
+      "group": {
+        "overview": "Overview",
+        "people": "People",
+        "config": "Configuration",
+        "records": "Records",
+        "exit": "Leave",
+        "money": "Money"
+      },
       "overview": "Overview",
       "members": "Members",
       "fraud": "Fraud flags",
@@ -86,7 +93,12 @@
       "settings": "Settings",
       "audit": "Audit log",
       "outbox": "Dev outbox",
-      "back": "Back to member app"
+      "back": "Back to member app",
+      "deposits": "Deposits",
+      "withdrawals": "Withdrawals",
+      "issues": "Payment issues",
+      "balances": "Balance check",
+      "ledger": "Ledger"
     },
     "mfaTitle": "Confirm it's you",
     "mfaText": "Staff tools need a session confirmed with your authenticator app.",
@@ -119,7 +131,9 @@
       "invalid_link": "This link is invalid or has expired. Ask for a new one.",
       "code_invalid": "That code is wrong or has expired. Ask for a new code."
     },
-    "reset": { "invalid_link": "This reset link is invalid or has expired. Ask for a new one." },
+    "reset": {
+      "invalid_link": "This reset link is invalid or has expired. Ask for a new one."
+    },
     "totp": {
       "code_invalid": "That code is not right. Use the current code from your app.",
       "already_enabled": "Two-step verification is already on.",

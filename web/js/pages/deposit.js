@@ -1,92 +1,106 @@
-import { api, ApiError } from '../core/api.js';
-import { $ } from '../core/dom.js';
-import { formatMoney } from '../core/format.js';
+import { api, newIdempotencyKey } from '../core/api.js';
+import { $, h, icon } from '../core/dom.js';
+import { formatDate, formatMoney } from '../core/format.js';
+import { bindForm } from '../core/forms.js';
+import { mountReports, paymentBadge, reportProblem } from '../core/payments.js';
 import { toast } from '../core/toast.js';
 
-export async function init({ me }) {
-  if (me && $('#deposit-phone') && me.phone) {
-    $('#deposit-phone').value = me.phone;
-  }
+// Manual deposit: the member sends money to a business channel, then submits the transaction ID. Staff check
+// the channel statement and credit the main balance. The page never adds anything to a balance itself.
+let channels = [];
+let selected = null;
 
-  async function refresh() {
+function renderPaybox() {
+  const c = channels.find(x => x.code === selected);
+  const box = $('#paybox');
+  if (!c) return box.replaceChildren(h('p', { class: 'zx-hint' }, 'No payment method is available for your country yet. Contact support.'));
+  const copy = h('button', { type: 'button', class: 'zx-btn zx-btn--secondary zx-btn--sm zx-btn--fit' }, icon('copy'), 'Copy number');
+  copy.addEventListener('click', async () => {
     try {
-      const summary = await api.get('/api/wallet/summary');
-      if ($('#stat-balance')) $('#stat-balance').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
-      if ($('#stat-total-deposited')) $('#stat-total-deposited').textContent = formatMoney(summary.totalDepositedMinor, summary.currency);
-
-      const txData = await api.get('/api/wallet/transactions?limit=20');
-      const deposits = (txData.transactions || []).filter(t => t.kind === 'deposit');
-      const tbody = $('#deposit-history-body');
-      if (tbody) {
-        if (deposits.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5" class="zx-td-empty">No deposits yet. Use the form above to add your first deposit!</td></tr>`;
-        } else {
-          tbody.innerHTML = deposits
-            .map(d => {
-              const dateStr = new Date(d.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-              return `
-                <tr>
-                  <td class="zx-td-muted">${dateStr}</td>
-                  <td class="zx-td-strong">${d.description}</td>
-                  <td class="zx-td-mono">${d.reference || '—'}</td>
-                  <td class="zx-amount zx-amount--in">+ ${formatMoney(d.amountMinor, d.currency)}</td>
-                  <td>
-                    <span class="zx-badge zx-badge--success">
-                      Completed
-                    </span>
-                  </td>
-                </tr>
-              `;
-            })
-            .join('');
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load deposit data', err);
+      await navigator.clipboard.writeText(c.accountNumber.replace(/\s+/g, ''));
+      toast.success('Number copied');
+    } catch {
+      toast.error('Copy is blocked in this browser.');
     }
-  }
+  });
+  box.replaceChildren(
+    h('span', { class: 'zx-hint' }, `Send ${c.currency} by ${c.name} to`),
+    h('span', { class: 'zx-paybox__number' }, c.accountNumber),
+    h('span', {}, 'Name shown: ', h('strong', {}, c.accountName)),
+    c.instructions ? h('span', { class: 'zx-hint' }, c.instructions) : null,
+    copy);
+}
 
-  // Preset buttons
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const val = btn.getAttribute('data-val');
-      const input = $('#deposit-amount');
-      if (input && val) input.value = val;
+function renderChannels() {
+  const usable = channels.filter(c => c.depositsEnabled);
+  if (!usable.find(c => c.code === selected)) selected = usable[0]?.code ?? null;
+  $('#channel-pick').replaceChildren(...usable.map(c => {
+    const input = h('input', { type: 'radio', name: 'channel-choice', value: c.code, checked: c.code === selected });
+    input.addEventListener('change', () => {
+      selected = c.code;
+      renderPaybox();
     });
-  });
+    return h('label', {}, input, c.name);
+  }));
+  renderPaybox();
+}
 
-  // Submit form
-  const form = $('#deposit-form');
-  const alert = $('#deposit-alert');
-  const submitBtn = $('#deposit-submit');
-
-  form?.addEventListener('submit', async e => {
-    e.preventDefault();
-    alert.textContent = '';
-    submitBtn.setAttribute('aria-busy', 'true');
-    submitBtn.disabled = true;
-
-    const data = new FormData(form);
-    const amount = Number(data.get('amount') || 0);
-    const method = String(data.get('method') || 'MTN Mobile Money');
-    const phone = String(data.get('phone') || '');
-
-    try {
-      const res = await api.post('/api/wallet/deposit', { amount, method, phone });
-      toast.success(`Successfully deposited UGX ${amount.toLocaleString()}!`);
-      submitBtn.removeAttribute('aria-busy');
-      submitBtn.disabled = false;
-      await refresh();
-    } catch (err) {
-      submitBtn.removeAttribute('aria-busy');
-      submitBtn.disabled = false;
-      if (err instanceof ApiError) {
-        alert.textContent = err.message || 'Deposit failed. Please try again.';
-      } else {
-        alert.textContent = 'Connection error. Please try again.';
-      }
+async function refresh() {
+  const [summary, list] = await Promise.all([api.get('/api/wallet/summary'), api.get('/api/payments/deposits')]);
+  $('#stat-balance').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
+  $('#stat-pending').textContent = formatMoney(summary.pendingDepositsMinor, summary.currency);
+  $('#stat-total-deposited').textContent = formatMoney(summary.totalDepositedMinor, summary.currency);
+  const body = $('#deposit-history-body');
+  if (!list.deposits.length) {
+    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, 'No deposits yet.')));
+    return;
+  }
+  body.replaceChildren(...list.deposits.map(d => {
+    const actions = [];
+    if (d.status === 'pending') {
+      const cancel = h('button', { type: 'button', class: 'zx-btn zx-btn--ghost zx-btn--sm' }, 'Cancel');
+      cancel.addEventListener('click', async () => {
+        try {
+          await api.post(`/api/payments/deposits/${d.id}/cancel`, {});
+          toast.success('Deposit claim cancelled');
+          await refresh();
+        } catch (err) {
+          toast.error(err.message);
+        }
+      });
+      actions.push(cancel);
     }
+    if (d.status !== 'cancelled') {
+      const report = h('button', { type: 'button', class: 'zx-btn zx-btn--ghost zx-btn--sm' }, 'Report a problem');
+      report.addEventListener('click', () => void reportProblem('deposit', d.reference));
+      actions.push(report);
+    }
+    return h('tr', {},
+      h('td', { class: 'zx-td-muted' }, formatDate(d.createdAt, { withTime: true })),
+      h('td', {}, d.channel.name),
+      h('td', { class: 'zx-td-mono' }, d.providerTxnId),
+      h('td', { class: 'zx-amount zx-amount--in' }, formatMoney(d.creditedAmountMinor ?? d.claimedAmountMinor, d.currency)),
+      h('td', {}, paymentBadge(d.status), d.reviewNote ? h('div', { class: 'zx-hint' }, d.reviewNote) : null),
+      h('td', {}, h('span', { class: 'zx-row-actions' }, actions)));
+  }));
+}
+
+export async function init({ me }) {
+  const info = await api.get('/api/payments/channels');
+  channels = info.channels;
+  $('#paused').hidden = !info.depositsPaused;
+  $('#deposit-submit').disabled = info.depositsPaused || !channels.some(c => c.depositsEnabled);
+  if (me?.phone) $('#deposit-phone').value = me.phone;
+  renderChannels();
+
+  bindForm($('#deposit-form'), async (data, form) => {
+    if (!selected) throw new Error('No payment method');
+    const res = await api.post('/api/payments/deposits', { channel: selected, ...data }, { idempotencyKey: newIdempotencyKey() });
+    toast.success(`Submitted. Reference ${res.deposit.reference}. We will credit it once we find the payment.`);
+    form.reset();
+    if (me?.phone) $('#deposit-phone').value = me.phone;
+    await refresh();
   });
 
-  await refresh();
+  await Promise.all([refresh(), mountReports($('#reports'))]);
 }

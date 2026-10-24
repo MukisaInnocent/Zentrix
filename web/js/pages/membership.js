@@ -1,4 +1,5 @@
-import { api, ApiError } from '../core/api.js';
+import { api, ApiError, newIdempotencyKey } from '../core/api.js';
+import { formatMoney } from '../core/format.js';
 import { $ } from '../core/dom.js';
 import { toast } from '../core/toast.js';
 
@@ -17,7 +18,7 @@ export async function init() {
         }
         if (desc && res.activatedAt) {
           const d = new Date(res.activatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-          desc.textContent = `Your membership was activated on ${d}. All task modules and multi-level referral earnings are active.`;
+          desc.textContent = `Your membership was activated on ${d}. All task modules are open to you.`;
         }
         if (btn) {
           btn.textContent = 'Membership Active';
@@ -30,8 +31,8 @@ export async function init() {
           badge.className = 'zx-status-badge zx-status-badge--warning';
         }
         if (btn) {
-          btn.textContent = 'Activate Membership (UGX 19,000)';
-          btn.disabled = false;
+          btn.textContent = res.fee ? `Activate membership (${formatMoney(res.fee, res.currency)})` : 'Membership is not available in your country yet';
+          btn.disabled = !res.fee;
         }
       }
     } catch (err) {
@@ -43,8 +44,8 @@ export async function init() {
     btn.setAttribute('aria-busy', 'true');
     btn.disabled = true;
     try {
-      const res = await api.post('/api/wallet/membership/activate', {});
-      toast.success('Congratulations! Your Zentrix membership is now active!');
+      const res = await api.post('/api/wallet/membership/activate', {}, { idempotencyKey: newIdempotencyKey() });
+      toast.success(`Membership active. Receipt ${res.receiptNo}: ${formatMoney(res.feeMinor, res.currency)} paid from your main balance.`);
       btn.removeAttribute('aria-busy');
       await check();
     } catch (err) {

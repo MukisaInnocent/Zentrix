@@ -192,6 +192,10 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
   const expect = (...states: string[]) => {
     if (!states.includes(w.status)) throw conflict('withdrawal.wrong_state', `This withdrawal is ${w.status}; refresh to see its latest state.`);
   };
+  if (input.action === 'approve' || input.action === 'start') {
+    const member = await memberInfo(db, Number(w.user_id));
+    if (member.status !== 'active') throw conflict('withdrawal.member_not_active', 'This member account is frozen or closed. Cancel the withdrawal or resolve the account first.');
+  }
 
   switch (input.action) {
     case 'approve': {

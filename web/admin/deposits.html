@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deposits · Zentrix Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-deposits" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Deposits</h1>
+      <p>Check each claim against the channel statement, then confirm the amount received or reject it.</p>
+    </div>
+    <div class="zx-page-head__actions"><span id="live" class="zx-live"></span></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <div id="status-filter" class="zx-seg" role="group" aria-label="Filter by status"></div>
+      <input id="search" class="zx-input" type="search" placeholder="Search reference, transaction ID, phone or username" aria-label="Search deposits">
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Received</th><th scope="col">Member</th><th scope="col">Channel</th><th scope="col">Transaction ID</th><th scope="col">Amount</th><th scope="col">Checks</th><th scope="col">Status</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="zx-pager"></div>
+  </div>
+</div>
+</main>
+</body>
+</html>

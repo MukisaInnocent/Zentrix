@@ -72,25 +72,32 @@ const MEMBER_NAV = [
 const ADMIN_NAV = [
   { group: 'admin.nav.group.overview', items: [{ id: 'admin-home', href: '/admin/index.html', icon: 'grid', label: 'admin.nav.overview', bottom: true }] },
   {
+    group: 'admin.nav.group.money',
+    items: [
+      { id: 'admin-deposits', href: '/admin/deposits.html', icon: 'deposit', label: 'admin.nav.deposits', bottom: true },
+      { id: 'admin-withdrawals', href: '/admin/withdrawals.html', icon: 'withdraw', label: 'admin.nav.withdrawals', bottom: true },
+      { id: 'admin-issues', href: '/admin/issues.html', icon: 'headphones', label: 'admin.nav.issues' },
+      { id: 'admin-balances', href: '/admin/balances.html', icon: 'shield', label: 'admin.nav.balances' },
+      { id: 'admin-ledger', href: '/admin/ledger.html', icon: 'layers', label: 'admin.nav.ledger' },
+    ],
+  },
+  {
     group: 'admin.nav.group.people',
     items: [
-      { id: 'admin-members', href: '/admin/members.html', icon: 'users', label: 'admin.nav.members', bottom: true },
-      { id: 'admin-fraud', href: '/admin/fraud.html', icon: 'flag', label: 'admin.nav.fraud' },
+      { id: 'admin-members', href: '/admin/members.html', icon: 'users', label: 'admin.nav.members' },
+      { id: 'admin-fraud', icon: 'flag', label: 'admin.nav.fraud', soon: true },
     ],
   },
   {
     group: 'admin.nav.group.config',
     items: [
-      { id: 'admin-countries', href: '/admin/countries.html', icon: 'globe', label: 'admin.nav.countries' },
-      { id: 'admin-settings', href: '/admin/settings.html', icon: 'settings', label: 'admin.nav.settings' },
+      { id: 'admin-countries', icon: 'globe', label: 'admin.nav.countries', soon: true },
+      { id: 'admin-settings', icon: 'settings', label: 'admin.nav.settings', soon: true },
     ],
   },
   {
     group: 'admin.nav.group.records',
-    items: [
-      { id: 'admin-audit', href: '/admin/audit.html', icon: 'history', label: 'admin.nav.audit' },
-      { id: 'admin-outbox', href: '/admin/outbox.html', icon: 'inbox', label: 'admin.nav.outbox', testOnly: true },
-    ],
+    items: [{ id: 'admin-audit', href: '/admin/audit.html', icon: 'history', label: 'admin.nav.audit' }],
   },
   { group: 'admin.nav.group.exit', items: [{ id: 'back', href: '/dashboard.html', icon: 'home', label: 'admin.nav.back' }] },
 ];

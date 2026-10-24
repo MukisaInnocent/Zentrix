@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Withdraw · Zentrix</title>
-<meta name="description" content="Withdraw your available earnings to mobile money or bank.">
+<meta name="description" content="Withdraw your Zentrix balance to your verified mobile money number.">
 <meta name="theme-color" content="#0e5c63">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -16,67 +16,66 @@
 <div class="zx-page">
   <div class="zx-page-head">
     <div>
-      <h1>Withdraw Funds</h1>
-      <p>Cash out your task rewards and referral commissions to your mobile money number.</p>
+      <h1>Withdraw</h1>
+      <p>Our team sends your money by mobile money to your verified phone number, usually the same day.</p>
     </div>
   </div>
-  <div class="zx-stat-grid zx-stat-grid--2">
+  <div id="paused" class="zx-banner zx-banner--warning" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#clock"></use></svg><span class="zx-banner__text">Withdrawals are paused for a short balance check. Your money is safe. Please try again later.</span></div>
+  <div id="no-phone" class="zx-banner zx-banner--warning" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#phone"></use></svg><span class="zx-banner__text">Verify your phone number first. Payouts go only to your verified number.</span><a class="zx-btn zx-btn--sm zx-btn--secondary" href="/profile.html">Verify phone</a></div>
+  <div class="zx-stat-grid zx-stat-grid--3">
     <div class="zx-stat">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
-      <div id="stat-available" class="zx-stat__value">UGX 0</div>
-      <div class="zx-stat__label">Available for Withdrawal</div>
-      <div class="zx-stat__note">Minimum withdrawal: UGX 1,000</div>
+      <div id="stat-available" class="zx-stat__value"><span class="zx-skeleton zx-skeleton--text"></span></div>
+      <div class="zx-stat__label">Main balance</div>
+    </div>
+    <div class="zx-stat zx-stat--sand">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#hourglass"></use></svg></div>
+      <div id="stat-held" class="zx-stat__value"><span class="zx-skeleton zx-skeleton--text"></span></div>
+      <div class="zx-stat__label">On hold for payouts</div>
     </div>
     <div class="zx-stat zx-stat--lilac">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#withdraw"></use></svg></div>
-      <div id="stat-withdrawn" class="zx-stat__value">UGX 0</div>
-      <div class="zx-stat__label">Total Withdrawn</div>
-      <div class="zx-stat__note">Processed payouts to date</div>
+      <div id="stat-withdrawn" class="zx-stat__value"><span class="zx-skeleton zx-skeleton--text"></span></div>
+      <div class="zx-stat__label">Paid to you</div>
     </div>
   </div>
-  <div class="zx-card">
-    <h2>Request a Payout</h2>
-    <p class="zx-hint">Withdrawal fee is 0.5% (50 basis points) of the amount withdrawn. Minimum payout is UGX 1,000.</p>
-    <form id="withdraw-form" class="zx-form">
-      <div id="withdraw-alert" class="zx-error zx-error--slot" role="alert"></div>
-      <div class="zx-field">
-        <label for="withdraw-amount">Amount (UGX)</label>
-        <input id="withdraw-amount" class="zx-input" name="amount" type="number" min="1000" step="500" required placeholder="e.g. 10000" value="10000">
-      </div>
-      <div class="zx-calc">
-        <div><span>Processing fee (0.5%):</span> <strong id="calc-fee">UGX 50</strong></div>
-        <div><span>Total deducted:</span> <strong id="calc-total">UGX 10,050</strong></div>
-      </div>
+  <section class="zx-card">
+    <h2>Request a payout</h2>
+    <form id="withdraw-form" class="zx-form" novalidate>
+      <div class="zx-error" data-form-error hidden role="alert"></div>
       <div class="zx-form-row zx-form-row--2">
         <div class="zx-field">
-          <label for="withdraw-method">Payout Method</label>
-          <select id="withdraw-method" class="zx-select" name="method">
-            <option value="MTN Mobile Money">MTN Mobile Money</option>
-            <option value="Airtel Money">Airtel Money</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-          </select>
+          <label for="withdraw-source">Take it from</label>
+          <select id="withdraw-source" class="zx-select" name="source"></select>
         </div>
         <div class="zx-field">
-          <label for="withdraw-destination">Payout Phone / Account Number</label>
-          <input id="withdraw-destination" class="zx-input" name="destination" type="tel" required placeholder="e.g. 0770000000">
+          <label for="withdraw-channel">Network</label>
+          <select id="withdraw-channel" class="zx-select" name="channel"></select>
         </div>
       </div>
-      <button id="withdraw-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit Withdrawal</button>
+      <div class="zx-field">
+        <label for="withdraw-amount">Amount</label>
+        <input id="withdraw-amount" class="zx-input" name="amount" inputmode="decimal" autocomplete="off" required placeholder="e.g. 10000">
+        <span id="withdraw-amount-error" class="zx-error" hidden></span>
+      </div>
+      <div id="quote" class="zx-quote" aria-live="polite" hidden></div>
+      <p class="zx-hint">Paid to <strong id="payout-phone">your verified phone</strong>. To change it, contact support: an admin verifies your identity first, and withdrawals lock for 48 hours after a change.</p>
+      <button id="withdraw-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Request payout</button>
     </form>
-  </div>
-  <div class="zx-card">
-    <div class="zx-card__title">
-      <h2>Withdrawal History</h2>
-    </div>
+  </section>
+  <section class="zx-card">
+    <div class="zx-section-title"><h2>Your withdrawals</h2></div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col">Reference</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
-        <tbody id="withdraw-history-body">
-          <tr><td colspan="5" class="zx-td-empty">Loading withdrawal history...</td></tr>
-        </tbody>
+        <thead><tr><th scope="col">Date</th><th scope="col">Amount</th><th scope="col">Fee</th><th scope="col">To</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="withdraw-history-body"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
       </table>
     </div>
-  </div>
+  </section>
+  <section class="zx-card">
+    <div class="zx-section-title"><h2>Payment reports</h2></div>
+    <div id="reports"></div>
+  </section>
 </div>
 </main>
 </body>

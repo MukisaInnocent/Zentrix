@@ -6,8 +6,8 @@ Loaded at the start of every session. Requirements come from the owner's Zentrix
 
 - 2026-10-21: the owner answered the plan's questions; their answers count as approval with changes. Phase 1 (foundation) is in progress on branch `rebuild/phase-1-foundation`.
 - Owner decisions are logged in `docs/PLAN.md` section 12. Unanswered items use the defaults in section 10, marked `TODO(owner)` in code and settings.
-- 2026-10-21 (later): the owner asked that referral levels stop at level 3 (UGX 10,000 / 5,000 / 2,000). The code now caps at `MAX_REFERRAL_LEVEL = 3` (service, migration 0006, UI, tests). It is still multi-level, so rules 3.1 and 3.2 remain unresolved and need the owner's decision before launch.
-- The owner asked for multi-level referral payouts (UGX 10,000 / 5,000 / 2,000 "and so on"). That breaks rules 3.1 and 3.2 and was declined. Build single-level only. The reward amount is still `TODO(owner)` and must stay within the 10% cap.
+- The owner asked for multi-level referral payouts (UGX 10,000 / 5,000 / 2,000, later capped at level 3). That breaks rules 3.1 and 3.2 and was declined. Since Phase 2 the code records a pending reward for the direct referrer only (UGX 1,000 default, `TODO(owner)`, within the 10% cap) and pays nothing until the owner confirms the amount. Member pages no longer advertise multi-level amounts.
+- 2026-10-24: the owner made deposits and withdrawals manual, confirmed the UGX 19,000 membership fee and asked for an admin dashboard. Phase 2 (ledger, manual payments, staff console) is on branch `rebuild/phase-2-ledger-manual-payments`.
 
 ## How to operate
 
@@ -78,10 +78,14 @@ The reference screenshots from another platform are visual inspiration only. Nev
 
 ## Payments
 
-- Deposits and payouts go through payment-provider APIs (collect, payout, verifyWebhook, getStatus) with signed webhooks. The provider is not chosen yet, so a simulated provider stands in, in test mode.
+- Manual for now (owner, 2026-10-24). Members send money to a business payment channel (`payment_channels`) and claim it with the mobile-money transaction ID; finance confirms the amount received against the channel statement (cash on channel -> member main) or rejects it. Withdrawals hold amount plus fee, then staff approve, start, send to the verified phone and record the payout transaction ID.
+- Staff record each channel's real statement balance (`float_snapshots`); the balance check compares it with the ledger and with what members are owed.
+- A payment-provider API (collect, payout, verifyWebhook, getStatus) can replace the manual steps later without changing the deposit and withdrawal records.
 - No SMS forwarding, by owner decision. The deleted Android forwarder's source is in commit `237980b` if it is ever needed.
 - Exchange rates come from an exchange-rate API behind the FX source interface, with a simulator for tests.
 
 ## Commands
 
-Filled in during Phase 1.
+- `npm run dev`: embedded Postgres in `.data/dev-pg`, migrations, test seed (fake staff with TOTP secrets in `.data/seed-credentials.txt`), app on port 3000. Staff console at `/admin/index.html`.
+- `npm test` (Vitest on real Postgres), `npm run lint`, `npm run typecheck`, `npm run check` for all three.
+- `npm run worker` runs scheduled jobs, including the 5-minute balance check.

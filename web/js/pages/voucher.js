@@ -1,4 +1,4 @@
-import { api, ApiError } from '../core/api.js';
+import { api, ApiError, newIdempotencyKey } from '../core/api.js';
 import { $ } from '../core/dom.js';
 import { formatMoney } from '../core/format.js';
 import { toast } from '../core/toast.js';
@@ -73,11 +73,11 @@ export async function init() {
     buySubmit.disabled = true;
 
     const data = new FormData(buyForm);
-    const amount = Number(data.get('amount') || 0);
+    const amount = String(data.get('amount') || '').trim();
     const quantity = Number(data.get('quantity') || 1);
 
     try {
-      await api.post('/api/vouchers/buy', { amount, quantity });
+      await api.post('/api/vouchers/buy', { amount, quantity }, { idempotencyKey: newIdempotencyKey() });
       toast.success(`Successfully created ${quantity} voucher(s)!`);
       buySubmit.removeAttribute('aria-busy');
       buySubmit.disabled = false;
@@ -108,8 +108,8 @@ export async function init() {
     const code = String(data.get('code') || '').trim();
 
     try {
-      const res = await api.post('/api/vouchers/redeem', { code });
-      toast.success(`Voucher redeemed! UGX ${Number(res.amount).toLocaleString()} added to your wallet.`);
+      const res = await api.post('/api/vouchers/redeem', { code }, { idempotencyKey: newIdempotencyKey() });
+      toast.success(`Voucher redeemed: ${formatMoney(res.amount, res.currency)} added to your main balance.`);
       redeemSubmit.removeAttribute('aria-busy');
       redeemSubmit.disabled = false;
       if ($('#redeem-code')) $('#redeem-code').value = '';

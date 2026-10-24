@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Payment issues · Zentrix Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-issues" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Payment issues</h1>
+      <p>Problems members reported about a deposit or withdrawal. Reply, fix the payment, then resolve.</p>
+    </div>
+    <div class="zx-page-head__actions"><span id="live" class="zx-live"></span></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <div id="status-filter" class="zx-seg" role="group" aria-label="Filter by status"></div>
+      <input id="search" class="zx-input" type="search" placeholder="Search username or payment reference" aria-label="Search issues">
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Updated</th><th scope="col">Member</th><th scope="col">Payment</th><th scope="col">Problem</th><th scope="col">Handled by</th><th scope="col">Status</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="zx-pager"></div>
+  </div>
+</div>
+</main>
+</body>
+</html>

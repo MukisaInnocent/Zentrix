@@ -15,7 +15,7 @@ import { buildReport, runReconciliation } from '../payments/reconciliation.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { decideTreasury, listTreasury, requestTreasury, TREASURY_KINDS } from '../payments/treasury.js';
 import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type StaffAction, type WithdrawalRow } from '../payments/withdrawals.js';
-import { getWalletSummary } from '../wallet/service.js';
+import { getTransactions, getWalletSummary } from '../wallet/service.js';
 
 // Staff payments console: live overview, deposit and withdrawal queues, member issues, the balance check,
 // the ledger explorer, channels, pause switches, alerts and treasury. Viewing needs support, finance or
@@ -126,7 +126,8 @@ export function paymentsAdminRouter(services: Services): Router {
       lastReconciliation: lastRun,
       balances: currencies.currencies.map(c => ({
         currency: c.currency, ok: c.ok, liabilitiesMinor: c.liabilitiesMinor, fundsHeldMinor: c.fundsHeldMinor, coverageMinor: c.coverageMinor,
-        unverifiedChannels: c.unverifiedChannels, platformRevenueMinor: c.system.platform_revenue, feesMinor: c.system.fees,
+        unverifiedChannels: c.unverifiedChannels, revenueAndFeesMinor: (BigInt(c.system.platform_revenue ?? '0') + BigInt(c.system.fees ?? '0')).toString(),
+        owedPercent: owedPercent(c.liabilitiesMinor, c.fundsHeldMinor),
       })),
     });
   });
@@ -261,6 +262,20 @@ export function paymentsAdminRouter(services: Services): Router {
       res.status(result.status).json(result.body);
     });
   }
+
+  // A member's money: balances, statement and recent deposits and withdrawals.
+  router.get('/members/:id', requireStaff(...VIEW), async (req, res) => {
+    const user = await maybeOne<{ id: string }>(pool, 'SELECT id FROM users WHERE public_id = $1', [uuid(req.params.id)]);
+    if (!user) throw notFound();
+    const userId = Number(user.id);
+    const [balances, statement, deposits, withdrawals] = await Promise.all([
+      getWalletSummary(pool, userId),
+      getTransactions(pool, userId, 30),
+      rows<DepositRow>(pool, `${DEPOSIT_SELECT} WHERE d.user_id = $1 ORDER BY d.id DESC LIMIT 20`, [userId]),
+      rows<WithdrawalRow>(pool, `${WITHDRAWAL_SELECT} WHERE w.user_id = $1 ORDER BY w.id DESC LIMIT 20`, [userId]),
+    ]);
+    res.json({ balances, statement, deposits: deposits.map(depositView), withdrawals: withdrawals.map(withdrawalView) });
+  });
 
   // ---- Issues ----
   router.get('/issues', requireStaff(...VIEW), async (req, res) => {
@@ -504,6 +519,14 @@ export function paymentsAdminRouter(services: Services): Router {
   }
 
   return router;
+}
+
+// Share of the money held that members are owed, as a whole percent (100 when nothing is held but something is owed).
+export function owedPercent(owedMinor: string, heldMinor: string): number {
+  const owed = BigInt(owedMinor);
+  const held = BigInt(heldMinor);
+  if (held === 0n) return owed === 0n ? 0 : 100;
+  return Number((owed * 100n) / held);
 }
 
 // A statement balance may be zero.

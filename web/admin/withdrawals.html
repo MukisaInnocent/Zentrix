@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Withdrawals · Zentrix Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-withdrawals" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Withdrawals</h1>
+      <p>Approve, send the payout to the member's verified phone, then record the payout transaction ID.</p>
+    </div>
+    <div class="zx-page-head__actions"><span id="live" class="zx-live"></span></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <div id="status-filter" class="zx-seg" role="group" aria-label="Filter by status"></div>
+      <input id="search" class="zx-input" type="search" placeholder="Search reference, phone, username or payout ID" aria-label="Search withdrawals">
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Requested</th><th scope="col">Member</th><th scope="col">Pay to</th><th scope="col">Amount</th><th scope="col">From</th><th scope="col">Rule</th><th scope="col">Status</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="zx-pager"></div>
+  </div>
+</div>
+</main>
+</body>
+</html>

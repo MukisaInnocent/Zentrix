@@ -17,7 +17,7 @@
   <div class="zx-page-head">
     <div>
       <h1>Pay For Client</h1>
-      <p>Pay a membership activation or funding transfer directly on behalf of a client.</p>
+      <p>Send money from your main balance to another Zentrix member's main balance, for example to pay their membership.</p>
     </div>
   </div>
   <div class="zx-stat-grid zx-stat-grid--2">
@@ -30,45 +30,41 @@
     <div class="zx-stat zx-stat--mint">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
       <div id="pfc-count" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">Clients Paid</div>
-      <div class="zx-stat__note">All-time client payments</div>
+      <div class="zx-stat__label">Payments</div>
+      <div class="zx-stat__note">Sent and received</div>
     </div>
   </div>
   <div class="zx-card">
-    <h2>New Client Payment</h2>
-    <p class="zx-hint">Enter the client's information and transfer amount.</p>
+    <h2>New payment</h2>
+    <p class="zx-hint">The other member must have a verified phone and use the same currency. Payments cannot be reversed, so check the username.</p>
     <form id="pfc-form" class="zx-form">
       <div id="pfc-alert" class="zx-error zx-error--slot" role="alert"></div>
-      <div class="zx-form-row zx-form-row--2">
-        <div class="zx-field">
-          <label for="client-name">Client Full Name</label>
-          <input id="client-name" class="zx-input" name="clientName" required placeholder="e.g. John Bosco">
-        </div>
-        <div class="zx-field">
-          <label for="client-phone">Client Phone Number</label>
-          <input id="client-phone" class="zx-input" name="clientPhone" required placeholder="e.g. 0770000000">
-        </div>
+      <div class="zx-field">
+        <label for="pfc-recipient">Member username or phone</label>
+        <input id="pfc-recipient" class="zx-input" name="recipient" required autocomplete="off" placeholder="e.g. @username or +2567...">
+        <span id="pfc-recipient-error" class="zx-error" hidden></span>
       </div>
       <div class="zx-field">
         <label for="pfc-amount">Amount (UGX)</label>
-        <input id="pfc-amount" class="zx-input" name="amount" type="number" min="1000" step="1000" required value="19000">
+        <input id="pfc-amount" class="zx-input" name="amount" inputmode="decimal" required value="19000">
+        <span id="pfc-amount-error" class="zx-error" hidden></span>
       </div>
       <div class="zx-field">
         <label for="pfc-note">Note / Purpose <span class="zx-hint">(optional)</span></label>
-        <input id="pfc-note" class="zx-input" name="note" placeholder="e.g. Membership activation fee">
+        <input id="pfc-note" class="zx-input" name="note" maxlength="200" data-optional placeholder="e.g. Membership fee">
       </div>
-      <button id="pfc-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit Client Payment</button>
+      <button id="pfc-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Send payment</button>
     </form>
   </div>
   <div class="zx-card">
     <div class="zx-card__title">
-      <h2>Recent Client Payments</h2>
+      <h2>Recent payments</h2>
     </div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">Client Name</th><th scope="col">Phone</th><th scope="col">Amount</th><th scope="col">Reference</th><th scope="col">Status</th></tr></thead>
+        <thead><tr><th scope="col">Date</th><th scope="col">Member</th><th scope="col">Direction</th><th scope="col">Amount</th><th scope="col">Reference</th><th scope="col">Status</th></tr></thead>
         <tbody id="pfc-history-body">
-          <tr><td colspan="6" class="zx-td-empty">Loading client payments...</td></tr>
+          <tr><td colspan="6" class="zx-td-empty">Loading payments...</td></tr>
         </tbody>
       </table>
     </div>
