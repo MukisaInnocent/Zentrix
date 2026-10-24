@@ -66,7 +66,7 @@ The reference screenshots from another platform are visual inspiration only. Nev
 
 ## Security rules
 
-- argon2id passwords. Login throttling, lockout and generic error messages. TOTP is optional for members and mandatory for staff.
+- argon2id passwords. Login throttling, lockout and generic error messages. TOTP is optional for members and mandatory for staff. The second sign-in step also accepts a single-use 6-digit code emailed to the account (owner, 2026-10-24); email goes through Resend (`RESEND_API_KEY`) or SMTP, and to the dev outbox in test mode without either.
 - Sessions: a random token in a `__Host-` cookie (HttpOnly, Secure, SameSite), stored hashed, rotated, revocable on the server. A CSRF token on every state-changing route, an Origin check, and no CORS.
 - Zod `.strict()` validation on every endpoint, parameterized SQL only, output encoding, helmet with a strict CSP (no inline scripts or styles), rate limits per IP and per account, request size limits.
 - Role-based access plus an ownership check on every record (no IDOR). Every staff action writes `audit_log` (who, what, before and after, IP, time). Maker-checker on money actions: the approver can never be the requester.

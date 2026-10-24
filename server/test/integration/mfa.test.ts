@@ -145,3 +145,22 @@ describe('session lifetime', () => {
     expect((await staffClient.get('/api/me')).status).toBe(401);
   });
 });
+
+describe('emailed sign-in codes', () => {
+  it('emails a single-use 6-digit code at the second step and accepts it instead of the authenticator code', async () => {
+    const staff = await createStaff(app, ['admin']);
+    const email = (await app.owner.query<{ email: string }>('SELECT email FROM users WHERE id = $1', [staff.userId])).rows[0]!.email;
+    const client = app.client();
+    const first = await client.post<{ challengeToken: string; emailSent: boolean }>('/api/auth/login', { identifier: staff.username, password: staff.password });
+    expect(first.body.emailSent).toBe(true);
+    const mail = (await app.outbox(email)).find(m => m.subject === 'Your Zentrix sign-in code');
+    const code = /code is ([0-9]{6})/.exec(mail?.body ?? '')?.[1];
+    expect(code).toBeDefined();
+    const wrong = code === '000000' ? '111111' : '000000';
+    expect((await client.post<Body>('/api/auth/login/mfa', { challengeToken: first.body.challengeToken, code: wrong })).body.error?.code).toBe('auth.mfa_invalid');
+    const ok = await client.post('/api/auth/login/mfa', { challengeToken: first.body.challengeToken, code });
+    expect(ok.status).toBe(200);
+    expect((await client.get('/api/admin/payments/overview')).status).toBe(200);
+    expect((await app.client().post<Body>('/api/auth/login/mfa', { challengeToken: first.body.challengeToken, code })).body.error?.code).toBe('auth.mfa_expired');
+  });
+});

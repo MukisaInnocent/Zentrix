@@ -97,7 +97,9 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
     const staffIds: Record<string, number> = {};
     for (const [i, s] of STAFF.entries()) {
       const totpSecret = newTotpSecret();
-      const email = `${s.username}@zentrix.test`;
+      // SEED_ADMIN_EMAIL gives zx_admin a real inbox so sign-in codes can be emailed (owner, 2026-10-24).
+      const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+      const email = s.username === 'zx_admin' && adminEmail ? adminEmail : `${s.username}@zentrix.test`;
       staffIds[s.username] = (await createUserDirect(db, config.dataEncryptionKey, {
         username: s.username, email, phone: `+25670020${String(i + 1).padStart(4, '0')}`, country: 'UG', dateOfBirth: '1990-01-01',
         password: report.staffPassword, roles: s.roles, verified: true, totpSecret,

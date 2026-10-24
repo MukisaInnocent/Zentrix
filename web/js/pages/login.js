@@ -45,7 +45,7 @@ export function init() {
   });
 
   let challengeToken = null;
-  function showCodeStep() {
+  function showCodeStep(emailSent) {
     for (const id of ['identifier', 'password']) {
       const field = $(`#${id}`)?.closest('.zx-field');
       if (field) field.hidden = true;
@@ -55,12 +55,14 @@ export function init() {
     field.className = 'zx-field';
     const label = document.createElement('label');
     label.htmlFor = 'login-code';
-    label.textContent = 'Authenticator code';
+    label.textContent = 'Sign-in code';
     const input = document.createElement('input');
     Object.assign(input, { id: 'login-code', name: 'code', className: 'zx-input zx-code-input', inputMode: 'numeric', autocomplete: 'one-time-code', required: true, maxLength: 12 });
     const hint = document.createElement('span');
     hint.className = 'zx-hint';
-    hint.textContent = 'Staff accounts need the 6-digit code from your authenticator app. In test mode run: npm run totp -- <username>';
+    hint.textContent = emailSent
+      ? 'We emailed a 6-digit code to your account email. It expires in 5 minutes. A code from your authenticator app also works.'
+      : 'Enter the 6-digit code from your authenticator app. In test mode you can run: npm run totp -- <username>';
     field.append(label, input, hint);
     submitBtn.before(field);
     submitBtn.textContent = 'Confirm code';
@@ -85,7 +87,7 @@ export function init() {
         // Staff accounts need a second step: the 6-digit code from the authenticator app.
         if (res?.mfaRequired) {
           challengeToken = res.challengeToken;
-          showCodeStep();
+          showCodeStep(res.emailSent);
           submitBtn.removeAttribute('aria-busy');
           submitBtn.disabled = false;
           return;

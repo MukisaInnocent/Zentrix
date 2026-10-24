@@ -26,6 +26,8 @@ const EnvSchema = z.object({
   DATA_ENCRYPTION_KEY: base64Key,
   COOKIE_SECURE: z.stringbool().optional(),
   SMTP_URL: z.string().optional(),
+  // Resend (https://resend.com) email API key. When set, email goes through its HTTP API instead of SMTP.
+  RESEND_API_KEY: z.string().optional(),
   MAIL_FROM: z.string().min(3).default('Zentrix <no-reply@zentrix.test>'),
   GEOIP_PROVIDER: z.enum(['none', 'test-header']).default('none'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -51,6 +53,7 @@ export interface Config {
   dataEncryptionKey: Buffer;
   cookieSecure: boolean;
   smtpUrl: string | null;
+  resendApiKey: string | null;
   mailFrom: string;
   geoipProvider: 'none' | 'test-header';
   logLevel: string;
@@ -109,6 +112,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataEncryptionKey: e.DATA_ENCRYPTION_KEY,
     cookieSecure: e.COOKIE_SECURE ?? !isLocalOrigin(origin),
     smtpUrl: e.SMTP_URL && e.SMTP_URL.length > 0 ? e.SMTP_URL : null,
+    resendApiKey: e.RESEND_API_KEY && e.RESEND_API_KEY.length > 0 ? e.RESEND_API_KEY : null,
     mailFrom: e.MAIL_FROM,
     geoipProvider: e.GEOIP_PROVIDER,
     logLevel: e.LOG_LEVEL,
@@ -136,7 +140,7 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (config.nodeEnv !== 'production') problems.push('NODE_ENV must be production');
   if (!config.cookieSecure) problems.push('COOKIE_SECURE must be true');
   if (!config.publicOrigin.startsWith('https://')) problems.push('PUBLIC_ORIGIN must use https');
-  if (!config.smtpUrl) problems.push('SMTP_URL must be set');
+  if (!config.smtpUrl && !config.resendApiKey) problems.push('SMTP_URL or RESEND_API_KEY must be set');
   if (config.databaseSsl === 'disable') problems.push('DATABASE_SSL must not be disable');
   if (config.geoipProvider === 'test-header') problems.push('GEOIP_PROVIDER=test-header is test-only');
   if (config.seedOnStart) problems.push('SEED_ON_START must be false');

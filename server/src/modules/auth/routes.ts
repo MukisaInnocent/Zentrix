@@ -46,7 +46,7 @@ export function authRouter(services: Services): Router {
     limiter(pool, { name: 'login-id', windowMs: 15 * MINUTE, limit: 10, key: bodyField('identifier') }),
     async (req, res) => {
       const result = await login(services, req.body, meta(req));
-      if (result.kind === 'mfa') return void res.json({ mfaRequired: true, challengeToken: result.challengeToken });
+      if (result.kind === 'mfa') return void res.json({ mfaRequired: true, challengeToken: result.challengeToken, emailSent: result.emailSent });
       await startSession(req, res, result.session, result.userId, { mfaEnrollmentRequired: result.mfaEnrollmentRequired });
     },
   );

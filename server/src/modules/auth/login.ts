@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { maybeOne, one } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
 import { parse } from '../../http/validate.js';
-import { randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
+import { randomDigits, randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
 import { AppError, unauthorized } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { isStaffRole, type Role } from './context.js';
@@ -36,10 +36,11 @@ const badCredentials = () =>
 
 export type LoginResult =
   | { kind: 'session'; userId: number; session: IssuedSession; mfaEnrollmentRequired: boolean }
-  | { kind: 'mfa'; challengeToken: string };
+  | { kind: 'mfa'; challengeToken: string; emailSent: boolean };
 
 interface LoginRow {
   id: string;
+  email: string | null;
   password_hash: string;
   status: string;
   locked_until: Date | null;
@@ -54,7 +55,7 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
   if (lower.includes('@')) {
     return maybeOne<LoginRow>(
       pool,
-      `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+      `SELECT u.id, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
               coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
        FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
        WHERE u.email = $1 AND u.anonymized_at IS NULL`,
@@ -79,7 +80,7 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
   if (phoneE164) {
     return maybeOne<LoginRow>(
       pool,
-      `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+      `SELECT u.id, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
               coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
        FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
        WHERE (u.phone_e164 = $1 OR u.username = $2) AND u.anonymized_at IS NULL`,
@@ -89,7 +90,7 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
 
   return maybeOne<LoginRow>(
     pool,
-    `SELECT u.id, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+    `SELECT u.id, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
             coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
      FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
      WHERE u.username = $1 AND u.anonymized_at IS NULL`,
@@ -126,10 +127,28 @@ export async function login(services: Services, raw: unknown, meta: RequestMeta)
 
   if (user.mfa_enabled) {
     const challengeToken = randomToken(32);
-    await pool.query('INSERT INTO mfa_challenges (token_hash, user_id, expires_at, ip) VALUES ($1, $2, $3, $4)', [
+    // Owner request 2026-10-24: the second step also accepts a 6-digit code emailed to the account.
+    const emailCode = user.email ? randomDigits(6) : null;
+    await pool.query('INSERT INTO mfa_challenges (token_hash, user_id, expires_at, ip, email_code_hash) VALUES ($1, $2, $3, $4, $5)', [
       sha256(challengeToken), userId, new Date(now.getTime() + CHALLENGE_TTL_MS), meta.ip ?? null,
+      emailCode ? codeHash(config.dataEncryptionKey, 'email-login', emailCode) : null,
     ]);
-    return { kind: 'mfa', challengeToken };
+    let emailSent = false;
+    if (emailCode && user.email) {
+      try {
+        await services.mailer.send({
+          to: user.email,
+          subject: 'Your Zentrix sign-in code',
+          text: `Your Zentrix sign-in code is ${emailCode}.
+
+It expires in 5 minutes and works once. If you did not just sign in, change your password now.`,
+        });
+        emailSent = true;
+      } catch (err) {
+        services.logger.error({ err, userId }, 'sign-in code email failed');
+      }
+    }
+    return { kind: 'mfa', challengeToken, emailSent };
   }
 
   const staff = user.roles.some(isStaffRole);
@@ -150,9 +169,9 @@ export async function loginWithMfa(services: Services, raw: unknown, meta: Reque
   const { config } = services;
   const now = services.now();
   const result = await withTransaction(services.pool, async db => {
-    const challenge = await maybeOne<{ user_id: string; attempts: number }>(
+    const challenge = await maybeOne<{ user_id: string; attempts: number; email_code_hash: Buffer | null }>(
       db,
-      `SELECT user_id, attempts FROM mfa_challenges WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 FOR UPDATE`,
+      `SELECT user_id, attempts, email_code_hash FROM mfa_challenges WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 FOR UPDATE`,
       [sha256(input.challengeToken), now],
     );
     if (!challenge || challenge.attempts >= CHALLENGE_MAX_ATTEMPTS) return { error: 'expired' as const };
@@ -169,6 +188,8 @@ export async function loginWithMfa(services: Services, raw: unknown, meta: Reque
       const step = verifyTotp(secret, input.code, cred.last_used_step === null ? null : Number(cred.last_used_step), now);
       if (step !== null) {
         await db.query('UPDATE totp_credentials SET last_used_step = $2 WHERE user_id = $1', [userId, step]);
+        ok = true;
+      } else if (challenge.email_code_hash && safeEqual(challenge.email_code_hash, codeHash(config.dataEncryptionKey, 'email-login', input.code))) {
         ok = true;
       }
     } else {
@@ -197,7 +218,7 @@ export async function loginWithMfa(services: Services, raw: unknown, meta: Reque
   if ('error' in result) {
     throw result.error === 'expired'
       ? new AppError(401, 'auth.mfa_expired', 'This sign-in attempt has expired. Sign in again.')
-      : new AppError(401, 'auth.mfa_invalid', 'That code is not right. Try the current code from your authenticator app.');
+      : new AppError(401, 'auth.mfa_invalid', 'That code is not right. Use the code from your email or your authenticator app.');
   }
   return result;
 }

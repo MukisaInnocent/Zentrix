@@ -45,7 +45,7 @@ describe('configuration', () => {
         return String(err);
       }
     })();
-    for (const part of ['NODE_ENV must be production', 'SMTP_URL must be set', 'DATABASE_SSL must not be disable']) expect(message).toContain(part);
+    for (const part of ['NODE_ENV must be production', 'SMTP_URL or RESEND_API_KEY must be set', 'DATABASE_SSL must not be disable']) expect(message).toContain(part);
   });
 
   it('accepts a complete live configuration', () => {
