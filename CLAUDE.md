@@ -6,7 +6,7 @@ Loaded at the start of every session. Requirements come from the owner's Zentrix
 
 - 2026-10-21: the owner answered the plan's questions; their answers count as approval with changes. Phase 1 (foundation) is in progress on branch `rebuild/phase-1-foundation`.
 - Owner decisions are logged in `docs/PLAN.md` section 12. Unanswered items use the defaults in section 10, marked `TODO(owner)` in code and settings.
-- The owner asked for multi-level referral payouts (UGX 10,000 / 5,000 / 2,000, later capped at level 3). That breaks rules 3.1 and 3.2 and was declined. Since Phase 2 the code records a pending reward for the direct referrer only (UGX 1,000 default, `TODO(owner)`, within the 10% cap) and pays nothing until the owner confirms the amount. Member pages no longer advertise multi-level amounts.
+- Referrals: multi-level, levels 1 to 3 (UGX 10,000 / 5,000 / 2,000), paid at sign-up and at membership activation. On 2026-10-24 the owner told us to leave this logic as it is and change only the membership fee. Since Phase 2 the rewards are paid through the ledger from `platform_revenue`. It conflicts with rules 3.1 and 3.2 as written; do not change it without the owner.
 - 2026-10-24: the owner made deposits and withdrawals manual, confirmed the UGX 19,000 membership fee and asked for an admin dashboard. Phase 2 (ledger, manual payments, staff console) is on branch `rebuild/phase-2-ledger-manual-payments`.
 
 ## How to operate

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Team & Referrals · Zentrix</title>
-<meta name="description" content="Your invites and referral rewards.">
+<meta name="description" content="Multi-level referral network and commission tracking.">
 <meta name="theme-color" content="#0e5c63">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -16,13 +16,30 @@
 <div class="zx-page">
   <div class="zx-page-head">
     <div>
-      <h1>Team</h1>
-      <p>The people you invited and the status of their referral rewards.</p>
+      <h1>Team &amp; Multi-Level Referrals</h1>
+      <p>Track your referral network and your earnings across levels 1 to 3.</p>
     </div>
   </div>
   <div class="zx-card">
-    <h2>How referral rewards work</h2>
-    <p>Referral rewards are paid only to the person who invited you directly, as a flat amount, and only after the owner confirms the amount. None are paid yet. A reward is recorded when someone you invited pays their membership fee, and shows as pending below.</p>
+    <h2>Multi-Level Referral Structure</h2>
+    <p>Referral is UGX 10,000 for the first one, and then if the one who is referred refers, UGX 5,000 is given to the first one to refer, and if they refer at this level then UGX 2,000 is given to the first one to refer. Rewards stop at level 3.</p>
+    <div class="zx-auto-grid zx-auto-grid--sm">
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 1 (Direct)</div>
+        <div class="zx-tier__amount">UGX 10,000</div>
+        <div class="zx-hint">For everyone you invite directly</div>
+      </div>
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 2 (Tier 2)</div>
+        <div class="zx-tier__amount">UGX 5,000</div>
+        <div class="zx-hint">When your referral refers someone</div>
+      </div>
+      <div class="zx-tier">
+        <div class="zx-tier__name">Level 3 (Tier 3)</div>
+        <div class="zx-tier__amount">UGX 2,000</div>
+        <div class="zx-hint">When level 2 refers someone</div>
+      </div>
+    </div>
   </div>
   <div class="zx-card zx-card--accent">
     <h3>Your Personal Referral Link</h3>
@@ -42,14 +59,14 @@
     <div class="zx-stat zx-stat--mint">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
       <div id="stat-total-comm" class="zx-stat__value">UGX 0</div>
-      <div class="zx-stat__label">Rewards paid</div>
+      <div class="zx-stat__label">Total Commission</div>
       <div class="zx-stat__note">Earned and withdrawable</div>
     </div>
     <div class="zx-stat zx-stat--sand">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#chevron-right"></use></svg></div>
       <div id="stat-lvl1-count" class="zx-stat__value">0</div>
       <div class="zx-stat__label">Level 1 (Direct)</div>
-      <div class="zx-stat__note">People you invited</div>
+      <div class="zx-stat__note">UGX 10,000 per referral</div>
     </div>
     <div class="zx-stat zx-stat--lilac">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#chevron-right"></use></svg></div>
@@ -73,11 +90,11 @@
   </div>
   <div class="zx-card">
     <div class="zx-card__title">
-      <h2>Referral rewards</h2>
+      <h2>Commission History</h2>
     </div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">From Member</th><th scope="col">Level</th><th scope="col">Reward</th><th scope="col">Status</th></tr></thead>
+        <thead><tr><th scope="col">Date</th><th scope="col">From Member</th><th scope="col">Level</th><th scope="col">Commission</th><th scope="col">Status</th></tr></thead>
         <tbody id="commissions-body">
           <tr><td colspan="5" class="zx-td-empty">Loading commission history...</td></tr>
         </tbody>

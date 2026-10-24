@@ -5,7 +5,7 @@ import { randomCode } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
 import { accountId, InsufficientFundsError, move, post, TASK_MODULES, type TaskModule } from '../ledger/ledger.js';
-import { recordReferralReward } from '../referrals/service.js';
+import { distributeReferralRewards } from '../referrals/service.js';
 
 export const BALANCE_SOURCES = ['main', ...TASK_MODULES] as const;
 export type BalanceSource = (typeof BALANCE_SOURCES)[number];
@@ -145,14 +145,14 @@ export const newReference = (prefix: string) => `${prefix}-${randomCode(8)}`;
 
 // Pays the membership fee from the main balance to platform revenue and issues a receipt (D8). Membership
 // fees are platform revenue (rule 1). Runs inside moneyTx.
-export async function activateMembership(db: PoolClient, userId: number): Promise<{ alreadyActive: boolean; receiptNo: string; feeMinor: string; currency: string; activatedAt: Date; referralRecorded: boolean }> {
+export async function activateMembership(db: PoolClient, userId: number): Promise<{ alreadyActive: boolean; receiptNo: string; feeMinor: string; currency: string; activatedAt: Date; referralsRewarded: number }> {
   const member = await memberInfo(db, userId);
   await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
   const existing = await maybeOne<{ receipt_no: string; fee_minor: string; currency_code: string; activated_at: Date }>(
     db, 'SELECT receipt_no, fee_minor, currency_code, activated_at FROM memberships WHERE user_id = $1', [userId],
   );
   if (existing) {
-    return { alreadyActive: true, receiptNo: existing.receipt_no, feeMinor: existing.fee_minor, currency: existing.currency_code, activatedAt: existing.activated_at, referralRecorded: false };
+    return { alreadyActive: true, receiptNo: existing.receipt_no, feeMinor: existing.fee_minor, currency: existing.currency_code, activatedAt: existing.activated_at, referralsRewarded: 0 };
   }
   requireActive(member);
   const config = await requireConfig(db, member.countryCode);
@@ -174,6 +174,7 @@ export async function activateMembership(db: PoolClient, userId: number): Promis
     'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5) RETURNING activated_at',
     [userId, receiptNo, fee.toString(), member.currency, txn],
   );
-  const referralRecorded = await recordReferralReward(db, userId);
-  return { alreadyActive: false, receiptNo, feeMinor: fee.toString(), currency: member.currency, activatedAt: saved.activated_at, referralRecorded };
+  // Multi-level referral rewards up the chain (levels 1 to 3), as before.
+  const { distributedCount } = await distributeReferralRewards(db, userId);
+  return { alreadyActive: false, receiptNo, feeMinor: fee.toString(), currency: member.currency, activatedAt: saved.activated_at, referralsRewarded: distributedCount };
 }

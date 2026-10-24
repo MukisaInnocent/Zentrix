@@ -133,8 +133,9 @@ describe('manual deposits', () => {
 });
 
 describe('membership', () => {
-  it('charges UGX 19,000 from the main balance to platform revenue and records a pending direct referral only', async () => {
-    const grand = await verifiedMember();
+  it('charges UGX 19,000 to platform revenue and pays referral levels 1 to 3 (10,000 / 5,000 / 2,000) through the ledger', async () => {
+    const top = await verifiedMember();
+    const grand = await verifiedMember({ referralCode: top.user.referralCode });
     const referrer = await verifiedMember({ referralCode: grand.user.referralCode });
     const member = await verifiedMember({ referralCode: referrer.user.referralCode });
     const poor = await member.client.post<Body>('/api/wallet/membership/activate', {}, key());
@@ -145,18 +146,18 @@ describe('membership', () => {
     expect(act.status, JSON.stringify(act.body)).toBe(200);
     expect(act.body.feeMinor).toBe('19000');
     expect(act.body.receiptNo).toMatch(/^MB-/);
+    expect(act.body.referralsRewarded).toBe(3);
     expect(act.body.summary.availableBalanceMinor).toBe('1000');
     expect((await member.client.post<Body>('/api/wallet/membership/activate', {}, key())).body.alreadyActive).toBe(true);
-    expect((await summary(member)).availableBalanceMinor).toBe('1000');
 
-    const rewards = await app.owner.query<{ referrer: string; level: number; amount_minor: string; status: string }>(
-      `SELECT u.public_id AS referrer, r.level, r.amount_minor, r.status FROM referral_rewards r JOIN users u ON u.id = r.referrer_user_id
-       JOIN users m ON m.id = r.referred_user_id WHERE m.public_id = $1`,
-      [member.user.id],
+    expect((await summary(referrer)).availableBalanceMinor).toBe('10000');
+    expect((await summary(grand)).availableBalanceMinor).toBe('5000');
+    expect((await summary(top)).availableBalanceMinor).toBe('2000');
+    expect((await summary(top)).totalReferralEarnedMinor).toBe('2000');
+    const levels = await app.owner.query<{ level: number; status: string }>(
+      `SELECT r.level, r.status FROM referral_rewards r JOIN users m ON m.id = r.referred_user_id WHERE m.public_id = $1 ORDER BY r.level`, [member.user.id],
     );
-    expect(rewards.rows).toEqual([{ referrer: referrer.user.id, level: 1, amount_minor: '1000', status: 'pending' }]);
-    expect((await summary(referrer)).availableBalanceMinor).toBe('0');
-    expect((await summary(grand)).availableBalanceMinor).toBe('0');
+    expect(levels.rows).toEqual([{ level: 1, status: 'credited' }, { level: 2, status: 'credited' }, { level: 3, status: 'credited' }]);
   });
 });
 

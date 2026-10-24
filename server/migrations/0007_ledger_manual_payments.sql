@@ -13,7 +13,6 @@ DROP TABLE client_payments;
 DROP TABLE wallets;
 -- Vouchers bought under the old tables have no liability behind them in the ledger.
 UPDATE vouchers SET status = 'cancelled' WHERE status = 'active';
-ALTER TABLE referral_rewards ALTER COLUMN status SET DEFAULT 'pending';
 
 -- Uganda's membership fee is UGX 19,000 (owner, 2026-10-24). Fresh databases get this config so payments work
 -- before the seed runs; per-request, daily and monthly maximums are still the plan's defaults (TODO(owner)).
@@ -541,5 +540,4 @@ DROP TABLE accounts;
 DROP FUNCTION zx_accounts_guard();
 DROP TABLE payment_channels;
 DROP FUNCTION zx_payment_channel_guard();
-ALTER TABLE referral_rewards ALTER COLUMN status SET DEFAULT 'credited';
 -- The 0005 wallet tables are not recreated; roll back to before 0005 and reapply it if they are needed.

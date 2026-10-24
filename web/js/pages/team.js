@@ -64,7 +64,7 @@ export async function init() {
     const commBody = $('#commissions-body');
     if (commBody) {
       if (!commissions || commissions.length === 0) {
-        commBody.innerHTML = `<tr><td colspan="5" class="zx-td-empty">No referral rewards yet.</td></tr>`;
+        commBody.innerHTML = `<tr><td colspan="5" class="zx-td-empty">No commissions earned yet. Invite members to get your first UGX 10,000 payout!</td></tr>`;
       } else {
         commBody.innerHTML = commissions
           .map(c => {
@@ -73,11 +73,11 @@ export async function init() {
               <tr>
                 <td class="zx-td-muted">${dateStr}</td>
                 <td class="zx-td-strong">@${c.fromUsername}</td>
-                <td class="zx-td-strong">Direct invite</td>
-                <td class="zx-amount">${formatMoney(c.amountMinor, c.currency)}</td>
+                <td class="zx-td-strong">Tier ${c.level}</td>
+                <td class="zx-amount zx-amount--in">+ ${formatMoney(c.amountMinor, c.currency)}</td>
                 <td>
-                  <span class="zx-badge ${c.status === 'credited' ? 'zx-badge--success' : 'zx-badge--warning'}">
-                    ${c.status === 'credited' ? 'Paid' : c.status === 'pending' ? 'Pending, not paid yet' : 'Cancelled'}
+                  <span class="zx-badge zx-badge--success">
+                    Credited
                   </span>
                 </td>
               </tr>

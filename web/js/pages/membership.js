@@ -18,7 +18,7 @@ export async function init() {
         }
         if (desc && res.activatedAt) {
           const d = new Date(res.activatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-          desc.textContent = `Your membership was activated on ${d}. All task modules are open to you.`;
+          desc.textContent = `Your membership was activated on ${d}. All task modules and multi-level referral earnings are active.`;
         }
         if (btn) {
           btn.textContent = 'Membership Active';
