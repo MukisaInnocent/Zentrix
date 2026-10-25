@@ -22,8 +22,13 @@ async function amount(services: Services, p: Payment): Promise<string> {
   return `${p.currency} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? `.${fraction}` : ''}`;
 }
 
-function message(event: PaymentEvent, money: string, ref: string, note: string | null): { subject: string; text: string } {
+function message(event: PaymentEvent, money: string, ref: string, note: string | null, purpose: string): { subject: string; text: string } {
   const why = note ? `\n\nReason: ${note}` : '';
+  if (purpose === 'wallet') {
+    if (event === 'deposit_submitted') return { subject: `Deposit ${ref} received`, text: `We received your deposit of ${money} (reference ${ref}). Our team will credit your balance as soon as it is found on our statement.` };
+    if (event === 'deposit_confirmed') return { subject: `Deposit ${ref} credited`, text: `${money} has been credited to your balance (deposit ${ref}).` };
+    if (event === 'deposit_rejected') return { subject: `Deposit ${ref} not credited`, text: `We could not credit your deposit ${ref}.${why}\n\nContact support if you think this is a mistake.` };
+  }
   switch (event) {
     case 'deposit_submitted':
       return { subject: `Activation payment ${ref} received`, text: `We received your activation payment of ${money} (reference ${ref}). Our team is checking it against our statement and will activate your account as soon as it is found.` };
@@ -49,14 +54,15 @@ export async function notifyPayment(services: Services, event: PaymentEvent, ref
   try {
     const table = event.startsWith('deposit') ? 'deposits' : 'withdrawals';
     const amountCol = table === 'deposits' ? 'coalesce(p.credited_amount_minor, p.claimed_amount_minor)' : 'p.amount_minor';
-    const row = await maybeOne<{ email: string | null; username: string; currency_code: string; amount: string }>(
+    const purposeCol = table === 'deposits' ? 'p.purpose' : `'withdrawal'`;
+    const row = await maybeOne<{ email: string | null; username: string; currency_code: string; amount: string; purpose: string }>(
       services.pool,
-      `SELECT u.email, u.username, p.currency_code, ${amountCol}::text AS amount FROM ${table} p JOIN users u ON u.id = p.user_id WHERE p.reference = $1`,
+      `SELECT u.email, u.username, p.currency_code, ${amountCol}::text AS amount, ${purposeCol} AS purpose FROM ${table} p JOIN users u ON u.id = p.user_id WHERE p.reference = $1`,
       [reference],
     );
     if (!row?.email) return;
     const money = await amount(services, { reference, currency: row.currency_code, amountMinor: row.amount });
-    const { subject, text } = message(event, money, reference, note);
+    const { subject, text } = message(event, money, reference, note, row.purpose);
     await services.mailer.send({ to: row.email, subject: `Zentrix: ${subject}`, text: `Hello @${row.username},
 
 ${text}

@@ -85,6 +85,11 @@ The reference screenshots from another platform are visual inspiration only. Nev
 - No SMS forwarding, by owner decision. The deleted Android forwarder's source is in commit `237980b` if it is ever needed.
 - Exchange rates come from an exchange-rate API behind the FX source interface, with a simulator for tests.
 
+## Test-mode switches (refused in live mode)
+
+- `TEST_AUTO_APPROVE=true`: activation payments, deposits and withdrawals pass by themselves, through the same ledger steps, done by the system accounts `zx_autopilot_a` (approves) and `zx_autopilot_b` (pays).
+- `TEST_SUPERADMIN_PASSWORD`: creates the `superadmin` account with every staff role; it signs in with the password alone (no second step). Set it in `.env` locally and in the Render dashboard, never in git.
+
 ## Commands
 
 - `npm run dev`: embedded Postgres in `.data/dev-pg`, migrations, test seed (fake staff with TOTP secrets in `.data/seed-credentials.txt`), app on port 3000. Staff console at `/admin/index.html`.

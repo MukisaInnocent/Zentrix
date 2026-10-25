@@ -14,6 +14,7 @@ const MEMBER_NAV = [
     group: 'nav.group.wallet',
     items: [
       { id: 'wallet', href: '/accounts.html', icon: 'wallet', label: 'nav.wallet' },
+      { id: 'deposit', href: '/deposit.html', icon: 'deposit', label: 'nav.deposit' },
       { id: 'withdraw', href: '/withdraw.html', icon: 'withdraw', label: 'nav.withdraw', bottom: true },
       { id: 'vouchers', href: '/voucher.html', icon: 'ticket', label: 'nav.vouchers' },
       { id: 'payforclient', href: '/payforclient.html', icon: 'transfer', label: 'nav.payForClient' },

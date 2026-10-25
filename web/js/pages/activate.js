@@ -65,6 +65,7 @@ async function refresh() {
   info = await api.get('/api/payments/channels');
   if (info.activation.active) return location.assign('/dashboard.html');
   const list = await api.get('/api/payments/deposits');
+  list.deposits = list.deposits.filter(d => d.purpose === 'activation');
   $('#fee').textContent = info.activation.feeMinor ? formatMoney(info.activation.feeMinor, info.currency) : 'Not set for your country yet';
   $('#paused').hidden = !info.depositsPaused;
   $('#auto-note').hidden = !info.autoApprove;

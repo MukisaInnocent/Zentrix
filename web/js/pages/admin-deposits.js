@@ -33,7 +33,7 @@ function checks(d) {
 function row(d) {
   return h('tr', { tabindex: '0', dataset: { open: d.id } },
     h('td', { class: 'zx-td-muted' }, ago(d.createdAt)),
-    h('td', { class: 'zx-td-strong' }, `@${d.member}`),
+    h('td', { class: 'zx-td-strong' }, `@${d.member}`, ' ', h('span', { class: `zx-badge ${d.purpose === 'wallet' ? 'zx-badge--brand' : 'zx-badge--warning'}` }, d.purpose === 'wallet' ? 'Deposit' : 'Activation')),
     h('td', {}, d.channel.name),
     h('td', { class: 'zx-td-mono' }, d.providerTxnId),
     h('td', { class: 'zx-amount' }, money(d.creditedAmountMinor ?? d.claimedAmountMinor, d.currency)),
@@ -53,7 +53,7 @@ async function openDeposit(id) {
     return;
   }
   const { deposit: d, member: m, events, related, issues } = data;
-  view.setTitle(`Deposit ${d.reference}`);
+  view.setTitle(`${d.purpose === 'wallet' ? 'Deposit' : 'Activation payment'} ${d.reference}`);
   const warnings = [];
   if (related.some(r => r.providerTxnId === d.providerTxnId)) warnings.push('This transaction ID appears on another claim. Check it is not the same payment twice.');
   if (related.some(r => r.senderPhone === d.senderPhone && r.member !== m.username)) warnings.push('Other members have claimed payments from this sender phone.');
@@ -100,12 +100,14 @@ async function openDeposit(id) {
   const reject = h('button', { type: 'button', class: 'zx-btn zx-btn--danger' }, 'Reject');
   confirm.addEventListener('click', async () => {
     const result = await askForm({
-      title: 'Confirm activation payment',
-      text: `Only confirm after you have found transaction ${d.providerTxnId} on the ${d.channel.name} statement for exactly the activation fee. The member's account opens and referral rewards are paid.`,
-      submitLabel: 'Confirm and activate', tone: 'success',
+      title: d.purpose === 'wallet' ? 'Confirm deposit' : 'Confirm activation payment',
+      text: d.purpose === 'wallet'
+        ? `Only confirm after you have found transaction ${d.providerTxnId} on the ${d.channel.name} statement. The amount you enter is credited to the member's balance; explain any difference in the note.`
+        : `Only confirm after you have found transaction ${d.providerTxnId} on the ${d.channel.name} statement for exactly the activation fee. The member's account opens and referral rewards are paid.`,
+      submitLabel: d.purpose === 'wallet' ? 'Confirm and credit' : 'Confirm and activate', tone: 'success',
       fields: [
         { name: 'amount', label: `Amount on the statement (${d.currency})`, value: minorToDecimal(d.claimedAmountMinor, exponent), required: true, inputmode: 'decimal' },
-        { name: 'note', label: 'Note (optional)', type: 'textarea' },
+        { name: 'note', label: d.purpose === 'wallet' ? 'Note (required if the amount differs)' : 'Note (optional)', type: 'textarea' },
       ],
       submit: v => moneyPost(`/api/admin/payments/deposits/${d.id}/confirm`, { amount: v.amount, ...(v.note ? { note: v.note } : {}) }),
     });

@@ -10,6 +10,7 @@ import { isStaffRole, type Role } from './context.js';
 import { burnPasswordCheck, verifyPassword } from './passwords.js';
 import type { RequestMeta } from './register.js';
 import { createSession, TOKEN_PATTERN, type IssuedSession } from './sessions.js';
+import { SUPERADMIN_USERNAME, superadminEnabled } from './superadmin.js';
 import { codeHash, normaliseRecoveryCode, openTotpSecret, verifyTotp } from './totp.js';
 
 export const LoginSchema = z.strictObject({
@@ -40,6 +41,7 @@ export type LoginResult =
 
 interface LoginRow {
   id: string;
+  username: string;
   email: string | null;
   password_hash: string;
   status: string;
@@ -55,7 +57,7 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
   if (lower.includes('@')) {
     return maybeOne<LoginRow>(
       pool,
-      `SELECT u.id, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+      `SELECT u.id, u.username, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
               coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
        FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
        WHERE u.email = $1 AND u.anonymized_at IS NULL`,
@@ -74,7 +76,7 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
   if (phoneE164) {
     return maybeOne<LoginRow>(
       pool,
-      `SELECT u.id, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+      `SELECT u.id, u.username, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
               coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
        FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
        WHERE (u.phone_e164 = $1 OR u.username = $2) AND u.anonymized_at IS NULL`,
@@ -84,7 +86,7 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
 
   return maybeOne<LoginRow>(
     pool,
-    `SELECT u.id, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
+    `SELECT u.id, u.username, u.email, u.password_hash, u.status, u.locked_until, t.enabled_at IS NOT NULL AS mfa_enabled,
             coalesce((SELECT array_agg(role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
      FROM users u LEFT JOIN totp_credentials t ON t.user_id = u.id
      WHERE u.username = $1 AND u.anonymized_at IS NULL`,
@@ -117,6 +119,18 @@ export async function login(services: Services, raw: unknown, meta: RequestMeta)
       userId, meta.ip ?? null, meta.userAgent?.slice(0, 300) ?? null,
     ]);
     throw badCredentials();
+  }
+
+  // Test mode only: the super admin from TEST_SUPERADMIN_PASSWORD skips the second step.
+  if (superadminEnabled(services) && user.username === SUPERADMIN_USERNAME) {
+    const session = await withTransaction(pool, async db => {
+      await db.query('UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = $2 WHERE id = $1', [userId, now]);
+      await db.query(`INSERT INTO auth_events (user_id, kind, ip, user_agent) VALUES ($1, 'login', $2, $3)`, [
+        userId, meta.ip ?? null, meta.userAgent?.slice(0, 300) ?? null,
+      ]);
+      return createSession(db, config.csrfSecret, { userId, staff: true, mfaVerified: true, ip: meta.ip, userAgent: meta.userAgent, now });
+    });
+    return { kind: 'session', userId, session, mfaEnrollmentRequired: false };
   }
 
   if (user.mfa_enabled) {

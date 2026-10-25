@@ -209,6 +209,32 @@ describe('activation payment', () => {
   });
 });
 
+describe('wallet deposits', () => {
+  it('need an activated account, credit the amount actually received, and keep the activation amount fixed', async () => {
+    const member = await verifiedMember();
+    const wallet = (extra: Record<string, unknown> = {}) => member.client.post<Body>('/api/payments/deposits', {
+      purpose: 'wallet', amount: '20000', channel: CHANNEL, senderPhone: member.input.phone, providerTxnId: txnId(), ...extra,
+    }, key());
+    expect((await wallet()).body.error?.code).toBe('activation.required');
+    await activate(member);
+    expect((await wallet({ amount: undefined })).body.error?.fields?.amount).toBeDefined();
+    const res = await wallet();
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.deposit).toMatchObject({ purpose: 'wallet', claimedAmountMinor: '20000', status: 'pending' });
+    const noNote = await financeClient.post<Body>(`/api/admin/payments/deposits/${res.body.deposit.id}/confirm`, { amount: '19500' }, key());
+    expect(noNote.body.error?.fields?.note).toBeDefined();
+    const ok = await financeClient.post<Body>(`/api/admin/payments/deposits/${res.body.deposit.id}/confirm`, { amount: '19500', note: 'Statement shows 19,500' }, key());
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    const s = await summary(member);
+    expect([s.availableBalanceMinor, s.totalDepositedMinor, s.expensesMinor]).toEqual(['19500', '19500', FEE]);
+    await new Promise(r => setTimeout(r, 300));
+    expect((await app.outbox(member.input.email)).some(m => m.subject === `Zentrix: Deposit ${res.body.deposit.reference} credited`)).toBe(true);
+    // An activation payment cannot carry an amount of its own.
+    const other = await verifiedMember();
+    expect((await claim(other, { amount: '100' })).body.error?.fields?.amount).toBeDefined();
+  });
+});
+
 describe('referral rewards', () => {
   it('pay levels 1 to 3 (10,000 / 5,000 / 2,000) only when the invited member activates, never at sign-up', async () => {
     const top = await verifiedMember();

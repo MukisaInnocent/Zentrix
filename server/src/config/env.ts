@@ -35,6 +35,8 @@ const EnvSchema = z.object({
   SEED_ON_START: z.stringbool().default(false),
   // Test mode only: activation payments and withdrawals pass by themselves (owner, 2026-10-25).
   TEST_AUTO_APPROVE: z.stringbool().default(false),
+  // Test mode only: the password of the `superadmin` account, which signs in without the second step.
+  TEST_SUPERADMIN_PASSWORD: z.string().min(12, { error: 'TEST_SUPERADMIN_PASSWORD must be at least 12 characters.' }).optional(),
   RUN_JOBS_IN_WEB: z.stringbool().default(false),
 });
 
@@ -62,6 +64,7 @@ export interface Config {
   migrateOnStart: boolean;
   seedOnStart: boolean;
   testAutoApprove: boolean;
+  testSuperadminPassword: string | null;
   runJobsInWeb: boolean;
 }
 
@@ -122,6 +125,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     migrateOnStart: e.MIGRATE_ON_START,
     seedOnStart: e.SEED_ON_START,
     testAutoApprove: e.TEST_AUTO_APPROVE,
+    testSuperadminPassword: e.TEST_SUPERADMIN_PASSWORD ?? null,
     runJobsInWeb: e.RUN_JOBS_IN_WEB,
   };
   assertModeRules(config, env);
@@ -149,5 +153,6 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (config.geoipProvider === 'test-header') problems.push('GEOIP_PROVIDER=test-header is test-only');
   if (config.seedOnStart) problems.push('SEED_ON_START must be false');
   if (config.testAutoApprove) problems.push('TEST_AUTO_APPROVE must be false');
+  if (config.testSuperadminPassword) problems.push('TEST_SUPERADMIN_PASSWORD must not be set');
   if (problems.length > 0) throw new ConfigError(`Live mode refuses to start: ${problems.join('; ')}.`);
 }

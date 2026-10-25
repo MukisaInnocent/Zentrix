@@ -55,6 +55,8 @@ if (dbOnly) {
   const services = createServices(config, logger);
   const { seedTestData } = await import('../seeds/test-data.js');
   await seedTestData(services);
+  const { ensureSuperadmin } = await import('../src/modules/auth/superadmin.js');
+  await ensureSuperadmin(services);
   const { networkInterfaces } = await import('node:os');
   const nets = networkInterfaces();
   let lanIp = '127.0.0.1';

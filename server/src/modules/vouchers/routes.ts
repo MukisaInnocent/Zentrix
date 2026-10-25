@@ -81,7 +81,7 @@ export function vouchersRouter(services: Services): Router {
   return router;
 }
 
-// Pay For Client: a wallet-to-wallet payment to another verified member (by username or phone), same currency.
+// Pay For Client: a wallet-to-wallet payment to another verified member, found by username only, same currency.
 export function clientPaymentsRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
@@ -106,9 +106,8 @@ export function clientPaymentsRouter(services: Services): Router {
   router.post('/', async (req, res) => {
     const input = parse(
       z.strictObject({
-        recipient: z.string().trim().min(3, { error: 'Enter the member\'s username or phone number.' }).max(40),
+        recipient: z.string().trim().min(3, { error: 'Enter the member\'s username.' }).max(40),
         amount: AmountInput,
-        note: z.string().trim().max(200).optional(),
       }),
       req.body,
     );
@@ -120,10 +119,10 @@ export function clientPaymentsRouter(services: Services): Router {
       const payee = await maybeOne<{ id: string; username: string; currency_code: string; status: string; phone_ok: boolean }>(
         db,
         `SELECT id, username, currency_code, status, phone_verified_at IS NOT NULL AS phone_ok FROM users
-         WHERE anonymized_at IS NULL AND (username = $1 OR phone_e164 = $2)`,
-        [handle, input.recipient.replace(/\s+/g, '')],
+         WHERE anonymized_at IS NULL AND username = $1`,
+        [handle],
       );
-      const fail = () => badRequest('validation_failed', 'No verified member matches that username or phone.', { recipient: ['No verified member matches.'] });
+      const fail = () => badRequest('validation_failed', 'No verified member has that username.', { recipient: ['No verified member has that username.'] });
       if (!payee || payee.status !== 'active' || !payee.phone_ok) throw fail();
       if (Number(payee.id) === userId) throw badRequest('validation_failed', 'You cannot pay yourself.', { recipient: ['You cannot pay yourself.'] });
       if (payee.currency_code !== payer.currency) throw conflict('transfer.currency', 'That member uses another currency. Currency conversion is not available yet.');
@@ -142,7 +141,7 @@ export function clientPaymentsRouter(services: Services): Router {
         db,
         `INSERT INTO member_transfers (reference, payer_user_id, payee_user_id, amount_minor, currency_code, note, ledger_transaction_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [reference, userId, payee.id, amount.toString(), payer.currency, input.note ?? null, txn],
+        [reference, userId, payee.id, amount.toString(), payer.currency, null, txn],
       );
       return { status: 201, body: { ok: true, reference, payee: payee.username, balance: (await balanceOf(db, from)).toString() } };
     });

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deposit · Zentrix</title>
+<meta name="description" content="Add money to your Zentrix balance.">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="deposit" data-shell="app">
+<main id="main">
+<div class="zx-page zx-page--narrow">
+  <div class="zx-page-head">
+    <div>
+      <h1>Deposit</h1>
+    </div>
+  </div>
+  <div id="auto-note" class="zx-banner zx-banner--success" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#info"></use></svg><span class="zx-banner__text">Test mode: deposits pass automatically.</span></div>
+  <div id="paused" class="zx-banner zx-banner--warning" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#clock"></use></svg><span class="zx-banner__text">Deposits are paused for a short check. Please come back later.</span></div>
+
+  <section class="zx-card zx-stack-4">
+    <h2>1. Pay with</h2>
+    <div id="channel-pick" class="zx-channel-pick" role="radiogroup" aria-label="Payment method"></div>
+    <div id="paybox" class="zx-paybox" aria-live="polite"></div>
+  </section>
+
+  <section class="zx-card">
+    <h2>2. Enter your payment details</h2>
+    <form id="deposit-form" class="zx-form" novalidate>
+      <div class="zx-error" data-form-error hidden role="alert"></div>
+      <div class="zx-field">
+        <label for="deposit-amount">Amount you sent</label>
+        <input id="deposit-amount" class="zx-input" name="amount" inputmode="decimal" autocomplete="off" required>
+        <span id="deposit-amount-error" class="zx-error" hidden></span>
+      </div>
+      <div class="zx-field">
+        <label for="deposit-txn">Transaction ID</label>
+        <input id="deposit-txn" class="zx-input zx-input--code" name="providerTxnId" autocomplete="off" required minlength="4" maxlength="60">
+        <span id="deposit-txn-error" class="zx-error" hidden></span>
+      </div>
+      <div class="zx-field">
+        <label for="deposit-phone">Number you paid from</label>
+        <input id="deposit-phone" class="zx-input" name="senderPhone" type="tel" inputmode="tel" autocomplete="tel" required>
+        <span id="deposit-phone-error" class="zx-error" hidden></span>
+      </div>
+      <button id="deposit-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit deposit</button>
+    </form>
+  </section>
+
+  <section class="zx-card">
+    <div class="zx-section-title"><h2>Your deposits</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Transaction ID</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
+        <tbody id="deposits-body"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</main>
+</body>
+</html>

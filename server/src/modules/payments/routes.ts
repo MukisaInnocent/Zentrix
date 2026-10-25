@@ -34,6 +34,9 @@ export async function amountToMinor(db: Parameters<typeof exponentOf>[0], curren
 
 const Uuid = z.uuid();
 const DepositBody = z.strictObject({
+  purpose: z.enum(['activation', 'wallet']).default('activation'),
+  // Wallet deposits only. The activation amount is always the fee and cannot be sent.
+  amount: AmountInput.optional(),
   channel: z.string().trim().min(2).max(40),
   senderPhone: z.string().trim().min(4).max(32),
   providerTxnId: z.string().trim().min(4, { error: 'Enter the transaction ID from your payment message.' }).max(60),
@@ -95,7 +98,15 @@ export function paymentsRouter(services: Services): Router {
   router.post('/deposits', limiter(pool, { name: 'deposit-claim', windowMs: HOUR, limit: 20, key: byUser }), async (req, res) => {
     const input = parse(DepositBody, req.body);
     const result = await idempotent(pool, req, 'deposit.submit', async db => {
-      const deposit = await submitDeposit(db, req.auth!.userId, { channelCode: input.channel, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note });
+      if (input.purpose === 'activation' && input.amount !== undefined) {
+        throw badRequest('validation_failed', 'The activation amount is fixed.', { amount: ['The activation amount is fixed.'] });
+      }
+      const member = await memberInfo(db, req.auth!.userId);
+      const amountMinor = input.purpose === 'wallet' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
+      const deposit = await submitDeposit(db, req.auth!.userId, {
+        purpose: input.purpose, ...(amountMinor === undefined ? {} : { amountMinor }),
+        channelCode: input.channel, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note,
+      });
       return { status: 201, body: { deposit } };
     });
     if (!result.replayed) {

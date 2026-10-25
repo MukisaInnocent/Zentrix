@@ -3,11 +3,11 @@
   display: inline-flex; align-items: center; justify-content: center; gap: var(--zx-space-2);
   min-block-size: var(--zx-tap); padding: 10px 20px; border: 1px solid transparent; border-radius: 12px;
   background: var(--zx-grad-brand); color: #fff; font-weight: 700; text-decoration: none; line-height: 1.2;
-  box-shadow: 0 4px 14px rgb(14 92 99 / 28%);
+  box-shadow: 0 4px 14px rgb(91 43 214 / 28%);
   transition: transform .15s, box-shadow .15s, background .15s, filter .15s;
 }
-.zx-btn:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 8px 20px rgb(14 92 99 / 34%); filter: brightness(1.06); }
-.zx-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgb(14 92 99 / 28%); }
+.zx-btn:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 8px 20px rgb(91 43 214 / 34%); filter: brightness(1.06); }
+.zx-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgb(91 43 214 / 28%); }
 .zx-btn--secondary { background: var(--zx-surface); color: var(--zx-brand); border-color: var(--zx-border); box-shadow: var(--zx-shadow-sm); }
 .zx-btn--secondary:hover { background: var(--zx-brand-soft); color: var(--zx-brand-strong); border-color: var(--zx-brand); box-shadow: var(--zx-shadow-sm); filter: none; }
 .zx-btn--ghost { background: none; color: var(--zx-brand); box-shadow: none; }
@@ -106,7 +106,7 @@
 @media (min-width: 1200px) { .zx-stat-grid--2 { grid-template-columns: 1fr 1fr; } }
 .zx-stat {
   position: relative; overflow: hidden; display: grid; align-content: start; gap: 2px; min-block-size: 156px; padding: var(--zx-space-5);
-  border-radius: var(--zx-radius-lg); background: linear-gradient(145deg, var(--zx-sky), color-mix(in srgb, var(--zx-sky) 70%, #fff));
+  border-radius: var(--zx-radius-lg); background: linear-gradient(135deg, var(--zx-sky), var(--zx-sky-2));
   color: var(--zx-card-ink); box-shadow: var(--zx-shadow-sm); transition: transform .2s, box-shadow .2s;
 }
 .zx-stat::after {
@@ -114,10 +114,10 @@
   border-radius: 50%; background: rgb(255 255 255 / 22%); pointer-events: none;
 }
 .zx-stat:hover { transform: translateY(-3px); box-shadow: var(--zx-shadow); }
-.zx-stat--rose { background: linear-gradient(145deg, var(--zx-rose), color-mix(in srgb, var(--zx-rose) 70%, #fff)); }
-.zx-stat--mint { background: linear-gradient(145deg, var(--zx-mint), color-mix(in srgb, var(--zx-mint) 70%, #fff)); }
-.zx-stat--lilac { background: linear-gradient(145deg, var(--zx-lilac), color-mix(in srgb, var(--zx-lilac) 70%, #fff)); }
-.zx-stat--sand { background: linear-gradient(145deg, var(--zx-sand), color-mix(in srgb, var(--zx-sand) 70%, #fff)); }
+.zx-stat--rose { background: linear-gradient(135deg, var(--zx-rose), var(--zx-rose-2)); }
+.zx-stat--mint { background: linear-gradient(135deg, var(--zx-mint), var(--zx-mint-2)); }
+.zx-stat--lilac { background: linear-gradient(135deg, var(--zx-lilac), var(--zx-lilac-2)); }
+.zx-stat--sand { background: linear-gradient(135deg, var(--zx-sand), var(--zx-sand-2)); }
 .zx-stat__badge { display: grid; place-items: center; inline-size: 46px; block-size: 46px; margin-block-end: var(--zx-space-3); border-radius: 14px; background: #fff; color: var(--zx-brand); box-shadow: 0 4px 12px rgb(16 35 42 / 14%); }
 .zx-stat__badge .zx-icon { inline-size: 23px; block-size: 23px; }
 .zx-stat--rose .zx-stat__badge { color: #b42335; }
@@ -152,8 +152,8 @@
 .zx-hero__label { font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .75; }
 .zx-hero__balance { margin-block-start: 4px; font-size: clamp(1.9rem, 1.4rem + 2.4vw, 2.8rem); font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .zx-hero__actions { display: flex; flex-wrap: wrap; gap: var(--zx-space-2); margin-block-start: var(--zx-space-5); }
-.zx-hero .zx-btn { background: #fff; color: #0a474d; box-shadow: 0 6px 18px rgb(0 0 0 / 22%); }
-.zx-hero .zx-btn:hover { color: #0a474d; }
+.zx-hero .zx-btn { background: #fff; color: #4520a8; box-shadow: 0 6px 18px rgb(0 0 0 / 22%); }
+.zx-hero .zx-btn:hover { color: #4520a8; }
 .zx-hero .zx-btn--secondary { background: rgb(255 255 255 / 14%); color: #fff; border-color: rgb(255 255 255 / 30%); box-shadow: none; }
 .zx-hero .zx-btn--secondary:hover { background: rgb(255 255 255 / 24%); color: #fff; }
 .zx-hero__name { color: var(--zx-accent); }

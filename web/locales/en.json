@@ -80,7 +80,8 @@
     "level3": "Level 3",
     "overview": "Overview",
     "activeMembers": "Active Members",
-    "inactiveMembers": "Inactive Members"
+    "inactiveMembers": "Inactive Members",
+    "deposit": "Deposit"
   },
   "admin": {
     "nav": {

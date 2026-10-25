@@ -16,6 +16,8 @@ async function main(): Promise<void> {
     const { seedTestData } = await import('../seeds/test-data.js');
     await seedTestData(services);
   }
+  const { ensureSuperadmin } = await import('./modules/auth/superadmin.js');
+  await ensureSuperadmin(services);
 
   const app = createApp(services);
   const server = app.listen(config.port, config.host, () => {

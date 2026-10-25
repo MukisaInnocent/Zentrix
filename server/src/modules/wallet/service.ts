@@ -83,7 +83,7 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
     ),
     one<{ deposited: string; pending: string; withdrawn: string; referral: string; tasks: string }>(
       db,
-      `SELECT (SELECT coalesce(sum(credited_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'confirmed')::text AS deposited,
+      `SELECT (SELECT coalesce(sum(credited_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'confirmed' AND purpose = 'wallet')::text AS deposited,
               (SELECT coalesce(sum(reward_minor), 0) FROM task_submissions WHERE user_id = $1 AND status = 'approved')::text AS tasks,
               (SELECT coalesce(sum(claimed_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'pending')::text AS pending,
               (SELECT coalesce(sum(amount_minor), 0) FROM withdrawals WHERE user_id = $1 AND status = 'paid')::text AS withdrawn,

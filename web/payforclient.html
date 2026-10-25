@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pay For Client · Zentrix</title>
 <meta name="description" content="Pay another Zentrix member from your balance.">
-<meta name="theme-color" content="#0e5c63">
+<meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/js/theme-init.js"></script>
@@ -36,22 +36,18 @@
   </div>
   <div class="zx-card">
     <h2>New payment</h2>
-    <p class="zx-hint">The other member must have a verified phone and use the same currency. Payments cannot be reversed, so check the username.</p>
+    <p class="zx-hint">Payments cannot be reversed, so check the username.</p>
     <form id="pfc-form" class="zx-form">
       <div id="pfc-alert" class="zx-error zx-error--slot" role="alert"></div>
       <div class="zx-field">
-        <label for="pfc-recipient">Member username or phone</label>
-        <input id="pfc-recipient" class="zx-input" name="recipient" required autocomplete="off" placeholder="e.g. @username or +2567...">
+        <label for="pfc-recipient">Member username</label>
+        <input id="pfc-recipient" class="zx-input" name="recipient" required autocomplete="off" placeholder="e.g. alex256">
         <span id="pfc-recipient-error" class="zx-error" hidden></span>
       </div>
       <div class="zx-field">
         <label for="pfc-amount">Amount (UGX)</label>
         <input id="pfc-amount" class="zx-input" name="amount" inputmode="decimal" required value="19000">
         <span id="pfc-amount-error" class="zx-error" hidden></span>
-      </div>
-      <div class="zx-field">
-        <label for="pfc-note">Note / Purpose <span class="zx-hint">(optional)</span></label>
-        <input id="pfc-note" class="zx-input" name="note" maxlength="200" data-optional placeholder="e.g. Activation fee">
       </div>
       <button id="pfc-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Send payment</button>
     </form>

@@ -58,6 +58,9 @@ services:
       # Test mode only: activation payments and withdrawals pass by themselves. Must be false (or removed) for live.
       - key: TEST_AUTO_APPROVE
         value: "true"
+      # Test mode only: the password for the `superadmin` login (no second step). Never set it for live.
+      - key: TEST_SUPERADMIN_PASSWORD
+        sync: false
       - key: SEED_ON_START
         value: "false"
       # Run scheduled jobs (reconciliation, referral release) inside the web process; background workers are

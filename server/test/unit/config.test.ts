@@ -58,5 +58,9 @@ describe('configuration', () => {
       ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', SMTP_URL: 'smtp://mail.example:587',
       DATABASE_SSL: 'verify', TEST_AUTO_APPROVE: 'true',
     })).toThrow(/TEST_AUTO_APPROVE must be false/);
+    expect(() => loadConfig({
+      ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', SMTP_URL: 'smtp://mail.example:587',
+      DATABASE_SSL: 'verify', TEST_SUPERADMIN_PASSWORD: 'SuperAdmin-Test-2026',
+    })).toThrow(/TEST_SUPERADMIN_PASSWORD must not be set/);
   });
 });
