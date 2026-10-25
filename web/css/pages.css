@@ -141,3 +141,54 @@
 .zx-legal-head { display: flex; align-items: center; gap: var(--zx-space-4); }
 .zx-legal-head .zx-dot-icon { inline-size: 52px; block-size: 52px; }
 .zx-legal-head p { margin: 2px 0 0; color: var(--zx-text-muted); }
+
+/* ---------- Member dashboard: stacked colour cards (total earnings, balance, withdrawn, pending, referrals) ---------- */
+.zx-dashx { gap: var(--zx-space-4); max-inline-size: 760px; }
+.zx-dashx__hero {
+  display: grid; gap: var(--zx-space-2); padding: var(--zx-space-6); border-radius: var(--zx-radius-lg); color: #fff;
+  background: linear-gradient(135deg, #5b2bd6 0%, #7c4dff 55%, #9b6bff 100%); box-shadow: var(--zx-shadow);
+}
+.zx-dashx__welcome { margin: 0 0 var(--zx-space-2); font-size: 1.15rem; color: #fff; }
+.zx-dashx__label { font-size: .8rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
+.zx-dashx__big { font-size: clamp(1.7rem, 1.3rem + 2vw, 2.3rem); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.zx-dashx__pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--zx-space-3); margin-block-start: var(--zx-space-2); }
+.zx-dashx__mini { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: var(--zx-space-2); row-gap: 2px; padding: var(--zx-space-3); border-radius: var(--zx-radius); background: rgb(255 255 255 / 14%); min-inline-size: 0; }
+.zx-dashx__mini strong, .zx-dashx__mini-note { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.zx-dashx__mini strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.zx-dashx__mini-label { font-weight: 700; font-size: .875rem; }
+.zx-dashx__mini-note { font-size: .78rem; opacity: .85; }
+.zx-dashx__dot { inline-size: 10px; block-size: 10px; border-radius: 2px; }
+.zx-dashx__dot--expense { background: #ffc947; }
+.zx-dashx__dot--profit { background: #4fd1ff; }
+
+.zx-dashx__card {
+  position: relative; display: grid; gap: var(--zx-space-1); padding: var(--zx-space-5) var(--zx-space-6); border-radius: var(--zx-radius-lg);
+  color: #fff; text-decoration: none; box-shadow: var(--zx-shadow-sm); overflow: hidden; transition: transform .15s, box-shadow .15s;
+}
+.zx-dashx__card:hover { color: #fff; transform: translateY(-2px); box-shadow: var(--zx-shadow); }
+.zx-dashx__card::after { content: ""; position: absolute; inset-inline-end: -40px; inset-block-start: -40px; inline-size: 140px; block-size: 140px; border-radius: 50%; background: rgb(255 255 255 / 12%); }
+.zx-dashx__card-label { font-size: .9rem; font-weight: 700; opacity: .95; }
+.zx-dashx__card-value { font-size: clamp(1.45rem, 1.2rem + 1.4vw, 1.9rem); font-weight: 800; font-variant-numeric: tabular-nums; }
+.zx-dashx__card-icon { position: absolute; inset-inline-end: var(--zx-space-5); inset-block-start: 50%; transform: translateY(-50%); display: grid; place-items: center; inline-size: 52px; block-size: 52px; border-radius: 14px; background: rgb(255 255 255 / 20%); z-index: 1; }
+.zx-dashx__card-icon .zx-icon { inline-size: 24px; block-size: 24px; }
+.zx-dashx__card--balance { background: linear-gradient(135deg, #0f8a5f, #17b884); }
+.zx-dashx__card--withdrawn { background: linear-gradient(135deg, #0b6fb8, #1e9be0); }
+.zx-dashx__card--pending { background: linear-gradient(135deg, #c62f45, #ef5466); }
+.zx-dashx__card--referral { background: linear-gradient(135deg, #c96a00, #f0a030); }
+
+.zx-dashx__heading { margin: 0; font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; }
+.zx-dashx__tasks { display: grid; gap: var(--zx-space-3); margin-block-start: var(--zx-space-4); }
+.zx-dashx__task { display: flex; align-items: center; gap: var(--zx-space-3); padding: var(--zx-space-3) var(--zx-space-4); border-radius: var(--zx-radius); color: #fff; text-decoration: none; }
+a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
+.zx-dashx__task > span:last-child { display: grid; }
+.zx-dashx__task strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.zx-dashx__task-name { font-size: .85rem; opacity: .92; }
+.zx-dashx__task-icon { display: grid; place-items: center; flex: none; inline-size: 36px; block-size: 36px; border-radius: 50%; background: rgb(255 255 255 / 22%); }
+.zx-dashx__task-icon .zx-icon { inline-size: 18px; block-size: 18px; }
+.zx-dashx__task--youtube { background: #d93a3a; }
+.zx-dashx__task--tiktok { background: #111418; }
+.zx-dashx__task--ads { background: #1677c9; }
+.zx-dashx__task--trivia { background: #5b5bd6; }
+.zx-dashx__task--music { background: #0c9a7a; }
+.zx-dashx__task--fixtap { background: #4a5bd9; }
+@media (max-width: 380px) { .zx-dashx__pair { grid-template-columns: 1fr; } .zx-dashx__card-icon { inline-size: 44px; block-size: 44px; } }

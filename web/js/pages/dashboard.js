@@ -32,7 +32,9 @@ export async function init({ me }) {
     set('#stat-expenses', money(summary.expensesMinor, c));
     set('#stat-net', money(summary.netEarningsMinor, c));
     set('#stat-withdrawn', money(summary.totalWithdrawnMinor, c));
-    for (const m of ['youtube', 'tiktok', 'ads', 'trivia']) set(`#task-${m}-val`, money(summary.taskBalancesMinor[m], c));
+    set('#stat-pending', money(summary.reservedBalanceMinor, c));
+    set('#stat-referrals', money(summary.referralEarningsMinor, c));
+    for (const m of ['youtube', 'tiktok', 'ads', 'trivia', 'music', 'fixtap']) set(`#task-${m}-val`, money(summary.taskBalancesMinor[m], c));
   }
 
   if (referrals) {
