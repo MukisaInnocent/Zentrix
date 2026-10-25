@@ -14,11 +14,11 @@ import { promptSecret } from './prompt.js';
 const { values } = parseArgs({
   options: {
     username: { type: 'string' }, email: { type: 'string' }, phone: { type: 'string' },
-    country: { type: 'string', default: 'UG' }, role: { type: 'string', default: 'admin' }, dob: { type: 'string', default: '1990-01-01' },
+    country: { type: 'string', default: 'UG' }, role: { type: 'string', default: 'admin' },
   },
 });
 if (!values.username || !values.email || !values.phone) {
-  console.error('Required: --username, --email, --phone (E.164, e.g. +256...). Optional: --country, --role, --dob.');
+  console.error('Required: --username, --email, --phone (E.164, e.g. +256...). Optional: --country, --role.');
   process.exit(2);
 }
 if (!(STAFF_ROLES as readonly string[]).includes(values.role)) {
@@ -39,7 +39,7 @@ try {
   const user = await withTransaction(services.pool, db =>
     createUserDirect(db, config.dataEncryptionKey, {
       username: values.username!.toLowerCase(), email: values.email!, phone: values.phone!, country: values.country.toUpperCase(),
-      dateOfBirth: values.dob, password, roles: [values.role as Role, 'member'], verified: true, totpSecret,
+      password, roles: [values.role as Role, 'member'], verified: true, totpSecret,
     }),
   );
   console.log(`Created ${values.role} account ${values.username} (${user.publicId}).`);

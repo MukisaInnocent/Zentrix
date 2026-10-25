@@ -33,8 +33,8 @@ async function insertUser(username: string, referrer: number | null = null): Pro
   phoneSeq += 1;
   const { rows } = await owner.query<{ id: string }>(
     `INSERT INTO users (username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone,
-       date_of_birth, referral_code, referred_by_user_id)
-     VALUES ($1, $1 || '@zentrix.test', $2, 'x', 'UG', 'UGX', 'en-UG', 'Africa/Kampala', '1990-01-01', $4, $3)
+       referral_code, referred_by_user_id)
+     VALUES ($1, $1 || '@zentrix.test', $2, 'x', 'UG', 'UGX', 'en-UG', 'Africa/Kampala', $4, $3)
      RETURNING id`,
     [username, `+256700000${phoneSeq}`, referrer, refCode(phoneSeq)],
   );
@@ -141,16 +141,16 @@ describe('users guard', () => {
   it('rejects self-referral', async () => {
     const { rows } = await owner.query<{ id: string }>(
       `INSERT INTO users (username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone,
-         date_of_birth, referral_code)
+         referral_code)
        VALUES ('guard_self', 'guard_self@zentrix.test', '+256700000999', 'x', 'UG', 'UGX', 'en-UG', 'Africa/Kampala',
-         '1990-01-01', 'SELFABCD') RETURNING id`,
+         'SELFABCD') RETURNING id`,
     );
     const id = rows[0]!.id;
     const insertSelf = owner.query(
       `INSERT INTO users (id, username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone,
-         date_of_birth, referral_code, referred_by_user_id)
+         referral_code, referred_by_user_id)
        OVERRIDING SYSTEM VALUE VALUES (999999, 'guard_self2', 'guard_self2@zentrix.test', '+256700000998', 'x', 'UG',
-         'UGX', 'en-UG', 'Africa/Kampala', '1990-01-01', 'SELFABCE', 999999)`,
+         'UGX', 'en-UG', 'Africa/Kampala', 'SELFABCE', 999999)`,
     );
     expect(await sqlState(insertSelf)).toBe('23514');
     expect(id).toBeDefined();

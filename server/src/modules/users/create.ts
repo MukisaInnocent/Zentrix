@@ -11,7 +11,6 @@ export interface NewUser {
   email: string;
   phone: string;
   country: string;
-  dateOfBirth?: string;
   password: string;
   roles: Role[];
   verified: boolean;
@@ -31,12 +30,12 @@ export async function createUserDirect(db: Db, encryptionKey: Buffer, u: NewUser
   while (await maybeOne(db, 'SELECT 1 FROM users WHERE referral_code = $1', [referralCode])) referralCode = randomCode(8);
   const row = await one<{ id: string; public_id: string }>(
     db,
-    `INSERT INTO users (username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone, date_of_birth,
+    `INSERT INTO users (username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone,
        referral_code, referred_by_user_id, email_verified_at, phone_verified_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CASE WHEN $12 THEN now() END, CASE WHEN $12 THEN now() END)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $11 THEN now() END, CASE WHEN $11 THEN now() END)
      RETURNING id, public_id`,
     [u.username, u.email.toLowerCase(), phone.number, await hashPassword(u.password), u.country, country.currency_code,
-      country.default_locale, country.default_timezone, u.dateOfBirth ?? null, referralCode, u.referrerId ?? null, u.verified],
+      country.default_locale, country.default_timezone, referralCode, u.referrerId ?? null, u.verified],
   );
   const id = Number(row.id);
   for (const role of u.roles) await db.query('INSERT INTO user_roles (user_id, role) VALUES ($1, $2)', [id, role]);

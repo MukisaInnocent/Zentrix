@@ -50,7 +50,7 @@ describe('start-up gates', () => {
 
       const adminId = await withTransaction(livePool, async c => {
         const u = await createUserDirect(c, randomBytes(32), {
-          username: 'gate_admin', email: 'gate_admin@zentrix.test', phone: '+256700777001', country: 'UG', dateOfBirth: '1990-01-01',
+          username: 'gate_admin', email: 'gate_admin@zentrix.test', phone: '+256700777001', country: 'UG',
           password: 'correct-horse-battery-9', roles: ['admin'], verified: true,
         });
         return u.id;
