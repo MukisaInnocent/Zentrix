@@ -54,7 +54,6 @@ export function createApp(services: Services): express.Express {
   api.use('/admin', adminRouter(services));
   api.use('/wallet', walletRouter(services));
   api.use('/payments', paymentsRouter(services));
-  api.use('/membership', walletRouter(services));
   api.use('/referrals', referralsRouter(services));
   api.use('/team', referralsRouter(services));
   api.use('/tasks', tasksRouter(services));

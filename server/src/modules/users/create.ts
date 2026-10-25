@@ -1,4 +1,4 @@
-import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
+import { parseInternational } from '../../lib/phone.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one } from '../../db/sql.js';
 import { randomCode } from '../../lib/crypto.js';
@@ -11,7 +11,7 @@ export interface NewUser {
   email: string;
   phone: string;
   country: string;
-  dateOfBirth: string;
+  dateOfBirth?: string;
   password: string;
   roles: Role[];
   verified: boolean;
@@ -22,8 +22,8 @@ export interface NewUser {
 // Creates a ready-to-use account directly (seeds, the admin bootstrap CLI and tests). Member sign-up goes
 // through register.ts instead, which applies every public-facing check.
 export async function createUserDirect(db: Db, encryptionKey: Buffer, u: NewUser): Promise<{ id: number; publicId: string; referralCode: string }> {
-  const phone = parsePhoneNumberFromString(u.phone);
-  if (!phone?.isValid()) throw new Error(`Invalid phone number for ${u.username}`);
+  const phone = parseInternational(u.phone);
+  if (!phone) throw new Error(`Invalid phone number for ${u.username}`);
   const country = await one<{ currency_code: string; default_locale: string; default_timezone: string }>(
     db, 'SELECT currency_code, default_locale, default_timezone FROM countries WHERE code = $1', [u.country],
   );
@@ -36,7 +36,7 @@ export async function createUserDirect(db: Db, encryptionKey: Buffer, u: NewUser
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CASE WHEN $12 THEN now() END, CASE WHEN $12 THEN now() END)
      RETURNING id, public_id`,
     [u.username, u.email.toLowerCase(), phone.number, await hashPassword(u.password), u.country, country.currency_code,
-      country.default_locale, country.default_timezone, u.dateOfBirth, referralCode, u.referrerId ?? null, u.verified],
+      country.default_locale, country.default_timezone, u.dateOfBirth ?? null, referralCode, u.referrerId ?? null, u.verified],
   );
   const id = Number(row.id);
   for (const role of u.roles) await db.query('INSERT INTO user_roles (user_id, role) VALUES ($1, $2)', [id, role]);

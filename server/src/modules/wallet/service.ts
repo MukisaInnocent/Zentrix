@@ -1,11 +1,9 @@
-import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { randomCode } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
-import { accountId, InsufficientFundsError, move, post, TASK_MODULES, type TaskModule } from '../ledger/ledger.js';
-import { distributeReferralRewards } from '../referrals/service.js';
+import { accountId, TASK_MODULES, type TaskModule } from '../ledger/ledger.js';
 
 export const BALANCE_SOURCES = ['main', ...TASK_MODULES] as const;
 export type BalanceSource = (typeof BALANCE_SOURCES)[number];
@@ -67,6 +65,14 @@ export interface WalletSummary {
   membershipActive: boolean;
   membershipActivatedAt: Date | null;
   membershipFeeMinor: string | null;
+  // Dashboard figures (owner, 2026-10-25). Balance is the main balance, which holds referral money only.
+  // Expenses are the activation fee paid. Total earnings are referral rewards plus task rewards. Net earnings
+  // are total earnings minus expenses.
+  expensesMinor: string;
+  referralEarningsMinor: string;
+  taskEarningsMinor: string;
+  totalEarningsMinor: string;
+  netEarningsMinor: string;
 }
 
 export async function getWalletSummary(db: Db, userId: number): Promise<WalletSummary> {
@@ -75,17 +81,20 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
     rows<{ kind: string; module: string | null; balance_minor: string }>(
       db, 'SELECT kind, module, balance_minor FROM accounts WHERE user_id = $1 AND currency_code = $2', [userId, member.currency],
     ),
-    one<{ deposited: string; pending: string; withdrawn: string; referral: string }>(
+    one<{ deposited: string; pending: string; withdrawn: string; referral: string; tasks: string }>(
       db,
       `SELECT (SELECT coalesce(sum(credited_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'confirmed')::text AS deposited,
+              (SELECT coalesce(sum(reward_minor), 0) FROM task_submissions WHERE user_id = $1 AND status = 'approved')::text AS tasks,
               (SELECT coalesce(sum(claimed_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'pending')::text AS pending,
               (SELECT coalesce(sum(amount_minor), 0) FROM withdrawals WHERE user_id = $1 AND status = 'paid')::text AS withdrawn,
               (SELECT coalesce(sum(amount_minor), 0) FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited')::text AS referral`,
       [userId],
     ),
-    maybeOne<{ activated_at: Date }>(db, 'SELECT activated_at FROM memberships WHERE user_id = $1', [userId]),
+    maybeOne<{ activated_at: Date; fee_minor: string }>(db, 'SELECT activated_at, fee_minor FROM memberships WHERE user_id = $1', [userId]),
     currentCountryConfig(db, member.countryCode),
   ]);
+  const expenses = BigInt(membership?.fee_minor ?? '0');
+  const totalEarnings = BigInt(totals.referral) + BigInt(totals.tasks);
   const find = (kind: string, module: string | null = null) =>
     balances.find(b => b.kind === kind && b.module === module)?.balance_minor ?? '0';
   return {
@@ -100,6 +109,11 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
     membershipActive: membership !== null,
     membershipActivatedAt: membership?.activated_at ?? null,
     membershipFeeMinor: config?.membershipFeeMinor ?? null,
+    expensesMinor: expenses.toString(),
+    referralEarningsMinor: totals.referral,
+    taskEarningsMinor: totals.tasks,
+    totalEarningsMinor: totalEarnings.toString(),
+    netEarningsMinor: (totalEarnings - expenses).toString(),
   };
 }
 
@@ -142,39 +156,3 @@ export async function getTransactions(db: Db, userId: number, limit = 50): Promi
 }
 
 export const newReference = (prefix: string) => `${prefix}-${randomCode(8)}`;
-
-// Pays the membership fee from the main balance to platform revenue and issues a receipt (D8). Membership
-// fees are platform revenue (rule 1). Runs inside moneyTx.
-export async function activateMembership(db: PoolClient, userId: number): Promise<{ alreadyActive: boolean; receiptNo: string; feeMinor: string; currency: string; activatedAt: Date; referralsRewarded: number }> {
-  const member = await memberInfo(db, userId);
-  await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
-  const existing = await maybeOne<{ receipt_no: string; fee_minor: string; currency_code: string; activated_at: Date }>(
-    db, 'SELECT receipt_no, fee_minor, currency_code, activated_at FROM memberships WHERE user_id = $1', [userId],
-  );
-  if (existing) {
-    return { alreadyActive: true, receiptNo: existing.receipt_no, feeMinor: existing.fee_minor, currency: existing.currency_code, activatedAt: existing.activated_at, referralsRewarded: 0 };
-  }
-  requireActive(member);
-  const config = await requireConfig(db, member.countryCode);
-  const fee = BigInt(config.membershipFeeMinor);
-  const main = await accountId(db, { kind: 'member_main', userId, currency: member.currency });
-  const revenue = await accountId(db, { kind: 'platform_revenue', currency: member.currency });
-  const receiptNo = newReference('MB');
-  let txn: number;
-  try {
-    txn = await post(db, { kind: 'membership_fee', memo: 'Membership fee', refType: 'membership', refId: receiptNo, actorUserId: userId, legs: move(main, revenue, fee) });
-  } catch (err) {
-    if (err instanceof InsufficientFundsError) {
-      throw badRequest('membership.insufficient_funds', 'Your main balance is below the membership fee. Make a deposit first.');
-    }
-    throw err;
-  }
-  const saved = await one<{ activated_at: Date }>(
-    db,
-    'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5) RETURNING activated_at',
-    [userId, receiptNo, fee.toString(), member.currency, txn],
-  );
-  // Multi-level referral rewards up the chain (levels 1 to 3), as before.
-  const { distributedCount } = await distributeReferralRewards(db, userId);
-  return { alreadyActive: false, receiptNo, feeMinor: fee.toString(), currency: member.currency, activatedAt: saved.activated_at, referralsRewarded: distributedCount };
-}

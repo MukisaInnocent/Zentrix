@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { parse } from '../../http/validate.js';
 import { notFound } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
+import { hashKey, limiter } from '../../http/rate-limit.js';
+import { changeEmail, changePhone, openGrants } from '../auth/changes.js';
 import { requireAuth } from '../auth/middleware.js';
 import { validTimezone } from '../auth/register.js';
 import { loadProfile } from './profile.js';
 
-// Members may change only presentation preferences. Username, email, phone and country are locked
-// (sections 1 and 10); the phone field shows "Contact admin to change your phone number".
+// Members change presentation preferences freely. Username and country are locked. Password, email and phone change
+// only after an admin unlocks them (see auth/changes.ts).
 const PatchMeSchema = z.strictObject({
   timezone: z.string().trim().max(64).refine(validTimezone, { error: 'Choose a valid time zone.' }).optional(),
   locale: z.string().trim().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, { error: 'Choose a valid language.' }).optional(),
@@ -22,6 +24,24 @@ export function meRouter(services: Services): Router {
     const profile = await loadProfile(services.pool, req.auth!.userId);
     if (!profile) throw notFound();
     res.json({ user: profile, session: { mfaVerified: req.auth!.mfaVerified } });
+  });
+
+  // Which of password, email and phone an admin has unlocked for this member, and until when.
+  router.get('/changes', async (req, res) => {
+    const grants = await openGrants(services.pool, req.auth!.userId);
+    res.json({ unlocked: Object.fromEntries(grants.map(g => [g.kind, g.expiresAt])) });
+  });
+
+  const changeLimit = limiter(services.pool, { name: 'account-change', windowMs: 3_600_000, limit: 10, key: req => hashKey(`u${req.auth?.userId ?? 0}`) });
+
+  router.post('/email', changeLimit, async (req, res) => {
+    await changeEmail(services, req, req.auth!, req.body);
+    res.json({ ok: true });
+  });
+
+  router.post('/phone', changeLimit, async (req, res) => {
+    const result = await changePhone(services, req, req.auth!, req.body);
+    res.json({ ok: true, ...result });
   });
 
   router.patch('/', async (req, res) => {

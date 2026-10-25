@@ -3,10 +3,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { databaseMode } from '../src/db/migrate.js';
-import { maybeOne, one } from '../src/db/sql.js';
+import { maybeOne } from '../src/db/sql.js';
 import { withTransaction } from '../src/db/tx.js';
 import { randomToken } from '../src/lib/crypto.js';
-import { toMinor } from '../src/lib/money.js';
 import { DATA_DIR } from '../src/lib/paths.js';
 import type { Role } from '../src/modules/auth/context.js';
 import { newTotpSecret, otpauthUrl } from '../src/modules/auth/totp.js';
@@ -15,34 +14,7 @@ import type { PoolClient } from '../src/db/pool.js';
 import { confirmDeposit, submitDeposit } from '../src/modules/payments/deposits.js';
 import { decideTreasury, requestTreasury } from '../src/modules/payments/treasury.js';
 import { requestWithdrawal } from '../src/modules/payments/withdrawals.js';
-import { activateMembership } from '../src/modules/wallet/service.js';
 import type { Services } from '../src/services.js';
-
-interface ConfigSeed {
-  country: string;
-  fee: string;
-  min: string;
-  max: string;
-  daily: string;
-  monthly: string;
-  approval: string;
-  placeholderNote: string;
-}
-
-// Uganda carries the owner's withdrawal decisions of 2026-10-21 (0.5% fee, UGX 1,000 minimum, approval from
-// UGX 200,000); the fee is the master prompt's default, still TODO(owner). Other markets are placeholders.
-const CONFIGS: ConfigSeed[] = [
-  { country: 'UG', fee: '19000', min: '1000', max: '1000000', daily: '2000000', monthly: '10000000', approval: '200000',
-    placeholderNote: 'Withdrawal fee, minimum and approval threshold set by the owner on 2026-10-21. Membership fee and maximums: TODO(owner).' },
-  { country: 'KE', fee: '750', min: '50', max: '50000', daily: '100000', monthly: '500000', approval: '10000', placeholderNote: 'Placeholder values, TODO(owner).' },
-  { country: 'NG', fee: '7500', min: '500', max: '500000', daily: '1000000', monthly: '5000000', approval: '100000', placeholderNote: 'Placeholder values, TODO(owner).' },
-  { country: 'TZ', fee: '13000', min: '1000', max: '1000000', daily: '2000000', monthly: '10000000', approval: '200000', placeholderNote: 'Placeholder values, TODO(owner).' },
-  { country: 'RW', fee: '7000', min: '500', max: '500000', daily: '1000000', monthly: '5000000', approval: '100000', placeholderNote: 'Placeholder values, TODO(owner).' },
-  { country: 'US', fee: '5.00', min: '1.00', max: '500.00', daily: '1000.00', monthly: '5000.00', approval: '100.00', placeholderNote: 'Placeholder values, TODO(owner).' },
-  { country: 'GB', fee: '4.00', min: '1.00', max: '400.00', daily: '800.00', monthly: '4000.00', approval: '80.00', placeholderNote: 'Placeholder values, TODO(owner).' },
-  { country: 'KW', fee: '1.500', min: '0.300', max: '150.000', daily: '300.000', monthly: '1500.000', approval: '30.000', placeholderNote: 'Placeholder values (3-decimal currency), TODO(owner).' },
-  { country: 'JP', fee: '750', min: '150', max: '75000', daily: '150000', monthly: '750000', approval: '15000', placeholderNote: 'Placeholder values (0-decimal currency), TODO(owner).' },
-];
 
 const STAFF: { username: string; roles: Role[] }[] = [
   { username: 'zx_admin', roles: ['admin', 'member'] },
@@ -84,21 +56,6 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
     staff: [], members: [],
   };
   await withTransaction(pool, async db => {
-    for (const c of CONFIGS) {
-      const { currency_code: currency, exponent } = await one<{ currency_code: string; exponent: number }>(
-        db, 'SELECT c.currency_code, k.exponent FROM countries c JOIN currencies k ON k.code = c.currency_code WHERE c.code = $1', [c.country],
-      );
-      const m = (v: string) => toMinor(v, exponent);
-      await db.query(
-        `INSERT INTO country_configs (country_code, version, currency_code, membership_fee_minor, withdrawal_min_minor, withdrawal_max_minor,
-           withdrawal_daily_max_minor, withdrawal_monthly_max_minor, withdrawal_fee_bp, withdrawal_fee_min_minor,
-           withdrawal_approval_threshold_minor, terms_version, privacy_version, is_placeholder, note)
-         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, 50, 0, $8, '2026-10-v1', '2026-10-v1', true, $9
-         FROM country_configs WHERE country_code = $1`,
-        [c.country, currency, m(c.fee), m(c.min), m(c.max), m(c.daily), m(c.monthly), m(c.approval), c.placeholderNote],
-      );
-    }
-
     const staffIds: Record<string, number> = {};
     for (const [i, s] of STAFF.entries()) {
       const totpSecret = newTotpSecret();
@@ -106,7 +63,7 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
       const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
       const email = s.username === 'zx_admin' && adminEmail ? adminEmail : `${s.username}@zentrix.test`;
       staffIds[s.username] = (await createUserDirect(db, config.dataEncryptionKey, {
-        username: s.username, email, phone: `+25670020${String(i + 1).padStart(4, '0')}`, country: 'UG', dateOfBirth: '1990-01-01',
+        username: s.username, email, phone: `+25670020${String(i + 1).padStart(4, '0')}`, country: 'UG',
         password: report.staffPassword, roles: s.roles, verified: true, totpSecret,
       })).id;
       report.staff.push({ username: s.username, email, roles: s.roles, totpSecret, otpauthUrl: otpauthUrl(totpSecret, s.username) });
@@ -118,7 +75,7 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
       for (let k = 1; k <= group.count; k++) {
         n += 1;
         const username = `test_member_${String(n).padStart(2, '0')}`;
-        // A few referral links so the Team page has data (rewards are single level, recorded on membership).
+        // A few referral links so the Referrals pages have data: members 2 to 4 form a chain under member 1.
         let referrerId: number | null = null;
         if (n === 2) referrerId = memberIds[0] ?? null;
         else if (n === 3) referrerId = memberIds[1] ?? null;
@@ -127,7 +84,7 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
         else if (n === 6) referrerId = memberIds[4] ?? null;
 
         const created = await createUserDirect(db, config.dataEncryptionKey, {
-          username, email: `${username}@zentrix.test`, phone: group.phone(k), country: group.country, dateOfBirth: '1995-06-15',
+          username, email: `${username}@zentrix.test`, phone: group.phone(k), country: group.country,
           password: report.memberPassword, roles: ['member'], verified: true, referrerId,
         });
         memberIds.push(created.id);
@@ -156,20 +113,27 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
   return report;
 }
 
-// Fake money through the real flows: two test channels with placeholder numbers, owner capital and a task
-// budget approved by a second admin (maker-checker), one confirmed deposit and membership, and open items
-// so the staff console has something in every queue.
+// Fake money through the real flows: test payment channels for several countries (placeholder codes, never real),
+// owner capital and a task budget approved by a second admin (maker-checker), a chain of four activated members so
+// referral rewards appear, one withdrawal request, and activation payments waiting for review.
 async function seedPayments(db: PoolClient, staffIds: Record<string, number>, memberIds: number[]): Promise<void> {
   const admin = staffIds.zx_admin!;
   const finance = staffIds.zx_finance!;
+  const test = 'TEST MODE: placeholder codes. Do not send real money.';
   for (const c of [
-    { code: 'mtn_ug_test', name: 'MTN Mobile Money', number: '0700 000 001' },
-    { code: 'airtel_ug_test', name: 'Airtel Money', number: '0750 000 001' },
+    { code: 'mtn_ug_test', name: 'MTN Mobile Money', country: 'UG', ussd: '*165*3#', merchant: '123456', instructions: test },
+    { code: 'airtel_ug_test', name: 'Airtel Money', country: 'UG', ussd: '*185*9#', merchant: '654321', instructions: test },
+    { code: 'mpesa_ke_test', name: 'M-Pesa Paybill', country: 'KE', ussd: '*334#', merchant: '000111', instructions: test },
+    { code: 'mpesa_tz_test', name: 'M-Pesa', country: 'TZ', ussd: null, merchant: '000222', instructions: test },
+    { code: 'momo_rw_test', name: 'MTN MoMo', country: 'RW', ussd: null, merchant: '000333', instructions: test },
+    { code: 'bank_ng_test', name: 'Bank transfer', country: 'NG', ussd: null, merchant: '0000000000', instructions: `${test} Pay to the account number shown.` },
+    { code: 'bank_gb_test', name: 'Bank transfer', country: 'GB', ussd: null, merchant: '00-00-00 00000000', instructions: `${test} Pay to the sort code and account number shown.` },
+    { code: 'bank_us_test', name: 'Bank transfer', country: 'US', ussd: null, merchant: '000000000', instructions: `${test} Pay to the account number shown.` },
   ]) {
     await db.query(
-      `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, instructions)
-       VALUES ($1, $2, 'UG', 'UGX', 'ZENTRIX TEST', $3, 'TEST MODE: placeholder number. Do not send real money.')`,
-      [c.code, c.name, c.number],
+      `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions)
+       SELECT $1, $2, c.code, c.currency_code, 'ZENTRIX TEST', $5, $3, $4, $6 FROM countries c WHERE c.code = $7`,
+      [c.code, c.name, c.ussd, c.merchant, c.merchant, c.instructions, c.country],
     );
   }
   const capital = await requestTreasury(db, finance, { kind: 'capital_in', currency: 'UGX', amountMinor: 2_000_000n, channel: 'mtn_ug_test', externalRef: 'SEED-CAPITAL-1', note: 'Fake test capital' });
@@ -177,13 +141,19 @@ async function seedPayments(db: PoolClient, staffIds: Record<string, number>, me
   const budget = await requestTreasury(db, finance, { kind: 'fund_budget', currency: 'UGX', amountMinor: 500_000n, source: 'owner_capital', budget: 'promotions_budget', note: 'Fake task budget' });
   await decideTreasury(db, admin, budget, true, 'Seed');
 
-  const [m1, m2, m3] = memberIds;
-  if (m1 === undefined || m2 === undefined || m3 === undefined) return;
   const phoneOf = async (id: number) => (await db.query<{ phone_e164: string }>('SELECT phone_e164 FROM users WHERE id = $1', [id])).rows[0]!.phone_e164;
-  const d1 = await submitDeposit(db, m1, { channelCode: 'mtn_ug_test', amountMinor: 50_000n, senderPhone: await phoneOf(m1), providerTxnId: 'SEED-MTN-0001' });
-  await confirmDeposit(db, finance, d1.id, 50_000n, null);
-  await activateMembership(db, m1);
-  await requestWithdrawal(db, m1, { source: 'main', amountMinor: 5_000n, channelCode: 'mtn_ug_test' });
-  await submitDeposit(db, m2, { channelCode: 'mtn_ug_test', amountMinor: 19_000n, senderPhone: await phoneOf(m2), providerTxnId: 'SEED-MTN-0002', note: 'For membership' });
-  await submitDeposit(db, m3, { channelCode: 'airtel_ug_test', amountMinor: 25_000n, senderPhone: await phoneOf(m3), providerTxnId: 'SEED-AIR-0001' });
+  const claim = async (id: number, channelCode: string, txn: string) =>
+    submitDeposit(db, id, { channelCode, senderPhone: await phoneOf(id), providerTxnId: txn });
+  const activate = async (id: number, channelCode: string, txn: string) => {
+    const d = await claim(id, channelCode, txn);
+    await confirmDeposit(db, finance, d.id, BigInt(d.claimedAmountMinor), null);
+  };
+
+  // Members 1 to 4 are a chain (each invited by the one before), so activating them in order pays level 1, 2 and 3.
+  for (const [i, id] of memberIds.slice(0, 4).entries()) await activate(id, i % 2 === 0 ? 'mtn_ug_test' : 'airtel_ug_test', `SEED-ACT-000${i + 1}`);
+  const [m1, , , , m5, m6, , , , , , , m13] = memberIds;
+  if (m1 !== undefined) await requestWithdrawal(db, m1, { source: 'main', amountMinor: 5_000n });
+  if (m5 !== undefined) await claim(m5, 'mtn_ug_test', 'SEED-ACT-0005');
+  if (m6 !== undefined) await claim(m6, 'airtel_ug_test', 'SEED-ACT-0006');
+  if (m13 !== undefined) await claim(m13, 'mpesa_ke_test', 'SEED-ACT-0013');
 }

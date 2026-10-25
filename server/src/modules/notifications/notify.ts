@@ -26,17 +26,17 @@ function message(event: PaymentEvent, money: string, ref: string, note: string |
   const why = note ? `\n\nReason: ${note}` : '';
   switch (event) {
     case 'deposit_submitted':
-      return { subject: `Deposit ${ref} received for review`, text: `We received your deposit claim of ${money} (reference ${ref}). Our team is checking it against our statement and will credit your main balance once it is found.` };
+      return { subject: `Activation payment ${ref} received`, text: `We received your activation payment of ${money} (reference ${ref}). Our team is checking it against our statement and will activate your account as soon as it is found.` };
     case 'deposit_confirmed':
-      return { subject: `Deposit ${ref} credited`, text: `${money} has been credited to your main balance (deposit ${ref}).` };
+      return { subject: `Account activated`, text: `Your activation payment of ${money} (reference ${ref}) is confirmed and your account is now active. You can use every part of Zentrix.` };
     case 'deposit_rejected':
-      return { subject: `Deposit ${ref} not credited`, text: `We could not credit your deposit claim ${ref}.${why}\n\nIf you think this is a mistake, open the Deposit page and use Report a problem.` };
+      return { subject: `Activation payment ${ref} not confirmed`, text: `We could not confirm your activation payment ${ref}.${why}\n\nOpen the Activate page to submit it again, or contact support if you think this is a mistake.` };
     case 'withdrawal_requested':
       return { subject: `Withdrawal ${ref} requested`, text: `Your withdrawal of ${money} (reference ${ref}) is waiting for approval. The amount and fee are on hold until it is paid.` };
     case 'withdrawal_approved':
       return { subject: `Withdrawal ${ref} approved`, text: `Your withdrawal of ${money} (reference ${ref}) is approved and will be sent to your verified phone soon.` };
     case 'withdrawal_paid':
-      return { subject: `Withdrawal ${ref} paid`, text: `${money} has been sent to your verified phone (withdrawal ${ref}).${note ? `\n\nPayout transaction: ${note}` : ''}\n\nIf it has not arrived, open the Withdraw page and use Report a problem.` };
+      return { subject: `Withdrawal ${ref} paid`, text: `${money} has been sent to your verified phone (withdrawal ${ref}).${note ? `\n\nPayout transaction: ${note}` : ''}\n\nIf it has not arrived, open the Withdraw page and use Report a problem, or contact support.` };
     case 'withdrawal_failed':
       return { subject: `Withdrawal ${ref} failed`, text: `We could not send your withdrawal ${ref}. The full amount and fee are back in your balance.${why}` };
     case 'withdrawal_cancelled':
@@ -64,5 +64,20 @@ ${text}
 Zentrix` });
   } catch (err) {
     services.logger.error({ err, event, reference }, 'payment email failed');
+  }
+}
+
+// A staff reply to a member's payment report goes to the member's email, since members have no reports page.
+export async function notifyIssueReply(services: Services, userId: number, reply: string): Promise<void> {
+  try {
+    const user = await maybeOne<{ email: string | null; username: string }>(services.pool, 'SELECT email, username FROM users WHERE id = $1', [userId]);
+    if (!user?.email) return;
+    await services.mailer.send({
+      to: user.email,
+      subject: 'Zentrix: reply to your payment report',
+      text: `Hello @${user.username},\n\nOur payments team replied to your report:\n\n${reply}\n\nTo answer, use Report a problem again or contact support.\n\nZentrix`,
+    });
+  } catch (err) {
+    services.logger.error({ err, userId }, 'issue reply email failed');
   }
 }

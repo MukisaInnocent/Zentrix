@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/max';
+import { isMobileLike, parseInternational, PHONE_HELP } from '../../lib/phone.js';
 import { z } from 'zod';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
@@ -9,12 +9,17 @@ import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
 import { revokeUserSessions } from '../auth/sessions.js';
+import { CHANGE_KINDS, grantChange, openGrants } from '../auth/changes.js';
 import { loadProfile } from '../users/profile.js';
 
 const Uuid = z.uuid();
 const ReasonSchema = z.strictObject({ reason: z.string().trim().min(5).max(500) });
 const PhoneSchema = z.strictObject({
   phone: z.string().trim().min(4).max(32),
+  verification: z.string().trim().min(10, { error: 'Describe how you verified the member\'s identity.' }).max(500),
+});
+const UnlockSchema = z.strictObject({
+  kind: z.enum(CHANGE_KINDS),
   verification: z.string().trim().min(10, { error: 'Describe how you verified the member\'s identity.' }).max(500),
 });
 const RoleSchema = z.strictObject({ role: z.enum(['member', 'advertiser', 'support', 'reviewer', 'finance', 'compliance', 'admin']), grant: z.boolean() });
@@ -85,6 +90,7 @@ export function membersRouter(services: Services): Router {
     ]);
     await audit(pool, req, { action: 'member.viewed', targetType: 'user', targetId: profile.id });
     res.json({
+      unlocked: Object.fromEntries((await openGrants(pool, userId)).map(g => [g.kind, g.expiresAt])),
       member: { ...profile, statusReason: extra.status_reason, withdrawalsLockedUntil: extra.withdrawals_locked_until, loginLockedUntil: extra.locked_until, activeSessions: Number(extra.active_sessions) },
       authEvents: events,
       fraudFlags: flags,
@@ -113,9 +119,11 @@ export function membersRouter(services: Services): Router {
     const userId = await memberId(services, req.params.id);
     notSelf(req, userId);
     const input = parse(PhoneSchema, req.body);
-    const member = await one<{ country_code: string }>(pool, 'SELECT country_code FROM users WHERE id = $1', [userId]);
-    const phone = parsePhoneNumberFromString(input.phone, member.country_code as CountryCode);
-    if (!phone?.isValid()) throw badRequest('validation_failed', 'Enter a valid mobile number.', { phone: ['Enter a valid mobile number.'] });
+    const member = await one<{ dial_code: string }>(pool, 'SELECT c.dial_code FROM users u JOIN countries c ON c.code = u.country_code WHERE u.id = $1', [userId]);
+    const phone = parseInternational(input.phone);
+    if (!phone || phone.countryCallingCode !== member.dial_code || !isMobileLike(phone)) {
+      throw badRequest('validation_failed', `Enter a valid mobile number starting with +${member.dial_code}. ${PHONE_HELP}`, { phone: ['Enter a valid mobile number.'] });
+    }
     const lockUntil = new Date(services.now().getTime() + WITHDRAWAL_LOCK_MS);
     await withTransaction(pool, async db => {
       const before = await one<{ public_id: string; phone_e164: string }>(db, 'SELECT public_id, phone_e164 FROM users WHERE id = $1 FOR UPDATE', [userId]);
@@ -129,6 +137,20 @@ export function membersRouter(services: Services): Router {
       });
     });
     res.json({ ok: true, withdrawalsLockedUntil: lockUntil });
+  });
+
+  // Unlocks one password, email or phone change for 24 hours after the admin has checked who is asking.
+  router.post('/:id/unlock', requireStaff('admin'), async (req, res) => {
+    const userId = await memberId(services, req.params.id);
+    notSelf(req, userId);
+    const { kind, verification } = parse(UnlockSchema, req.body);
+    const expiresAt = await withTransaction(pool, async db => {
+      const target = await one<{ public_id: string }>(db, 'SELECT public_id FROM users WHERE id = $1', [userId]);
+      const until = await grantChange(db, req.auth!.userId, userId, kind, verification);
+      await audit(db, req, { action: 'member.change_unlocked', targetType: 'user', targetId: target.public_id, after: { kind, expiresAt: until.toISOString() }, reason: verification });
+      return until;
+    });
+    res.json({ ok: true, kind, expiresAt });
   });
 
   router.post('/:id/roles', requireStaff('admin'), async (req, res) => {

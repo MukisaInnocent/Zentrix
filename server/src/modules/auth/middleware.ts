@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { maybeOne } from '../../db/sql.js';
 import { clearAuthCookies, cookieNames, readCookie, setAuthCookies } from '../../http/cookies.js';
 import { isUnsafe } from '../../http/basics.js';
 import { safeEqual } from '../../lib/crypto.js';
@@ -65,5 +66,19 @@ export function requireStaff(...allowed: StaffRole[]) {
       return next(forbidden('auth.mfa_required', 'Confirm your authenticator code to use staff tools.'));
     }
     next();
+  };
+}
+
+// Members use the site only after their activation fee is confirmed (owner, 2026-10-25). Staff are not gated.
+export function requireActivated(services: Services) {
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    try {
+      if (!req.auth) return next(unauthorized());
+      if (req.auth.isStaff) return next();
+      const active = await maybeOne(services.pool, 'SELECT 1 FROM memberships WHERE user_id = $1', [req.auth.userId]);
+      next(active ? undefined : forbidden('activation.required', 'Pay the activation fee to use this.'));
+    } catch (err) {
+      next(err);
+    }
   };
 }

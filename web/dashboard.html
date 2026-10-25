@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dashboard · Zentrix</title>
-<meta name="description" content="Your Zentrix wallet, earnings, and multi-level referral network.">
+<meta name="description" content="Your Zentrix balance, earnings and referrals.">
 <meta name="theme-color" content="#0e5c63">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -18,60 +18,72 @@
       <div class="zx-hero__top">
         <div>
           <h1 id="welcome-heading">Welcome back</h1>
-          <p>Manage your digital wallet, task earnings, and multi-level referral network.</p>
-          <div class="zx-hero__label zx-hero__gap">Available balance</div>
-          <div id="stat-available" class="zx-hero__balance">UGX 0</div>
+          <div class="zx-hero__label zx-hero__gap">Balance</div>
+          <div id="stat-available" class="zx-hero__balance"><span class="zx-skeleton zx-skeleton--text"></span></div>
           <div class="zx-hero__actions">
-            <a href="/deposit.html" class="zx-btn"><svg class="zx-icon"><use href="/img/icons.svg#deposit"></use></svg>Deposit</a>
-            <a href="/withdraw.html" class="zx-btn zx-btn--secondary"><svg class="zx-icon"><use href="/img/icons.svg#withdraw"></use></svg>Withdraw</a>
+            <a href="/withdraw.html" class="zx-btn"><svg class="zx-icon"><use href="/img/icons.svg#withdraw"></use></svg>Withdraw</a>
+            <a href="/accounts.html" class="zx-btn zx-btn--secondary">All balances</a>
           </div>
-        </div>
-        <div class="zx-hero__aside">
-          <span class="zx-hero__label">Withdrawable</span>
-          <strong>Your wallet funds</strong>
-          <a class="zx-hero__link" href="/accounts.html">View all balances</a>
         </div>
       </div>
     </section>
 
-    <div class="zx-stat-grid zx-stat-grid--3">
+    <div class="zx-stat-grid">
       <div class="zx-stat zx-stat--mint">
-        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#users"></use></svg></div>
-        <div id="stat-referrals" class="zx-stat__value">UGX 0</div>
-        <div class="zx-stat__label">Referral Commissions</div>
-        <div class="zx-stat__note">Earned from team levels 1, 2, 3</div>
-        <div class="zx-stat__notch"><a class="zx-stat__go" href="/team.html" aria-label="Team"><svg class="zx-icon"><use href="/img/icons.svg#chevron-right"></use></svg></a></div>
+        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#coins"></use></svg></div>
+        <div id="stat-total-earnings" class="zx-stat__value">0</div>
+        <div class="zx-stat__label">Total earnings</div>
+        <div class="zx-stat__note">Referrals and tasks</div>
       </div>
-
       <div class="zx-stat zx-stat--rose">
-        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#deposit"></use></svg></div>
-        <div id="stat-deposited" class="zx-stat__value">UGX 0</div>
-        <div class="zx-stat__label">Total Deposited</div>
-        <div class="zx-stat__note">Lifetime deposits</div>
-        <div class="zx-stat__notch"><a class="zx-stat__go" href="/deposit.html" aria-label="Deposit"><svg class="zx-icon"><use href="/img/icons.svg#chevron-right"></use></svg></a></div>
+        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#card"></use></svg></div>
+        <div id="stat-expenses" class="zx-stat__value">0</div>
+        <div class="zx-stat__label">Expenses</div>
+        <div class="zx-stat__note">Activation fee</div>
       </div>
-
       <div class="zx-stat zx-stat--lilac">
+        <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#chart"></use></svg></div>
+        <div id="stat-net" class="zx-stat__value">0</div>
+        <div class="zx-stat__label">Net earnings</div>
+        <div class="zx-stat__note">Profit after expenses</div>
+      </div>
+      <div class="zx-stat zx-stat--sand">
         <div class="zx-stat__badge"><svg class="zx-icon"><use href="/img/icons.svg#withdraw"></use></svg></div>
-        <div id="stat-withdrawn" class="zx-stat__value">UGX 0</div>
-        <div class="zx-stat__label">Total Withdrawn</div>
-        <div class="zx-stat__note">Paid out to mobile money</div>
-        <div class="zx-stat__notch"><a class="zx-stat__go" href="/withdraw.html" aria-label="Withdraw"><svg class="zx-icon"><use href="/img/icons.svg#chevron-right"></use></svg></a></div>
+        <div id="stat-withdrawn" class="zx-stat__value">0</div>
+        <div class="zx-stat__label">Withdrawn</div>
+        <div class="zx-stat__note">Paid to you</div>
       </div>
     </div>
 
-    <div class="zx-card zx-card--accent zx-ref-card">
-      <div>
-        <h2><svg class="zx-icon"><use href="/img/icons.svg#gift"></use></svg>Multi-Level Referral Program Active</h2>
-        <p class="zx-hint">
-          Earn <strong>UGX 10,000</strong> for Level 1 (direct invites), <strong>UGX 5,000</strong> for Level 2 (when they refer), and <strong>UGX 2,000</strong> for Level 3!
-        </p>
-      </div>
-      <div class="zx-inline-copy">
-        <input id="ref-link-input" class="zx-input" readonly value="Loading referral link..." aria-label="Your referral link">
-        <button id="copy-ref-btn" class="zx-btn zx-btn--secondary zx-btn--sm" type="button">Copy</button>
-      </div>
+    <div class="zx-split">
+      <section class="zx-card">
+        <div class="zx-card__title"><h2>My details</h2><a href="/profile.html">Profile</a></div>
+        <dl class="zx-kv zx-kv--tight">
+          <dt>Username</dt><dd id="me-username"></dd>
+          <dt>Phone</dt><dd id="me-phone"></dd>
+          <dt>Email</dt><dd id="me-email"></dd>
+          <dt>Upline</dt><dd id="me-upline"></dd>
+          <dt>Referred</dt><dd id="me-referred"></dd>
+        </dl>
+      </section>
+      <section class="zx-card zx-card--accent zx-stack-3">
+        <h2><svg class="zx-icon"><use href="/img/icons.svg#gift"></use></svg> Refer and earn</h2>
+        <div class="zx-inline-copy">
+          <input id="ref-link-input" class="zx-input" readonly value="Loading..." aria-label="Your referral link">
+          <button id="copy-ref-btn" class="zx-btn zx-btn--secondary zx-btn--sm" type="button">Copy</button>
+        </div>
+      </section>
     </div>
+
+    <section class="zx-card">
+      <div class="zx-card__title"><h2>Pending withdrawals</h2><a href="/withdraw.html">Withdraw</a></div>
+      <div class="zx-table-wrap">
+        <table class="zx-table">
+          <thead><tr><th scope="col">Date</th><th scope="col">Reference</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
+          <tbody id="pending-body"><tr><td colspan="4" class="zx-td-empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
 
     <div class="zx-card">
       <div class="zx-card__title">
@@ -83,28 +95,28 @@
           <span class="zx-dot-icon zx-dot-icon--youtube"><svg class="zx-icon"><use href="/img/icons.svg#play"></use></svg></span>
           <div>
             <div class="zx-module__label">YouTube Earn</div>
-            <div id="task-youtube-val" class="zx-module__value">UGX 0</div>
+            <div id="task-youtube-val" class="zx-module__value">0</div>
           </div>
         </a>
         <a href="/tiktok.html" class="zx-module">
           <span class="zx-dot-icon zx-dot-icon--music"><svg class="zx-icon"><use href="/img/icons.svg#music"></use></svg></span>
           <div>
             <div class="zx-module__label">TikTok Earn</div>
-            <div id="task-tiktok-val" class="zx-module__value">UGX 0</div>
+            <div id="task-tiktok-val" class="zx-module__value">0</div>
           </div>
         </a>
         <a href="/adsearn.html" class="zx-module">
           <span class="zx-dot-icon zx-dot-icon--ads"><svg class="zx-icon"><use href="/img/icons.svg#pointer"></use></svg></span>
           <div>
             <div class="zx-module__label">Ad Viewing</div>
-            <div id="task-ads-val" class="zx-module__value">UGX 0</div>
+            <div id="task-ads-val" class="zx-module__value">0</div>
           </div>
         </a>
         <a href="/trivia.html" class="zx-module">
           <span class="zx-dot-icon zx-dot-icon--trivia"><svg class="zx-icon"><use href="/img/icons.svg#help"></use></svg></span>
           <div>
             <div class="zx-module__label">Trivia Challenges</div>
-            <div id="task-trivia-val" class="zx-module__value">UGX 0</div>
+            <div id="task-trivia-val" class="zx-module__value">0</div>
           </div>
         </a>
       </div>

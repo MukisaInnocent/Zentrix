@@ -1,75 +1,72 @@
 import { api } from '../core/api.js';
-import { $ } from '../core/dom.js';
-import { formatMoney } from '../core/format.js';
+import { $, h } from '../core/dom.js';
+import { formatDate, formatMoney } from '../core/format.js';
+import { paymentBadge } from '../core/payments.js';
 import { toast } from '../core/toast.js';
 
+const money = (minor, currency) => formatMoney(minor, currency);
+const set = (id, text) => {
+  const el = $(id);
+  if (el) el.textContent = text;
+};
+
 export async function init({ me }) {
-  if (me && $('#welcome-heading')) {
-    $('#welcome-heading').textContent = `Welcome back, ${me.username}`;
+  set('#welcome-heading', `Welcome back, ${me.username}`);
+  set('#me-username', `@${me.username}`);
+  set('#me-phone', me.phone ?? '');
+  set('#me-email', me.email ?? '');
+  set('#me-upline', me.referrer ? `@${me.referrer.username}` : 'None');
+
+  const [summary, referrals, withdrawals, transactions] = await Promise.all([
+    api.get('/api/wallet/summary').catch(() => null),
+    api.get('/api/referrals').catch(() => null),
+    api.get('/api/payments/withdrawals').catch(() => null),
+    api.get('/api/wallet/transactions?limit=6').catch(() => null),
+  ]);
+
+  if (summary) {
+    const c = summary.currency;
+    // Balance holds referral money only. Earnings, expenses and net come from the server.
+    set('#stat-available', money(summary.availableBalanceMinor, c));
+    set('#stat-total-earnings', money(summary.totalEarningsMinor, c));
+    set('#stat-expenses', money(summary.expensesMinor, c));
+    set('#stat-net', money(summary.netEarningsMinor, c));
+    set('#stat-withdrawn', money(summary.totalWithdrawnMinor, c));
+    for (const m of ['youtube', 'tiktok', 'ads', 'trivia']) set(`#task-${m}-val`, money(summary.taskBalancesMinor[m], c));
   }
 
-  // Load wallet summary
-  try {
-    const summary = await api.get('/api/wallet/summary');
-    if ($('#stat-available')) $('#stat-available').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
-    if ($('#stat-referrals')) $('#stat-referrals').textContent = formatMoney(summary.totalReferralEarnedMinor, summary.currency);
-    if ($('#stat-deposited')) $('#stat-deposited').textContent = formatMoney(summary.totalDepositedMinor, summary.currency);
-    if ($('#stat-withdrawn')) $('#stat-withdrawn').textContent = formatMoney(summary.totalWithdrawnMinor, summary.currency);
-
-    // Module task balances
-    if ($('#task-youtube-val')) $('#task-youtube-val').textContent = formatMoney(summary.taskBalancesMinor.youtube, summary.currency);
-    if ($('#task-tiktok-val')) $('#task-tiktok-val').textContent = formatMoney(summary.taskBalancesMinor.tiktok, summary.currency);
-    if ($('#task-ads-val')) $('#task-ads-val').textContent = formatMoney(summary.taskBalancesMinor.ads, summary.currency);
-    if ($('#task-trivia-val')) $('#task-trivia-val').textContent = formatMoney(summary.taskBalancesMinor.trivia, summary.currency);
-  } catch (err) {
-    console.error('Failed to load wallet summary', err);
-  }
-
-  // Load referral link
-  try {
-    const refData = await api.get('/api/referrals');
+  if (referrals) {
+    set('#me-referred', String(referrals.levels[1].total));
     const input = $('#ref-link-input');
-    const copyBtn = $('#copy-ref-btn');
-    if (input && refData.referralLink) {
-      input.value = refData.referralLink;
-    }
-    copyBtn?.addEventListener('click', () => {
-      if (input && input.value) {
-        navigator.clipboard.writeText(input.value).then(() => {
-          toast.success('Referral link copied to clipboard!');
-        });
+    input.value = referrals.referralLink;
+    $('#copy-ref-btn').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+        toast.success('Referral link copied');
+      } catch {
+        input.select();
       }
     });
-  } catch (err) {
-    console.error('Failed to load referral link', err);
   }
 
-  // Load recent transactions
-  try {
-    const txData = await api.get('/api/wallet/transactions?limit=6');
-    const tbody = $('#transactions-body');
-    if (tbody) {
-      if (!txData.transactions || txData.transactions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="zx-td-empty">No transactions yet. Complete tasks or make a deposit to get started!</td></tr>`;
-      } else {
-        tbody.innerHTML = txData.transactions
-          .map(t => {
-            const dateStr = new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const isCredit = !String(t.amountMinor).startsWith('-');
-            const prefix = isCredit ? '+' : '';
-            return `
-              <tr>
-                <td class="zx-td-muted">${dateStr}</td>
-                <td class="zx-td-strong">${t.description}</td>
-                <td class="zx-amount ${isCredit ? 'zx-amount--in' : 'zx-amount--out'}">${prefix}${formatMoney(t.amountMinor, t.currency)}</td>
-                <td class="zx-td-muted">${formatMoney(t.balanceAfterMinor, t.currency)}</td>
-              </tr>
-            `;
-          })
-          .join('');
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load transactions', err);
-  }
+  const pending = (withdrawals?.withdrawals ?? []).filter(w => ['requested', 'approved', 'processing'].includes(w.status));
+  $('#pending-body').replaceChildren(...(pending.length
+    ? pending.map(w => h('tr', {},
+      h('td', { class: 'zx-td-muted' }, formatDate(w.createdAt)),
+      h('td', { class: 'zx-td-mono' }, w.reference),
+      h('td', { class: 'zx-amount zx-amount--out' }, money(w.amountMinor, w.currency)),
+      h('td', {}, paymentBadge(w.status))))
+    : [h('tr', {}, h('td', { colspan: '4', class: 'zx-td-empty' }, 'No pending withdrawals.'))]));
+
+  const list = transactions?.transactions ?? [];
+  $('#transactions-body').replaceChildren(...(list.length
+    ? list.map(t => {
+      const credit = !String(t.amountMinor).startsWith('-');
+      return h('tr', {},
+        h('td', { class: 'zx-td-muted' }, formatDate(t.createdAt, { withTime: true })),
+        h('td', { class: 'zx-td-strong' }, t.description),
+        h('td', { class: `zx-amount ${credit ? 'zx-amount--in' : 'zx-amount--out'}` }, `${credit ? '+' : ''}${money(t.amountMinor, t.currency)}`),
+        h('td', { class: 'zx-td-muted' }, money(t.balanceAfterMinor, t.currency)));
+    })
+    : [h('tr', {}, h('td', { colspan: '4', class: 'zx-td-empty' }, 'No transactions yet.'))]));
 }

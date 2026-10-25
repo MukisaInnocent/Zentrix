@@ -41,7 +41,7 @@ async function openMember(id) {
         ['Country', `${m.country.name} · ${m.currency}`],
         ['Joined', when(m.createdAt)],
         ['Referred by', m.referrer ? `@${m.referrer.username}` : 'Nobody'],
-        ['Membership', b.membershipActive ? `Active since ${when(b.membershipActivatedAt)}` : 'Not active'],
+        ['Account', b.membershipActive ? `Activated ${when(b.membershipActivatedAt)}` : 'Not activated'],
         m.withdrawalsLockedUntil ? ['Withdrawals locked until', when(m.withdrawalsLockedUntil)] : null,
       ])),
       panel('Balances', kv([
@@ -65,7 +65,6 @@ async function openMember(id) {
       detail.auditTrail.length ? panel('Staff actions', h('ul', { class: 'zx-feed' }, detail.auditTrail.map(a => h('li', {}, h('div', { class: 'zx-feed__body' }, h('span', { class: 'zx-feed__title' }, a.action), h('span', { class: 'zx-feed__meta' }, `${when(a.created_at)}${a.reason ? ` · ${a.reason}` : ''}`)))))) : null,
     );
     const canFreeze = me.roles.some(r => r === 'admin' || r === 'compliance') && me.id !== m.id;
-    if (!canFreeze) return view.setActions();
     const frozen = m.status === 'frozen';
     const btn = h('button', { type: 'button', class: `zx-btn ${frozen ? 'zx-btn--success' : 'zx-btn--danger'}` }, frozen ? 'Unfreeze account' : 'Freeze account');
     btn.addEventListener('click', async () => {
@@ -76,7 +75,23 @@ async function openMember(id) {
         submit: v => api.post(`/api/admin/members/${id}/${frozen ? 'unfreeze' : 'freeze'}`, { reason: v.reason }),
       })) await render();
     });
-    view.setActions(btn);
+    const unlockButtons = me.roles.includes('admin') && me.id !== m.id
+      ? ['password', 'email', 'phone'].map(kind => {
+        const open = detail.unlocked?.[kind];
+        const b = h('button', { type: 'button', class: 'zx-btn zx-btn--secondary' }, open ? `${kind} unlocked until ${when(open)}` : `Unlock ${kind} change`);
+        b.addEventListener('click', async () => {
+          if (await askForm({
+            title: `Unlock ${kind} change`,
+            text: 'Only after you have checked this is the real member. They can then make the change once in the next 24 hours.',
+            submitLabel: 'Unlock for 24 hours',
+            fields: [{ name: 'verification', label: 'How did you verify them?', type: 'textarea', required: true, minLength: 10 }],
+            submit: v => api.post(`/api/admin/members/${id}/unlock`, { kind, verification: v.verification }),
+          })) await render();
+        });
+        return b;
+      })
+      : [];
+    view.setActions(canFreeze ? btn : null, ...unlockButtons);
   };
   try {
     await render();

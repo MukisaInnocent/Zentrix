@@ -144,3 +144,11 @@ a.zx-kpi:hover { border-color: var(--zx-brand); transform: translateY(-2px); col
 pre.zx-mono { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .zx-dialog { max-block-size: calc(100dvh - 32px); overflow-y: auto; }
 .zx-dialog .zx-thread { max-block-size: 40dvh; overflow-y: auto; padding-block: var(--zx-space-2); }
+
+/* ---------- Activation page ---------- */
+.zx-fee { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--zx-space-2); padding: var(--zx-space-4); border-radius: var(--zx-radius); background: var(--zx-brand-soft); }
+.zx-fee__label { font-weight: 700; color: var(--zx-brand-strong); }
+.zx-fee__amount { font-size: clamp(1.4rem, 1.1rem + 1.2vw, 1.9rem); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--zx-brand-strong); }
+.zx-paybox__row { display: flex; align-items: center; gap: var(--zx-space-3); }
+.zx-paybox__row .zx-hint { flex: none; min-inline-size: 7.5em; }
+.zx-paybox__value { flex: 1; min-inline-size: 0; font-family: var(--zx-font-mono); font-size: 1.15rem; overflow-wrap: anywhere; }

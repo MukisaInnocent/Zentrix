@@ -2,19 +2,21 @@ import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, conflict, DB_ERRORS, forbidden, notFound, pgErrorCode } from '../../lib/errors.js';
+import { toDecimalString } from '../../lib/money.js';
 import { accountId, move, post } from '../ledger/ledger.js';
-import { memberInfo, newReference, requireActive } from '../wallet/service.js';
-import { assertNotPaused, channelByCode, normalizePhone, normalizeTxnId, setActor } from './common.js';
+import { distributeReferralRewards } from '../referrals/service.js';
+import { memberInfo, newReference, requireActive, requireConfig } from '../wallet/service.js';
+import { assertNotPaused, channelByCode, exponentOf, normalizePhone, normalizeTxnId, setActor } from './common.js';
 
-// Manual deposits (owner decision of 2026-10-24). The member sends money to a business channel, then claims
-// it with the mobile-money transaction ID. Staff find the payment on the channel statement and confirm the
-// amount actually received; only then does the ledger move (cash held on the channel -> member main balance).
+// Manual activation payment (owner decisions of 2026-10-24 and 2026-10-25). A new member sends exactly the
+// activation fee to a business channel, then claims it with the mobile-money transaction ID. Staff find the
+// payment on the channel statement and confirm it; only then does the ledger move (cash on the channel ->
+// platform revenue), the account is activated with a numbered receipt, and referral rewards are paid.
 
-const MAX_PENDING_PER_MEMBER = 5;
+const MAX_PENDING_PER_MEMBER = 1;
 
 export interface DepositClaim {
   channelCode: string;
-  amountMinor: bigint;
   senderPhone: string;
   providerTxnId: string;
   note?: string | undefined;
@@ -56,35 +58,39 @@ export const depositView = (d: DepositRow): DepositView => ({
 });
 
 export async function submitDeposit(db: PoolClient, userId: number, claim: DepositClaim): Promise<DepositView> {
+  await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
   const member = await memberInfo(db, userId);
   requireActive(member);
+  if (await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [userId])) {
+    throw badRequest('deposit.already_active', 'Your account is already activated.');
+  }
   const channel = await channelByCode(db, claim.channelCode);
-  if (!channel.depositsEnabled || channel.currency !== member.currency) {
-    throw badRequest('payments.channel_unavailable', 'That payment method is not available for your account.');
+  if (!channel.depositsEnabled || channel.currency !== member.currency || channel.countryCode !== member.countryCode) {
+    throw badRequest('payments.channel_unavailable', 'That payment method is not available for your country.');
   }
   await assertNotPaused(db, 'deposits_paused', member.currency);
-  if (claim.amountMinor <= 0n) throw badRequest('validation_failed', 'Enter the amount you sent.', { amount: ['Enter the amount you sent.'] });
-  const senderPhone = normalizePhone(claim.senderPhone, member.countryCode);
+  const fee = BigInt((await requireConfig(db, member.countryCode)).membershipFeeMinor);
+  const senderPhone = normalizePhone(claim.senderPhone);
   const txnId = normalizeTxnId(claim.providerTxnId);
   if (!/^[A-Z0-9.-]{4,40}$/.test(txnId)) {
     throw badRequest('validation_failed', 'Enter the transaction ID from your payment message.', { providerTxnId: ['Enter the transaction ID from your payment message.'] });
   }
   const pending = await one<{ n: string }>(db, `SELECT count(*) AS n FROM deposits WHERE user_id = $1 AND status = 'pending'`, [userId]);
   if (Number(pending.n) >= MAX_PENDING_PER_MEMBER) {
-    throw badRequest('deposit.too_many_pending', 'You already have several deposits waiting for review. Please wait for them to be checked.');
+    throw badRequest('deposit.too_many_pending', 'Your payment is already waiting for review. Please wait for our team to check it.');
   }
-  await setActor(db, userId, 'Claim submitted by member');
+  await setActor(db, userId, 'Payment submitted by member');
   let id: string;
   try {
     id = (await one<{ id: string }>(
       db,
       `INSERT INTO deposits (reference, user_id, channel_id, claimed_amount_minor, currency_code, sender_phone, provider_txn_id, member_note)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [newReference('DP'), userId, channel.id, claim.amountMinor.toString(), member.currency, senderPhone, txnId, claim.note ?? null],
+      [newReference('DP'), userId, channel.id, fee.toString(), member.currency, senderPhone, txnId, claim.note ?? null],
     )).id;
   } catch (err) {
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) {
-      throw conflict('deposit.duplicate_txn', 'This transaction ID has already been submitted. If you think this is a mistake, report a problem.');
+      throw conflict('deposit.duplicate_txn', 'This transaction ID has already been submitted. If you think this is a mistake, contact support.');
     }
     throw err;
   }
@@ -110,36 +116,54 @@ export async function cancelDeposit(db: PoolClient, userId: number, publicId: st
   return depositView({ ...d, status: 'cancelled' });
 }
 
-// Staff confirm the amount actually received on the channel (it may differ from the claim; the note says why).
-export async function confirmDeposit(db: PoolClient, staffId: number, publicId: string, creditedMinor: bigint, note: string | null): Promise<{ before: DepositView; after: DepositView }> {
+// Staff confirm the payment. The amount received must be exactly the activation fee that was claimed: an
+// activation cannot be part-paid, so a short or long payment is rejected with a reason and paid again.
+export async function confirmDeposit(db: PoolClient, staffId: number, publicId: string, receivedMinor: bigint, note: string | null): Promise<{ before: DepositView; after: DepositView; receiptNo: string }> {
   const d = await lockDeposit(db, publicId);
-  if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own deposit.');
-  if (d.status !== 'pending') throw conflict('deposit.not_pending', `This deposit is already ${d.status}.`);
-  if (creditedMinor <= 0n) throw badRequest('validation_failed', 'Enter the amount received.', { amount: ['Enter the amount received.'] });
-  if (creditedMinor !== BigInt(d.claimed_amount_minor) && !note) {
-    throw badRequest('validation_failed', 'Explain why the amount received differs from the claim.', { note: ['Explain why the amount differs.'] });
+  if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own payment.');
+  if (d.status !== 'pending') throw conflict('deposit.not_pending', `This payment is already ${d.status}.`);
+  const fee = BigInt(d.claimed_amount_minor);
+  if (receivedMinor !== fee) {
+    const exponent = await exponentOf(db, d.currency_code);
+    throw badRequest(
+      'deposit.wrong_amount',
+      `The activation fee is ${d.currency_code} ${toDecimalString(fee, exponent)}. If the statement shows a different amount, reject this payment with a reason and ask the member to pay the exact fee.`,
+      { amount: ['Must equal the activation fee.'] },
+    );
   }
-  const member = await memberInfo(db, Number(d.user_id));
+  const userId = Number(d.user_id);
+  await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
+  const member = await memberInfo(db, userId);
   if (member.status !== 'active') throw conflict('deposit.member_not_active', 'This member account is frozen or closed. Resolve that first.');
+  if (await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [userId])) {
+    throw conflict('deposit.already_active', 'This member is already activated. Reject this payment and refund it by hand if it was a double payment.');
+  }
   const clearing = await accountId(db, { kind: 'payment_clearing', channelId: Number(d.channel_id), currency: d.currency_code });
-  const main = await accountId(db, { kind: 'member_main', userId: Number(d.user_id), currency: d.currency_code });
+  const revenue = await accountId(db, { kind: 'platform_revenue', currency: d.currency_code });
+  const receiptNo = newReference('MB');
   const txn = await post(db, {
-    kind: 'deposit', memo: `Deposit via ${d.channel_name}`, refType: 'deposit', refId: d.reference, actorUserId: staffId,
-    legs: move(clearing, main, creditedMinor),
+    kind: 'activation_fee', memo: `Activation fee via ${d.channel_name}`, refType: 'membership', refId: receiptNo, actorUserId: staffId,
+    legs: move(clearing, revenue, fee),
   });
-  await setActor(db, staffId, note ?? 'Confirmed against the channel statement');
+  await db.query(
+    'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5)',
+    [userId, receiptNo, fee.toString(), d.currency_code, txn],
+  );
+  await setActor(db, staffId, note ?? 'Confirmed against the channel statement. Account activated.');
   await db.query(
     `UPDATE deposits SET status = 'confirmed', credited_amount_minor = $2, ledger_transaction_id = $3, reviewed_by = $4, reviewed_at = now(), review_note = $5
      WHERE id = $1`,
-    [d.id, creditedMinor.toString(), txn, staffId, note],
+    [d.id, fee.toString(), txn, staffId, note],
   );
+  // Referral rewards for the people who invited this member (levels 1 to 3) are paid now, from platform revenue.
+  await distributeReferralRewards(db, userId);
   const after = await one<DepositRow>(db, `${DEPOSIT_SELECT} WHERE d.id = $1`, [d.id]);
-  return { before: depositView(d), after: depositView(after) };
+  return { before: depositView(d), after: depositView(after), receiptNo };
 }
 
 export async function rejectDeposit(db: PoolClient, staffId: number, publicId: string, reason: string): Promise<{ before: DepositView; after: DepositView }> {
   const d = await lockDeposit(db, publicId);
-  if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own deposit.');
+  if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own payment.');
   if (d.status !== 'pending') throw conflict('deposit.not_pending', `This deposit is already ${d.status}.`);
   await setActor(db, staffId, reason);
   await db.query(`UPDATE deposits SET status = 'rejected', reviewed_by = $2, reviewed_at = now(), review_note = $3 WHERE id = $1`, [d.id, staffId, reason]);

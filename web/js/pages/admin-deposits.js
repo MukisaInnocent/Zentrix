@@ -80,7 +80,7 @@ async function openDeposit(id) {
         ['Username', `@${m.username}`],
         ['Phone', `${m.phone ?? ''}${m.phoneVerified ? ' (verified)' : ' (not verified)'}`],
         ['Status', m.status],
-        ['Membership', m.membershipActive ? 'Active' : 'Not active'],
+        ['Account', m.membershipActive ? 'Activated' : 'Not activated'],
         ['Main balance', money(m.balances.availableBalanceMinor, m.balances.currency)],
         ['Confirmed deposits', money(m.balances.totalDepositedMinor, m.balances.currency)],
         ['Joined', when(m.joinedAt)],
@@ -100,12 +100,12 @@ async function openDeposit(id) {
   const reject = h('button', { type: 'button', class: 'zx-btn zx-btn--danger' }, 'Reject');
   confirm.addEventListener('click', async () => {
     const result = await askForm({
-      title: 'Confirm deposit',
-      text: `Only confirm after you have found transaction ${d.providerTxnId} on the ${d.channel.name} statement. The member's main balance is credited with the amount you enter.`,
-      submitLabel: 'Confirm and credit', tone: 'success',
+      title: 'Confirm activation payment',
+      text: `Only confirm after you have found transaction ${d.providerTxnId} on the ${d.channel.name} statement for exactly the activation fee. The member's account opens and referral rewards are paid.`,
+      submitLabel: 'Confirm and activate', tone: 'success',
       fields: [
-        { name: 'amount', label: `Amount received (${d.currency})`, value: minorToDecimal(d.claimedAmountMinor, exponent), required: true, inputmode: 'decimal' },
-        { name: 'note', label: 'Note (required if the amount differs)', type: 'textarea' },
+        { name: 'amount', label: `Amount on the statement (${d.currency})`, value: minorToDecimal(d.claimedAmountMinor, exponent), required: true, inputmode: 'decimal' },
+        { name: 'note', label: 'Note (optional)', type: 'textarea' },
       ],
       submit: v => moneyPost(`/api/admin/payments/deposits/${d.id}/confirm`, { amount: v.amount, ...(v.note ? { note: v.note } : {}) }),
     });

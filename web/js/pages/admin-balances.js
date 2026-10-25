@@ -8,7 +8,7 @@ import { act, ago, askForm, emptyRow, money, moneyPost, panel, severityBadge, st
 // treasury requests (a second admin approves) and the recent check runs.
 const KIND = { capital_in: 'Owner capital in', owner_withdrawal: 'Owner withdrawal', fund_budget: 'Fund a budget', channel_transfer: 'Move float between channels' };
 const ACCOUNT = {
-  platform_revenue: 'Platform revenue (membership fees)', fees: 'Withdrawal fees', referral_budget: 'Referral budget', promotions_budget: 'Task reward budget',
+  platform_revenue: 'Platform revenue (activation fees)', fees: 'Withdrawal fees', referral_budget: 'Referral budget', promotions_budget: 'Task reward budget',
   owner_capital: 'Owner capital', voucher_liability: 'Unredeemed vouchers', suspense: 'Suspense',
 };
 let me = null;
@@ -81,13 +81,16 @@ async function editChannel(c, refresh) {
     fields: [
       { name: 'name', label: 'Name members see', value: c.name, required: true },
       { name: 'accountName', label: 'Account name', value: c.accountName, required: true },
-      { name: 'accountNumber', label: 'Number or merchant code', value: c.accountNumber, required: true },
+      { name: 'ussdCode', label: 'USSD code members dial (optional)', value: c.ussdCode ?? '' },
+      { name: 'merchantCode', label: 'Merchant code (optional)', value: c.merchantCode ?? '' },
+      { name: 'accountNumber', label: 'Account or number', value: c.accountNumber, required: true },
       { name: 'instructions', label: 'Instructions for members', type: 'textarea', value: c.instructions ?? '' },
       { name: 'depositsEnabled', label: 'Accept deposits', type: 'select', value: String(c.depositsEnabled), options: [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }] },
       { name: 'payoutsEnabled', label: 'Use for payouts', type: 'select', value: String(c.payoutsEnabled), options: [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }] },
     ],
     submit: v => api.patch(`/api/admin/payments/channels/${c.code}`, {
       name: v.name, accountName: v.accountName, accountNumber: v.accountNumber, ...(v.instructions ? { instructions: v.instructions } : {}),
+      ...(v.ussdCode ? { ussdCode: v.ussdCode } : {}), ...(v.merchantCode ? { merchantCode: v.merchantCode } : {}),
       depositsEnabled: v.depositsEnabled === 'true', payoutsEnabled: v.payoutsEnabled === 'true',
     }),
   }) && (await refresh());
@@ -179,16 +182,18 @@ async function newTreasury(channels, refresh) {
 
 async function addChannel(refresh) {
   if (await askForm({
-    title: 'Add payment channel', text: 'The business number members send money to and staff pay out from.', submitLabel: 'Add channel',
+    title: 'Add payment channel', text: 'A way members in one country pay the activation fee, and where staff pay out from.', submitLabel: 'Add channel',
     fields: [
       { name: 'code', label: 'Short code (letters, digits, underscores)', required: true, value: 'mtn_ug' },
       { name: 'name', label: 'Name members see', required: true, value: 'MTN Mobile Money' },
       { name: 'country', label: 'Country code', required: true, value: 'UG', maxLength: 2 },
       { name: 'accountName', label: 'Registered account name', required: true },
-      { name: 'accountNumber', label: 'Number or merchant code', required: true },
+      { name: 'ussdCode', label: 'USSD code members dial, for example *165*3# (optional)' },
+      { name: 'merchantCode', label: 'Merchant code (optional)' },
+      { name: 'accountNumber', label: 'Account or number', required: true },
       { name: 'instructions', label: 'Instructions for members', type: 'textarea' },
     ],
-    submit: v => api.post('/api/admin/payments/channels', { ...v, country: v.country.toUpperCase(), instructions: v.instructions || undefined }),
+    submit: v => api.post('/api/admin/payments/channels', { ...v, country: v.country.toUpperCase(), ussdCode: v.ussdCode || undefined, merchantCode: v.merchantCode || undefined, instructions: v.instructions || undefined }),
   })) await refresh();
 }
 

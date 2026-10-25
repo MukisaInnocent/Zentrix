@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { parse } from '../../http/validate.js';
 import type { Services } from '../../services.js';
-import { requireAuth } from '../auth/middleware.js';
+import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent } from '../ledger/idempotency.js';
 import { completeTask, getLeaderboard, listSubmissions, listTasks } from './service.js';
 
@@ -12,7 +12,7 @@ const CompleteSchema = z.strictObject({
 
 export function tasksRouter(services: Services): Router {
   const router = Router();
-  router.use(requireAuth);
+  router.use(requireAuth, requireActivated(services));
 
   router.get('/', async (req, res) => {
     const module = typeof req.query.module === 'string' ? req.query.module : undefined;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { rows } from '../../db/sql.js';
+import { maybeOne, rows } from '../../db/sql.js';
 import { notFound } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { getSetting } from '../settings/registry.js';
@@ -21,6 +21,21 @@ export function referenceRouter(services: Services): Router {
     });
   });
 
+  // Guesses the visitor's country: by IP when a GeoIP source is configured, otherwise from the browser's time
+  // zone. Only open countries are offered, and the visitor can always change it.
+  router.get('/detect', async (req, res) => {
+    const tz = typeof req.query.tz === 'string' ? req.query.tz.slice(0, 64) : '';
+    let code = services.geoip.countryOf(req);
+    let source: 'ip' | 'timezone' | null = code ? 'ip' : null;
+    if (!code && tz) {
+      code = (await maybeOne<{ country_code: string }>(pool, 'SELECT country_code FROM country_timezones WHERE timezone = $1', [tz]))?.country_code ?? null;
+      if (code) source = 'timezone';
+    }
+    const country = code ? (await listCountries(pool)).find(c => c.code === code && countryOpen(c, config.appMode)) : undefined;
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ country: country?.code ?? null, source: country ? source : null });
+  });
+
   router.get('/currencies', async (_req, res) => {
     const list = await rows<{ code: string; name: string; exponent: number }>(
       pool, 'SELECT code, name, exponent FROM currencies WHERE enabled ORDER BY code',
@@ -37,7 +52,7 @@ export function referenceRouter(services: Services): Router {
     res.json({
       config: {
         country: c.countryCode, currency: c.currencyCode, version: c.version, isPlaceholder: c.isPlaceholder,
-        membershipFee: { amountMinor: c.membershipFeeMinor, currency: c.currencyCode },
+        activationFee: { amountMinor: c.membershipFeeMinor, currency: c.currencyCode },
         withdrawal: {
           feeBasisPoints: c.withdrawalFeeBp,
           minimum: { amountMinor: c.withdrawalMinMinor, currency: c.currencyCode },

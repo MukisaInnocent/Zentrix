@@ -7,7 +7,7 @@ export async function init() {
     const summary = await api.get('/api/wallet/summary');
     if ($('#acc-main-balance')) $('#acc-main-balance').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
     if ($('#acc-ref-balance')) $('#acc-ref-balance').textContent = formatMoney(summary.totalReferralEarnedMinor, summary.currency);
-    if ($('#acc-deposited')) $('#acc-deposited').textContent = formatMoney(summary.totalDepositedMinor, summary.currency);
+    if ($('#acc-deposited')) $('#acc-deposited').textContent = formatMoney(summary.totalEarningsMinor, summary.currency);
     if ($('#acc-withdrawn')) $('#acc-withdrawn').textContent = formatMoney(summary.totalWithdrawnMinor, summary.currency);
 
     if ($('#acc-youtube')) $('#acc-youtube').textContent = formatMoney(summary.taskBalancesMinor.youtube, summary.currency);

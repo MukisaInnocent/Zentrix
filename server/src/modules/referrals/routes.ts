@@ -1,41 +1,37 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { parse } from '../../http/validate.js';
 import type { Services } from '../../services.js';
-import { requireAuth } from '../auth/middleware.js';
-import { moneyTx } from '../ledger/idempotency.js';
-import { distributeReferralRewards, getReferralOverview } from './service.js';
+import { requireActivated, requireAuth } from '../auth/middleware.js';
+import { getReferralOverview, listReferralMembers } from './service.js';
+
+const MembersQuery = z.object({
+  level: z.coerce.number().int().min(1).max(3).default(1),
+  status: z.enum(['all', 'active', 'inactive']).default('all'),
+});
 
 export function referralsRouter(services: Services): Router {
   const router = Router();
-  router.use(requireAuth);
+  router.use(requireAuth, requireActivated(services));
 
-  const handleOverview = async (req: any, res: any) => {
-    const userId = req.auth!.userId;
-    const overview = await getReferralOverview(services.pool, userId);
-    const host = req.get('host') || 'localhost:3000';
-    const proto = req.protocol || 'http';
-    const referralLink = `${proto}://${host}/register.html?ref=${overview.stats.referralCode}`;
-    res.json({
-      ...overview,
-      referralLink,
-    });
+  // The invite link carries the username of the member who invites (owner, 2026-10-25).
+  const linkFor = (req: Request, username: string) => `${req.protocol}://${req.get('host') ?? 'localhost:3000'}/register.html?ref=${encodeURIComponent(username)}`;
+
+  const handleOverview = async (req: Request, res: Response) => {
+    const overview = await getReferralOverview(services.pool, req.auth!.userId);
+    res.json({ ...overview, referralLink: linkFor(req, overview.username) });
   };
 
   router.get('/', handleOverview);
   router.get('/overview', handleOverview);
 
-  // Test helper: distribute rewards for a specific user ID or self
-  router.post('/simulate', async (req, res) => {
-    const input = parse(
-      z.strictObject({
-        userId: z.coerce.number().int().positive().optional(),
-      }),
-      req.body,
-    );
-    const targetUserId = input.userId ?? req.auth!.userId;
-    const result = await moneyTx(services.pool, db => distributeReferralRewards(db, targetUserId));
-    res.json({ ok: true, result });
+  router.get('/members', async (req, res) => {
+    const { level, status } = parse(MembersQuery, req.query);
+    const [overview, members] = await Promise.all([
+      getReferralOverview(services.pool, req.auth!.userId),
+      listReferralMembers(services.pool, req.auth!.userId, level, status),
+    ]);
+    res.json({ level, status, counts: overview.levels[level as 1 | 2 | 3], members });
   });
 
   return router;

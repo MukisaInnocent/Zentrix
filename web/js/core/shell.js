@@ -5,18 +5,38 @@ import { currentTheme, toggleTheme } from './theme.js';
 import { toast } from './toast.js';
 
 // Navigation config. Modules not built yet show as "Soon" instead of linking to fake pages. Items with
-// children render as expandable groups (as in the demo). `bottom: true` puts an item in the phone bar.
+// children render as expandable groups, nested as deep as needed (Referrals > Level 1 > Overview). `bottom: true`
+// puts an item in the phone bar, using its href.
+const REF = '/referrals.html';
 const MEMBER_NAV = [
   { group: 'nav.group.main', items: [{ id: 'dashboard', href: '/dashboard.html', icon: 'home', label: 'nav.dashboard', bottom: true }] },
   {
     group: 'nav.group.wallet',
     items: [
       { id: 'wallet', href: '/accounts.html', icon: 'wallet', label: 'nav.wallet' },
-      { id: 'deposit', href: '/deposit.html', icon: 'deposit', label: 'nav.deposit' },
-      { id: 'withdraw', href: '/withdraw.html', icon: 'withdraw', label: 'nav.withdraw' },
+      { id: 'withdraw', href: '/withdraw.html', icon: 'withdraw', label: 'nav.withdraw', bottom: true },
       { id: 'vouchers', href: '/voucher.html', icon: 'ticket', label: 'nav.vouchers' },
       { id: 'payforclient', href: '/payforclient.html', icon: 'transfer', label: 'nav.payForClient' },
-      { id: 'membership', href: '/membership.html', icon: 'badge', label: 'nav.membership', bottom: true },
+    ],
+  },
+  {
+    group: 'nav.group.network',
+    items: [
+      {
+        id: 'referrals', href: `${REF}?level=1&view=overview`, icon: 'users', label: 'nav.referrals', bottom: true,
+        children: [
+          {
+            id: 'ref-level-1', label: 'nav.level1',
+            children: [
+              { id: 'ref-1-overview', href: `${REF}?level=1&view=overview`, label: 'nav.overview' },
+              { id: 'ref-1-active', href: `${REF}?level=1&view=active`, label: 'nav.activeMembers' },
+              { id: 'ref-1-inactive', href: `${REF}?level=1&view=inactive`, label: 'nav.inactiveMembers' },
+            ],
+          },
+          { id: 'ref-level-2', href: `${REF}?level=2`, label: 'nav.level2' },
+          { id: 'ref-level-3', href: `${REF}?level=3`, label: 'nav.level3' },
+        ],
+      },
     ],
   },
   {
@@ -37,37 +57,37 @@ const MEMBER_NAV = [
     ],
   },
   {
-    group: 'nav.group.network',
-    items: [
-      { id: 'team', href: '/team.html', icon: 'users', label: 'nav.team', bottom: true },
-      { id: 'contact', href: '/contact.html', icon: 'mail', label: 'nav.contact' },
-    ],
-  },
-  {
     group: 'nav.group.advertise',
     items: [
       { id: 'metaads', icon: 'megaphone', label: 'nav.metaAds', soon: true },
       { id: 'social', icon: 'share', label: 'nav.socialPromotions', soon: true },
     ],
   },
-  {
-    group: 'nav.group.account',
-    items: [
-      { id: 'profile', href: '/profile.html', icon: 'user', label: 'nav.profile', bottom: true },
-      { id: 'contact', href: '/contact.html', icon: 'mail', label: 'nav.contact' },
-      {
-        id: 'policies', icon: 'file', label: 'nav.policies',
-        children: [
-          { id: 'terms', href: '/terms.html', label: 'nav.terms' },
-          { id: 'privacy', href: '/privacy.html', label: 'nav.privacy' },
-          { id: 'risk', href: '/risk.html', label: 'nav.risk' },
-          { id: 'refund', href: '/refund.html', label: 'nav.refund' },
-        ],
-      },
-      { id: 'logout', action: 'logout', icon: 'logout', label: 'nav.logout' },
-    ],
-  },
+  { group: 'nav.group.account', items: [...accountItems()] },
 ];
+
+// What a member sees before the activation fee is confirmed: only the payment page and account basics.
+const LOCKED_NAV = [
+  { group: 'nav.group.main', items: [{ id: 'activate', href: '/activate.html', icon: 'badge', label: 'nav.activate', bottom: true }] },
+  { group: 'nav.group.account', items: [...accountItems(true)] },
+];
+
+function accountItems(locked = false) {
+  return [
+    { id: 'profile', href: '/profile.html', icon: 'user', label: 'nav.profile', bottom: true },
+    { id: 'contact', href: '/contact.html', icon: 'mail', label: 'nav.contact', bottom: locked },
+    {
+      id: 'policies', icon: 'file', label: 'nav.policies',
+      children: [
+        { id: 'terms', href: '/terms.html', label: 'nav.terms' },
+        { id: 'privacy', href: '/privacy.html', label: 'nav.privacy' },
+        { id: 'risk', href: '/risk.html', label: 'nav.risk' },
+        { id: 'refund', href: '/refund.html', label: 'nav.refund' },
+      ],
+    },
+    { id: 'logout', action: 'logout', icon: 'logout', label: 'nav.logout' },
+  ];
+}
 
 const ADMIN_NAV = [
   { group: 'admin.nav.group.overview', items: [{ id: 'admin-home', href: '/admin/index.html', icon: 'grid', label: 'admin.nav.overview', bottom: true }] },
@@ -102,15 +122,22 @@ const ADMIN_NAV = [
   { group: 'admin.nav.group.exit', items: [{ id: 'back', href: '/dashboard.html', icon: 'home', label: 'admin.nav.back' }] },
 ];
 
+// A link is current when its address (with query) matches, or, for links without a query, when it is the page.
+function isCurrent(item, page) {
+  if (!item.href) return false;
+  return item.href.includes('?') ? item.href === `${location.pathname}${location.search}` : item.id === page;
+}
+const holdsCurrent = (item, page) => isCurrent(item, page) || (item.children ?? []).some(c => holdsCurrent(c, page));
+
 function navItem(item, page) {
   const label = t(item.label);
   if (item.children) {
     const listId = `zx-nav-${item.id}`;
-    const active = item.children.some(c => c.id === page);
+    const active = holdsCurrent(item, page);
     const toggle = h(
       'button',
       { type: 'button', class: `zx-nav__toggle${active ? ' zx-is-active' : ''}`, 'aria-expanded': String(active), 'aria-controls': listId },
-      icon(item.icon), h('span', {}, label), icon('chevron-right', 'zx-nav__chev'),
+      item.icon ? icon(item.icon) : null, h('span', {}, label), icon('chevron-right', 'zx-nav__chev'),
     );
     const sub = h('ul', { class: 'zx-nav__sub', id: listId, hidden: !active }, item.children.map(c => h('li', {}, navItem(c, page))));
     toggle.addEventListener('click', () => {
@@ -126,7 +153,7 @@ function navItem(item, page) {
   if (item.action === 'logout') {
     return h('button', { type: 'button', class: 'zx-nav__item', dataset: { action: 'logout' } }, icon(item.icon), h('span', {}, label));
   }
-  return h('a', { class: 'zx-nav__item', href: item.href, 'aria-current': item.id === page ? 'page' : undefined }, item.icon ? icon(item.icon) : null, h('span', {}, label));
+  return h('a', { class: 'zx-nav__item', href: item.href, 'aria-current': isCurrent(item, page) ? 'page' : undefined }, item.icon ? icon(item.icon) : null, h('span', {}, label));
 }
 
 function buildNav(config, page) {
@@ -171,7 +198,8 @@ function setupBackToTop() {
 
 // Renders the member or staff shell around the page's <main>.
 export function renderShell({ me, meta, page, admin = false }) {
-  const config = (admin ? ADMIN_NAV : MEMBER_NAV).map(section => ({
+  const locked = !admin && !me.isStaff && !me.activated;
+  const config = (admin ? ADMIN_NAV : locked ? LOCKED_NAV : MEMBER_NAV).map(section => ({
     ...section,
     items: section.items.filter(item => !(item.testOnly && !meta?.testMode)),
   }));
@@ -210,7 +238,7 @@ export function renderShell({ me, meta, page, admin = false }) {
 
   const bottomItems = config.flatMap(s => s.items).filter(i => i.bottom && !i.soon);
   const bottom = h('nav', { class: 'zx-bottomnav', 'aria-label': t('common.quickMenu') },
-    bottomItems.map(i => h('a', { href: i.href, 'aria-current': i.id === page ? 'page' : undefined }, icon(i.icon), h('span', {}, t(i.label)))),
+    bottomItems.map(i => h('a', { href: i.href, 'aria-current': holdsCurrent(i, page) ? 'page' : undefined }, icon(i.icon), h('span', {}, t(i.label)))),
     h('button', { type: 'button', 'aria-controls': drawerId, dataset: { openMenu: '' } }, icon('menu'), h('span', {}, t('common.menu'))));
   document.body.append(bottom);
 
@@ -238,7 +266,7 @@ export function renderPublicChrome() {
     h('div', { class: 'zx-public-header__inner' },
       h('a', { class: 'zx-brand', href: '/' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, 'Zentrix')),
       h('nav', { class: 'zx-public-nav', 'aria-label': t('common.mainMenu') },
-        h('a', { href: '/#how' }, t('nav.howItWorks')), h('a', { href: '/membership.html' }, t('nav.membership')), h('a', { href: '/contact.html' }, t('nav.contact'))),
+        h('a', { href: '/#how' }, t('nav.howItWorks')), h('a', { href: '/contact.html' }, t('nav.contact'))),
       h('div', { class: 'zx-public-header__cta' },
         h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm', href: '/login.html' }, t('common.signIn')),
         h('a', { class: 'zx-btn zx-btn--sm', href: '/register.html' }, t('common.join')))));

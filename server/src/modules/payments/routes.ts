@@ -5,9 +5,9 @@ import { parse } from '../../http/validate.js';
 import { badRequest } from '../../lib/errors.js';
 import { MoneyFormatError, toMinor } from '../../lib/money.js';
 import type { Services } from '../../services.js';
-import { requireAuth } from '../auth/middleware.js';
+import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent, moneyTx } from '../ledger/idempotency.js';
-import { BALANCE_SOURCES, memberInfo } from '../wallet/service.js';
+import { BALANCE_SOURCES, getWalletSummary, memberInfo } from '../wallet/service.js';
 import { exponentOf, flagActive, listChannels, publicChannel } from './common.js';
 import { cancelDeposit, listMemberDeposits, submitDeposit } from './deposits.js';
 import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messagesOf, openIssue, type IssueRow } from './issues.js';
@@ -34,12 +34,11 @@ export async function amountToMinor(db: Parameters<typeof exponentOf>[0], curren
 const Uuid = z.uuid();
 const DepositBody = z.strictObject({
   channel: z.string().trim().min(2).max(40),
-  amount: AmountInput,
   senderPhone: z.string().trim().min(4).max(32),
   providerTxnId: z.string().trim().min(4, { error: 'Enter the transaction ID from your payment message.' }).max(60),
   note: z.string().trim().max(300).optional(),
 });
-const WithdrawBody = z.strictObject({ source: z.enum(BALANCE_SOURCES).default('main'), amount: AmountInput, channel: z.string().trim().min(2).max(40) });
+const WithdrawBody = z.strictObject({ source: z.enum(BALANCE_SOURCES).default('main'), amount: AmountInput });
 const QuoteQuery = z.object({ amount: z.string().trim().max(24) });
 const IssueBody = z.strictObject({
   subjectType: z.enum(['deposit', 'withdrawal', 'other']),
@@ -60,20 +59,27 @@ export function paymentsRouter(services: Services): Router {
   const router = Router();
   router.use(requireAuth);
   const byUser = (req: Request) => `u${req.auth!.userId}`;
+  // Withdrawals open only after the activation fee is confirmed; the activation payment itself must not wait.
+  router.use('/withdrawals', requireActivated(services));
 
-  // Channels the member can pay into or be paid from, with the current pause state.
+  // The activation payment page: the fee, the payment methods for the member's country (USSD and merchant
+  // codes), and whether the account is already active.
   router.get('/channels', async (req, res) => {
     const member = await memberInfo(pool, req.auth!.userId);
-    const [channels, deposits, withdrawals] = await Promise.all([
-      listChannels(pool, { currency: member.currency }),
+    const [channels, deposits, withdrawals, summary] = await Promise.all([
+      listChannels(pool, { currency: member.currency, country: member.countryCode }),
       flagActive(pool, 'deposits_paused', member.currency),
       flagActive(pool, 'withdrawals_paused', member.currency),
+      getWalletSummary(pool, req.auth!.userId),
     ]);
     res.json({
       currency: member.currency,
+      country: member.countryCode,
+      phone: member.phone,
       payoutPhone: member.phoneVerified ? member.phone : null,
       depositsPaused: deposits.active,
       withdrawalsPaused: withdrawals.active,
+      activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor },
       channels: channels.filter(c => c.depositsEnabled || c.payoutsEnabled).map(publicChannel),
     });
   });
@@ -85,9 +91,7 @@ export function paymentsRouter(services: Services): Router {
   router.post('/deposits', limiter(pool, { name: 'deposit-claim', windowMs: HOUR, limit: 20, key: byUser }), async (req, res) => {
     const input = parse(DepositBody, req.body);
     const result = await idempotent(pool, req, 'deposit.submit', async db => {
-      const member = await memberInfo(db, req.auth!.userId);
-      const amountMinor = await amountToMinor(db, member.currency, input.amount);
-      const deposit = await submitDeposit(db, req.auth!.userId, { channelCode: input.channel, amountMinor, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note });
+      const deposit = await submitDeposit(db, req.auth!.userId, { channelCode: input.channel, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note });
       return { status: 201, body: { deposit } };
     });
     if (!result.replayed) void notifyPayment(services, 'deposit_submitted', (result.body.deposit as { reference: string }).reference);
@@ -116,7 +120,7 @@ export function paymentsRouter(services: Services): Router {
     const result = await idempotent(pool, req, 'withdrawal.request', async db => {
       const member = await memberInfo(db, req.auth!.userId);
       const amountMinor = await amountToMinor(db, member.currency, input.amount);
-      const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor, channelCode: input.channel });
+      const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor });
       return { status: 201, body: { withdrawal, quote } };
     });
     if (!result.replayed) void notifyPayment(services, 'withdrawal_requested', (result.body.withdrawal as { reference: string }).reference);

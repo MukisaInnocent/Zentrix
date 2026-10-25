@@ -1,211 +1,156 @@
 import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
-import { accountId, move, post } from '../ledger/ledger.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
+import { currentCountryConfig } from '../countries/service.js';
+import { accountId, move, post } from '../ledger/ledger.js';
 
+// Referral rewards (owner decision: levels 1 to 3, left as the owner built them). The amounts are the Uganda
+// ones; for another country each amount is scaled by that country's activation fee against UGX 19,000, so the
+// reward is the same share of the fee everywhere (TODO(owner): confirm). Rewards are paid from platform revenue
+// when the invited member's activation fee is confirmed, never at sign-up.
 export const REFERRAL_TIERS_UGX: Record<number, bigint> = {
-  1: 10_000n, // Level 1 (Direct referrer): UGX 10,000
-  2: 5_000n,  // Level 2 (Referrer of referrer): UGX 5,000
-  3: 2_000n,  // Level 3 (Third level): UGX 2,000
+  1: 10_000n, // Level 1 (direct referrer)
+  2: 5_000n, // Level 2 (referrer of referrer)
+  3: 2_000n, // Level 3
 };
 
 /** Referral rewards stop at level 3. Nothing is paid above this level. */
 export const MAX_REFERRAL_LEVEL = 3;
+const UGANDA_FEE_UGX = 19_000n;
 
-export interface ReferralStat {
-  referralCode: string;
-  totalReferrals: number;
-  totalCommissionsMinor: string;
-  currency: string;
-  level1Count: number;
-  level2Count: number;
-  level3Count: number;
-  tierAmounts: { level: number; amount: string }[];
+export interface LevelCounts {
+  total: number;
+  active: number;
+  inactive: number;
 }
 
-export interface TeamMember {
-  id: string;
+export interface ReferralOverview {
+  username: string;
+  upline: { username: string } | null;
+  currency: string;
+  totalRewardsMinor: string;
+  levels: Record<1 | 2 | 3, LevelCounts>;
+  tierAmounts: { level: number; amountMinor: string }[];
+}
+
+export interface ReferralMember {
   username: string;
   country: string;
   level: number;
   joinedAt: Date;
-  status: 'Active' | 'Pending';
-}
-
-export interface CommissionItem {
-  id: string;
-  date: Date;
-  fromUsername: string;
-  level: number;
-  amountMinor: string;
+  status: 'Active' | 'Inactive';
+  activatedAt: Date | null;
+  rewardMinor: string;
   currency: string;
 }
 
-/**
- * Distributes multi-level referral rewards up the sponsor hierarchy for a user.
- * Level 1: UGX 10,000
- * Level 2: UGX 5,000
- * Level 3: UGX 2,000
- * Nothing is paid beyond level 3.
- */
+// Pays the people above a newly activated member: level 1 the direct referrer, level 2 their referrer, level 3
+// the next one up. A level whose referrer uses a different currency is skipped (no implicit conversion).
 export async function distributeReferralRewards(
   db: PoolClient,
   newUserId: number,
 ): Promise<{ distributedCount: number; totalDistributedMinor: bigint }> {
-  // Check if rewards were already distributed for this user
-  const already = await maybeOne(db, 'SELECT 1 FROM referral_rewards WHERE referred_user_id = $1', [newUserId]);
-  if (already) return { distributedCount: 0, totalDistributedMinor: 0n };
+  const none = { distributedCount: 0, totalDistributedMinor: 0n };
+  if (await maybeOne(db, 'SELECT 1 FROM referral_rewards WHERE referred_user_id = $1', [newUserId])) return none;
+  if (!(await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [newUserId]))) return none;
 
-  const newUser = await maybeOne<{ id: string; username: string; referred_by_user_id: string | null; currency_code: string }>(
-    db,
-    'SELECT id, username, referred_by_user_id, currency_code FROM users WHERE id = $1',
-    [newUserId],
+  const newUser = await maybeOne<{ id: string; username: string; referred_by_user_id: string | null; currency_code: string; country_code: string }>(
+    db, 'SELECT id, username, referred_by_user_id, currency_code, country_code FROM users WHERE id = $1', [newUserId],
   );
-  if (!newUser || !newUser.referred_by_user_id) return { distributedCount: 0, totalDistributedMinor: 0n };
+  if (!newUser?.referred_by_user_id) return none;
+  const config = await currentCountryConfig(db, newUser.country_code);
+  if (!config) return none;
+  const fee = BigInt(config.membershipFeeMinor);
 
   let currentReferrerId: number | null = Number(newUser.referred_by_user_id);
-  let level = 1;
   let distributedCount = 0;
   let totalDistributedMinor = 0n;
-
-  while (currentReferrerId && level <= MAX_REFERRAL_LEVEL) {
-    const rewardMinor = REFERRAL_TIERS_UGX[level];
-    if (rewardMinor === undefined) break;
-
-    // Record the commission in referral_rewards
-    await db.query(
-      `INSERT INTO referral_rewards (referrer_user_id, referred_user_id, level, amount_minor, currency_code, status)
-       VALUES ($1, $2, $3, $4, 'UGX', 'credited')`,
-      [currentReferrerId, newUserId, level, rewardMinor.toString()],
+  for (let level = 1; currentReferrerId !== null && level <= MAX_REFERRAL_LEVEL; level++) {
+    const tier = REFERRAL_TIERS_UGX[level];
+    const referrer: { currency_code: string; status: string; referred_by_user_id: string | null } | null = await maybeOne(
+      db, 'SELECT currency_code, status, referred_by_user_id FROM users WHERE id = $1', [currentReferrerId],
     );
-
-    // Credit the referrer's main balance through the ledger, paid from platform revenue (membership fees)
-    const revenue = await accountId(db, { kind: 'platform_revenue', currency: 'UGX' });
-    const referrerMain = await accountId(db, { kind: 'member_main', userId: currentReferrerId, currency: 'UGX' });
-    await post(db, {
-      kind: 'referral_bonus',
-      memo: `Level ${level} referral commission from @${newUser.username}`,
-      refType: 'referral',
-      refId: `REF-L${level}-${newUser.id}`,
-      legs: move(revenue, referrerMain, rewardMinor),
-    });
-
-    distributedCount++;
-    totalDistributedMinor += rewardMinor;
-
-    // Move to next upstream referrer in the chain
-    const referrer: { referred_by_user_id: string | null } | null = await maybeOne<{ referred_by_user_id: string | null }>(
-      db,
-      'SELECT referred_by_user_id FROM users WHERE id = $1',
-      [currentReferrerId],
-    );
-    currentReferrerId = referrer?.referred_by_user_id ? Number(referrer.referred_by_user_id) : null;
-    level++;
+    if (!referrer || tier === undefined) break;
+    const rewardMinor = (tier * fee) / UGANDA_FEE_UGX;
+    if (rewardMinor > 0n && referrer.currency_code === newUser.currency_code && referrer.status === 'active') {
+      const revenue = await accountId(db, { kind: 'platform_revenue', currency: newUser.currency_code });
+      const referrerMain = await accountId(db, { kind: 'member_main', userId: currentReferrerId, currency: newUser.currency_code });
+      await post(db, {
+        kind: 'referral_bonus',
+        memo: `Level ${level} referral reward from @${newUser.username}`,
+        refType: 'referral',
+        refId: `REF-L${level}-${newUser.id}`,
+        legs: move(revenue, referrerMain, rewardMinor),
+      });
+      await db.query(
+        `INSERT INTO referral_rewards (referrer_user_id, referred_user_id, level, amount_minor, currency_code, status)
+         VALUES ($1, $2, $3, $4, $5, 'credited')`,
+        [currentReferrerId, newUserId, level, rewardMinor.toString(), newUser.currency_code],
+      );
+      distributedCount++;
+      totalDistributedMinor += rewardMinor;
+    }
+    currentReferrerId = referrer.referred_by_user_id ? Number(referrer.referred_by_user_id) : null;
   }
-
   return { distributedCount, totalDistributedMinor };
 }
 
-/**
- * Loads referral team statistics and multi-level hierarchy for a user.
- */
-export async function getReferralOverview(
-  db: Db,
-  userId: number,
-): Promise<{
-  stats: ReferralStat;
-  team: TeamMember[];
-  commissions: CommissionItem[];
-}> {
-  const user = await one<{ referral_code: string; currency_code: string }>(
+const TREE = `
+  WITH RECURSIVE tree AS (
+    SELECT id, 1 AS level FROM users WHERE referred_by_user_id = $1
+    UNION ALL
+    SELECT u.id, t.level + 1 FROM users u JOIN tree t ON u.referred_by_user_id = t.id WHERE t.level < ${MAX_REFERRAL_LEVEL}
+  )`;
+
+export async function getReferralOverview(db: Db, userId: number): Promise<ReferralOverview> {
+  const user = await one<{ username: string; currency_code: string; country_code: string; upline: string | null }>(
     db,
-    'SELECT referral_code, currency_code FROM users WHERE id = $1',
+    `SELECT u.username, u.currency_code, u.country_code, r.username AS upline FROM users u LEFT JOIN users r ON r.id = u.referred_by_user_id WHERE u.id = $1`,
     [userId],
   );
-
-  // Level 1: direct
-  const level1Users = await rows<{ id: string; username: string; country_code: string; created_at: Date }>(
+  const counts = await rows<{ level: number; total: string; active: string }>(
     db,
-    'SELECT id, username, country_code, created_at FROM users WHERE referred_by_user_id = $1 ORDER BY created_at DESC',
+    `${TREE} SELECT t.level, count(*) AS total, count(m.user_id) AS active FROM tree t LEFT JOIN memberships m ON m.user_id = t.id GROUP BY t.level`,
     [userId],
   );
-
-  const level1Ids = level1Users.map(u => Number(u.id));
-
-  // Level 2: referred by level 1
-  let level2Users: { id: string; username: string; country_code: string; created_at: Date }[] = [];
-  if (level1Ids.length > 0) {
-    level2Users = await rows<{ id: string; username: string; country_code: string; created_at: Date }>(
-      db,
-      'SELECT id, username, country_code, created_at FROM users WHERE referred_by_user_id = ANY($1) ORDER BY created_at DESC',
-      [level1Ids],
-    );
+  const rewards = await one<{ credited: string }>(
+    db, `SELECT coalesce(sum(amount_minor), 0)::text AS credited FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited'`, [userId],
+  );
+  const config = await currentCountryConfig(db, user.country_code);
+  const fee = config ? BigInt(config.membershipFeeMinor) : 0n;
+  const levels: ReferralOverview['levels'] = { 1: { total: 0, active: 0, inactive: 0 }, 2: { total: 0, active: 0, inactive: 0 }, 3: { total: 0, active: 0, inactive: 0 } };
+  for (const c of counts) {
+    const total = Number(c.total);
+    const active = Number(c.active);
+    levels[c.level as 1 | 2 | 3] = { total, active, inactive: total - active };
   }
+  return {
+    username: user.username,
+    upline: user.upline ? { username: user.upline } : null,
+    currency: user.currency_code,
+    totalRewardsMinor: rewards.credited,
+    levels,
+    tierAmounts: Object.entries(REFERRAL_TIERS_UGX).map(([level, tier]) => ({ level: Number(level), amountMinor: ((tier * fee) / UGANDA_FEE_UGX).toString() })),
+  };
+}
 
-  const level2Ids = level2Users.map(u => Number(u.id));
-
-  // Level 3: referred by level 2
-  let level3Users: { id: string; username: string; country_code: string; created_at: Date }[] = [];
-  if (level2Ids.length > 0) {
-    level3Users = await rows<{ id: string; username: string; country_code: string; created_at: Date }>(
-      db,
-      'SELECT id, username, country_code, created_at FROM users WHERE referred_by_user_id = ANY($1) ORDER BY created_at DESC',
-      [level2Ids],
-    );
-  }
-
-  const team: TeamMember[] = [
-    ...level1Users.map(u => ({ id: u.id, username: u.username, country: u.country_code, level: 1, joinedAt: u.created_at, status: 'Active' as const })),
-    ...level2Users.map(u => ({ id: u.id, username: u.username, country: u.country_code, level: 2, joinedAt: u.created_at, status: 'Active' as const })),
-    ...level3Users.map(u => ({ id: u.id, username: u.username, country: u.country_code, level: 3, joinedAt: u.created_at, status: 'Active' as const })),
-  ];
-
-  const totalCommissions = await one<{ total: string }>(
-    db,
-    'SELECT coalesce(sum(amount_minor), 0)::text AS total FROM referral_rewards WHERE referrer_user_id = $1',
-    [userId],
-  );
-
-  const rawCommissions = await rows<{
-    id: string;
-    level: number;
-    amount_minor: string;
-    currency_code: string;
-    created_at: Date;
-    from_username: string;
+// The members at one level below the user, optionally only the activated or the not-yet-activated ones.
+export async function listReferralMembers(db: Db, userId: number, level: number, status: 'all' | 'active' | 'inactive'): Promise<ReferralMember[]> {
+  const list = await rows<{
+    username: string; country_code: string; created_at: Date; level: number; activated_at: Date | null; reward: string; currency_code: string;
   }>(
     db,
-    `SELECT r.id, r.level, r.amount_minor, r.currency_code, r.created_at, u.username AS from_username
-     FROM referral_rewards r
-     JOIN users u ON u.id = r.referred_user_id
-     WHERE r.referrer_user_id = $1
-     ORDER BY r.created_at DESC LIMIT 50`,
-    [userId],
+    `${TREE}
+     SELECT u.username, u.country_code, u.created_at, t.level, m.activated_at, u.currency_code,
+            coalesce((SELECT sum(r.amount_minor) FROM referral_rewards r
+                      WHERE r.referrer_user_id = $1 AND r.referred_user_id = u.id AND r.status = 'credited'), 0)::text AS reward
+     FROM tree t JOIN users u ON u.id = t.id LEFT JOIN memberships m ON m.user_id = u.id
+     WHERE t.level = $2 AND ($3 = 'all' OR ($3 = 'active') = (m.user_id IS NOT NULL))
+     ORDER BY u.created_at DESC LIMIT 500`,
+    [userId, level, status],
   );
-
-  const commissions: CommissionItem[] = rawCommissions.map(c => ({
-    id: c.id,
-    date: c.created_at,
-    fromUsername: c.from_username,
-    level: c.level,
-    amountMinor: c.amount_minor,
-    currency: c.currency_code,
+  return list.map(r => ({
+    username: r.username, country: r.country_code, level: r.level, joinedAt: r.created_at, status: r.activated_at ? 'Active' : 'Inactive',
+    activatedAt: r.activated_at, rewardMinor: r.reward, currency: r.currency_code,
   }));
-
-  const stats: ReferralStat = {
-    referralCode: user.referral_code,
-    totalReferrals: team.length,
-    totalCommissionsMinor: totalCommissions.total,
-    currency: 'UGX',
-    level1Count: level1Users.length,
-    level2Count: level2Users.length,
-    level3Count: level3Users.length,
-    tierAmounts: [
-      { level: 1, amount: '10000' },
-      { level: 2, amount: '5000' },
-      { level: 3, amount: '2000' },
-    ],
-  };
-
-  return { stats, team, commissions };
 }

@@ -191,3 +191,12 @@ body.zx-drawer-open .zx-scrim { opacity: 1; pointer-events: auto; }
 .zx-auth-points li { display: flex; align-items: center; gap: var(--zx-space-3); padding: 12px 14px; border-radius: var(--zx-radius); background: rgb(255 255 255 / 10%); border: 1px solid rgb(255 255 255 / 14%); font-weight: 600; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .zx-auth-points .zx-icon { color: var(--zx-accent); }
 @keyframes zx-float { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, 18px, 0); } }
+
+/* Nested menu (Referrals > Level 1 > Overview): a dash marks each sub item and every level indents further. */
+.zx-nav__sub .zx-nav__item, .zx-nav__sub .zx-nav__toggle { gap: var(--zx-space-2); font-weight: 500; }
+.zx-nav__sub .zx-nav__item::before, .zx-nav__sub .zx-nav__toggle::before {
+  content: ""; flex: none; inline-size: 8px; block-size: 2px; margin-inline-end: var(--zx-space-1); border-radius: 2px; background: currentColor; opacity: .7;
+}
+.zx-nav__sub .zx-nav__sub { padding-inline-start: var(--zx-space-4); margin-block: 0 2px; }
+.zx-nav__sub .zx-nav__item[aria-current="page"], .zx-nav__sub .zx-nav__toggle.zx-is-active { background: none; box-shadow: none; color: #9fb4ff; }
+.zx-nav__sub .zx-nav__toggle[aria-expanded="true"] .zx-nav__chev { transform: rotate(-90deg); }

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Referrals · Zentrix</title>
+<meta name="description" content="The people you invited, level by level.">
+<meta name="theme-color" content="#0e5c63">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="referrals" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1 id="ref-title">Referrals</h1>
+      <p id="ref-lead"></p>
+    </div>
+  </div>
+  <div id="ref-stats" class="zx-stat-grid" hidden>
+    <div class="zx-stat">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
+      <div id="stat-total" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Total</div>
+    </div>
+    <div class="zx-stat zx-stat--mint">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#check-circle"></use></svg></div>
+      <div id="stat-active" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Active</div>
+    </div>
+    <div class="zx-stat zx-stat--sand">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#hourglass"></use></svg></div>
+      <div id="stat-inactive" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Inactive</div>
+    </div>
+    <div class="zx-stat zx-stat--lilac">
+      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#coins"></use></svg></div>
+      <div id="stat-rewards" class="zx-stat__value">0</div>
+      <div class="zx-stat__label">Rewards earned</div>
+    </div>
+  </div>
+  <section class="zx-card">
+    <div class="zx-section-title"><h2 id="table-title">Members</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Member</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Status</th><th scope="col">Reward</th></tr></thead>
+        <tbody id="ref-body"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</main>
+</body>
+</html>

@@ -90,8 +90,8 @@ describe('settings and country configuration', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     const row = (await app.owner.query(`SELECT membership_fee_minor, withdrawal_min_minor FROM current_country_configs WHERE country_code = 'KW'`)).rows[0];
     expect(row).toEqual({ membership_fee_minor: '1500', withdrawal_min_minor: '300' });
-    const pub = await app.client().get<{ config: { membershipFee: unknown } }>('/api/reference/config/KW');
-    expect(pub.body.config.membershipFee).toEqual({ amountMinor: '1500', currency: 'KWD' });
+    const pub = await app.client().get<{ config: { activationFee: unknown } }>('/api/reference/config/KW');
+    expect(pub.body.config.activationFee).toEqual({ amountMinor: '1500', currency: 'KWD' });
   });
 
   it('rejects extra decimals and limits that do not rise', async () => {
@@ -113,10 +113,10 @@ describe('settings and country configuration', () => {
 describe('review queues and test tools', () => {
   it('reviews a fraud flag once', async () => {
     const client = app.client();
-    await client.post('/api/auth/register', { ...(await import('../helpers/factories.js')).newMemberInput({ phone: '+254712000111' }) });
+    await client.post('/api/auth/register', { ...(await import('../helpers/factories.js')).newMemberInput() }, { 'x-test-geo-country': 'KE' });
     const open = await complianceClient.get<{ flags: { id: string; kind: string }[] }>('/api/admin/fraud-flags');
-    const flag = open.body.flags.find(f => f.kind === 'phone_country_mismatch')!;
-    expect((await complianceClient.post(`/api/admin/fraud-flags/${flag.id}/review`, { status: 'dismissed', note: 'Kenyan SIM, lives in Kampala' })).status).toBe(200);
+    const flag = open.body.flags.find(f => f.kind === 'ip_country_mismatch')!;
+    expect((await complianceClient.post(`/api/admin/fraud-flags/${flag.id}/review`, { status: 'dismissed', note: 'Member is travelling in Kenya' })).status).toBe(200);
     expect((await complianceClient.post(`/api/admin/fraud-flags/${flag.id}/review`, { status: 'confirmed', note: 'Second look' })).status).toBe(400);
   });
 

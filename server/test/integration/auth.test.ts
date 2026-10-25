@@ -23,16 +23,18 @@ describe('registration', () => {
     expect(me.status).toBe(200);
     expect(me.body.user?.username).toBe(input.username);
     const consents = await app.owner.query(`SELECT kind FROM consents c JOIN users u ON u.id = c.user_id WHERE u.username = $1 ORDER BY kind`, [input.username]);
-    expect(consents.rows.map(r => r.kind)).toEqual(['age_18_or_over', 'privacy', 'terms']);
+    expect(consents.rows.map(r => r.kind)).toEqual(['privacy', 'terms']);
   });
 
-  it('refuses under-18s, invalid phones, weak passwords, blocked countries and unknown fields', async () => {
+  it('refuses local-format or wrong-country phones, weak passwords, blocked countries, a date of birth and unknown fields', async () => {
     const cases: [Record<string, unknown>, string][] = [
-      [{ dateOfBirth: `${new Date().getUTCFullYear() - 17}-01-01` }, 'dateOfBirth'],
+      [{ dateOfBirth: '2000-01-01' }, '_form'],
       [{ phone: '12345' }, 'phone'],
+      [{ phone: '0700123456' }, 'phone'],
+      [{ phone: '+254712345678' }, 'phone'],
       [{ password: 'password123' }, 'password'],
       [{ country: 'KP', phone: '+850191234567' }, 'country'],
-      [{ referralCode: 'NOPE2345' }, 'referralCode'],
+      [{ referralCode: 'nobody_has_this' }, 'referralCode'],
       [{ acceptTerms: false }, 'acceptTerms'],
       [{ isAdmin: true }, '_form'],
     ];
@@ -56,19 +58,52 @@ describe('registration', () => {
     expect(samePhone.body.error?.code).toBe('auth.registration_conflict');
   });
 
-  it('attaches a direct referrer from a referral code', async () => {
+  it('attaches a direct referrer from their username, with or without an @', async () => {
     const referrer = await registerMember(app);
-    const { user } = await registerMember(app, { referralCode: referrer.user.referralCode.toLowerCase() });
+    const { user } = await registerMember(app, { referralCode: referrer.user.username });
     expect(user.referrer).toEqual({ username: referrer.user.username });
+    const second = await registerMember(app, { referralCode: `@${referrer.user.username.toUpperCase()}` });
+    expect(second.user.referrer).toEqual({ username: referrer.user.username });
+  });
+
+  it('accepts a number that starts with the country code, with or without the plus', async () => {
+    const input = newMemberInput();
+    const withoutPlus = await app.client().post<Body>('/api/auth/register', { ...input, phone: input.phone.replace('+', '') });
+    expect(withoutPlus.status, JSON.stringify(withoutPlus.body)).toBe(201);
+    expect(withoutPlus.body.user?.phone).toBe(input.phone);
+  });
+
+  it('lets every open country register in its own currency and refuses the blocked ones', async () => {
+    const list = await app.client().get<{ countries: { code: string; currency: string; dialCode: string }[] }>('/api/reference/countries');
+    const codes = list.body.countries.map(c => c.code);
+    expect(list.body.countries.length).toBeGreaterThan(150);
+    expect(codes).toEqual(expect.arrayContaining(['UG', 'KE', 'JP', 'BR', 'GB', 'US', 'IN', 'ZA', 'FR']));
+    expect(codes).not.toContain('KP');
+    const jp = list.body.countries.find(c => c.code === 'JP')!;
+    expect([jp.currency, jp.dialCode]).toEqual(['JPY', '81']);
+    const res = await app.client().post<Body>('/api/auth/register', newMemberInput({ country: 'JP', phone: '+819012345678' }));
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.user).toMatchObject({ currency: 'JPY', country: { code: 'JP' } });
+    // Every open country has a placeholder activation fee, or an admin must set one.
+    const missing = await app.owner.query(`SELECT c.code FROM countries c JOIN currencies k ON k.code = c.currency_code WHERE NOT c.blocked AND NOT EXISTS (SELECT 1 FROM current_country_configs x WHERE x.country_code = c.code) ORDER BY c.code`);
+    expect(missing.rows.length).toBeLessThan(20);
+  });
+
+  it('guesses the country from the browser time zone and never offers a blocked one', async () => {
+    const detect = (tz: string) => app.client().get<{ country: string | null }>(`/api/reference/detect?tz=${encodeURIComponent(tz)}`);
+    expect((await detect('Africa/Kampala')).body.country).toBe('UG');
+    expect((await detect('Asia/Tokyo')).body.country).toBe('JP');
+    expect((await detect('Nowhere/Land')).body.country).toBeNull();
+    expect((await detect('Asia/Pyongyang')).body.country).toBeNull();
   });
 
   it('flags phone-country and IP-country mismatches for review instead of blocking', async () => {
     const client = app.client();
-    const input = newMemberInput({ phone: '+254712345678' });
+    const input = newMemberInput();
     const res = await client.post<Body>('/api/auth/register', input, { 'x-test-geo-country': 'KE' });
     expect(res.status).toBe(201);
     const flags = await app.owner.query(`SELECT kind FROM fraud_flags f JOIN users u ON u.id = f.user_id WHERE u.username = $1 ORDER BY kind`, [input.username]);
-    expect(flags.rows.map(r => r.kind)).toEqual(['ip_country_mismatch', 'phone_country_mismatch']);
+    expect(flags.rows.map(r => r.kind)).toEqual(['ip_country_mismatch']);
   });
 });
 
@@ -167,14 +202,11 @@ describe('password reset and change', () => {
     expect((await app.client().post('/api/auth/login', { identifier: input.username, password: 'a-brand-new-passphrase' })).status).toBe(200);
   });
 
-  it('changes the password only with the current one and signs other devices out', async () => {
-    const { client, input } = await registerMember(app);
-    const phone = app.client();
-    await phone.post('/api/auth/login', { identifier: input.username, password: PASSWORD });
-    expect((await client.post('/api/auth/password/change', { currentPassword: 'not-it-at-all', newPassword: 'fresh-passphrase-77' })).status).toBe(403);
-    expect((await client.post('/api/auth/password/change', { currentPassword: PASSWORD, newPassword: 'fresh-passphrase-77' })).status).toBe(200);
-    expect((await phone.get('/api/me')).status).toBe(401);
-    expect((await client.get('/api/me')).status).toBe(200);
+  it('refuses a password change until an admin has unlocked it', async () => {
+    const { client } = await registerMember(app);
+    const res = await client.post<Body>('/api/auth/password/change', { currentPassword: PASSWORD, newPassword: 'fresh-passphrase-77' });
+    expect(res.status).toBe(403);
+    expect(res.body.error?.code).toBe('change.locked');
   });
 });
 

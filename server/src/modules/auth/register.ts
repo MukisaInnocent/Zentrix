@@ -1,9 +1,9 @@
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/max';
 import { z } from 'zod';
 import { maybeOne, one } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
 import { parse } from '../../http/validate.js';
 import { randomCode } from '../../lib/crypto.js';
+import { isMobileLike, parseInternational, PHONE_HELP } from '../../lib/phone.js';
 import { AppError, badRequest, conflict, DB_ERRORS, pgErrorCode } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { countryOpen, currentCountryConfig, getCountry } from '../countries/service.js';
@@ -23,9 +23,9 @@ export const RegisterSchema = z.strictObject({
   password: z.string().max(256),
   country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, { error: 'Choose your country.' }),
   phone: z.string().trim().min(4, { error: 'Enter your mobile number.' }).max(32),
-  dateOfBirth: z.iso.date({ error: 'Enter your date of birth.' }),
   timezone: z.string().trim().max(64).optional(),
-  referralCode: z.string().trim().toUpperCase().max(16).optional(),
+  // The username of the member who invited you (an old 8-character referral code also still works).
+  referralCode: z.string().trim().max(30).optional(),
   acceptTerms: z.literal(true, { error: 'You must accept the Terms to continue.' }),
   acceptPrivacy: z.literal(true, { error: 'You must accept the Privacy notice to continue.' }),
 });
@@ -35,14 +35,6 @@ export interface RequestMeta {
   ip: string | undefined;
   userAgent: string | undefined;
   geoCountry: string | null;
-}
-
-export function ageOn(dateOfBirth: string, today: Date): number {
-  const [y, m, d] = dateOfBirth.split('-').map(Number) as [number, number, number];
-  let age = today.getUTCFullYear() - y;
-  const beforeBirthday = today.getUTCMonth() + 1 < m || (today.getUTCMonth() + 1 === m && today.getUTCDate() < d);
-  if (beforeBirthday) age -= 1;
-  return age;
 }
 
 export function validTimezone(tz: string | undefined): tz is string {
@@ -71,16 +63,12 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
   if (!country || !countryOpen(country, config.appMode)) {
     throw field('country', 'Sign-up is not available in that country.');
   }
-  const phone = parsePhoneNumberFromString(input.phone, country.code as CountryCode);
-  if (!phone?.isValid()) throw field('phone', 'Enter a valid mobile number, including the area or network code.');
-  const phoneType = phone.getType();
-  if (phoneType !== undefined && phoneType !== 'MOBILE' && phoneType !== 'FIXED_LINE_OR_MOBILE') {
-    throw field('phone', 'Use a mobile number. Payouts go to this number.');
-  }
+  const phone = parseInternational(input.phone);
+  if (!phone) throw field('phone', `Enter a valid mobile number. ${PHONE_HELP}`);
+  if (phone.countryCallingCode !== country.dialCode) throw field('phone', `Use a number that starts with +${country.dialCode} for ${country.name}.`);
+  if (!isMobileLike(phone)) throw field('phone', 'Use a mobile number. Payouts go to this number.');
   const problems = passwordProblems(input.password, { username: input.username, email: input.email });
   if (problems.length > 0) throw badRequest('validation_failed', problems[0] ?? 'Choose a stronger password.', { password: problems });
-  const dob = input.dateOfBirth;
-  if (dob < '1900-01-01' || ageOn(dob, now) < 18) throw field('dateOfBirth', 'You must be 18 or older to join Zentrix.');
 
   const config_ = await currentCountryConfig(pool, country.code);
   const termsVersion = config_?.termsVersion ?? (await getSetting(pool, 'legal.terms_version'));
@@ -92,13 +80,14 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
   try {
     registration = await withTransaction(pool, async db => {
       let referrerId: number | null = null;
-      if (input.referralCode) {
+      const referrerName = input.referralCode?.replace(/^@/, '').toLowerCase();
+      if (referrerName) {
         const ref = await maybeOne<{ id: string }>(
           db,
-          `SELECT id FROM users WHERE referral_code = $1 AND status = 'active' AND anonymized_at IS NULL`,
-          [input.referralCode],
+          `SELECT id FROM users WHERE (username = $1 OR referral_code = upper($1)) AND status = 'active' AND anonymized_at IS NULL`,
+          [referrerName],
         );
-        if (!ref) throw field('referralCode', 'That referral code was not found. Check it or leave it empty.');
+        if (!ref) throw field('referralCode', 'No member has that username. Check it or leave it empty.');
         referrerId = Number(ref.id);
       }
       let referralCode = randomCode(8);
@@ -107,16 +96,15 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
       const user = await one<{ id: string }>(
         db,
         `INSERT INTO users (username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone,
-           date_of_birth, referral_code, referred_by_user_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+           referral_code, referred_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
         [input.username, input.email, phone.number, passwordHash, country.code, country.currencyCode,
-          country.defaultLocale, timezone, dob, referralCode, referrerId],
+          country.defaultLocale, timezone, referralCode, referrerId],
       );
       const userId = Number(user.id);
       await db.query(`INSERT INTO user_roles (user_id, role) VALUES ($1, 'member')`, [userId]);
       await db.query(
-        `INSERT INTO consents (user_id, kind, version, accepted, ip) VALUES
-           ($1, 'terms', $2, true, $4), ($1, 'privacy', $3, true, $4), ($1, 'age_18_or_over', 'dob-v1', true, $4)`,
+        `INSERT INTO consents (user_id, kind, version, accepted, ip) VALUES ($1, 'terms', $2, true, $4), ($1, 'privacy', $3, true, $4)`,
         [userId, termsVersion, privacyVersion, meta.ip ?? null],
       );
       await db.query(`INSERT INTO auth_events (user_id, kind, ip, user_agent) VALUES ($1, 'signup', $2, $3)`, [
@@ -161,8 +149,5 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
 
   await sendEmailVerification(services, registration.email, registration.emailToken);
   await sendPhoneCode(services, registration.phoneE164, registration.phoneCode);
-  const { distributeReferralRewards } = await import('../referrals/service.js');
-  const { moneyTx } = await import('../ledger/idempotency.js');
-  await moneyTx(services.pool, db => distributeReferralRewards(db, registration.userId)).catch(() => undefined);
   return { userId: registration.userId, session: registration.session };
 }

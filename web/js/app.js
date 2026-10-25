@@ -12,6 +12,8 @@ import { errorState } from './core/ui.js';
 // app/admin need a session; auto shows the member shell when signed in and public chrome otherwise.
 const page = document.body.dataset.page;
 const shell = document.body.dataset.shell ?? 'public';
+// Until the activation fee is confirmed a member sees only the payment page and the account basics.
+const OPEN_BEFORE_ACTIVATION = new Set(['activate', 'profile', 'contact', 'terms', 'privacy', 'risk', 'refund']);
 
 async function loadMe(redirect) {
   try {
@@ -38,6 +40,7 @@ async function boot() {
       me = await loadMe(true);
       if (!me) return;
       if (shell === 'admin' && !me.isStaff) return void location.replace('/dashboard.html');
+      if (shell === 'app' && !me.isStaff && !me.activated && !OPEN_BEFORE_ACTIVATION.has(page)) return void location.replace('/activate.html');
     } else if (shell === 'auto') {
       me = await loadMe(false);
     }

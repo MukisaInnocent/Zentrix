@@ -16,7 +16,7 @@ import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { decideTreasury, listTreasury, requestTreasury, TREASURY_KINDS } from '../payments/treasury.js';
 import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type StaffAction, type WithdrawalRow } from '../payments/withdrawals.js';
 import { getTransactions, getWalletSummary } from '../wallet/service.js';
-import { notifyPayment, type PaymentEvent } from '../notifications/notify.js';
+import { notifyIssueReply, notifyPayment, type PaymentEvent } from '../notifications/notify.js';
 
 // Staff payments console: live overview, deposit and withdrawal queues, member issues, the balance check,
 // the ledger explorer, channels, pause switches, alerts and treasury. Viewing needs support, finance or
@@ -35,7 +35,7 @@ const ListQuery = z.object({
 const Note = z.string().trim().max(500);
 const ConfirmBody = z.strictObject({ amount: AmountInput, note: Note.optional() });
 const RejectBody = z.strictObject({ reason: z.string().trim().min(5, { error: 'Give the member a reason.' }).max(500) });
-const WithdrawalBody = z.strictObject({ note: Note.optional(), payoutTxnId: z.string().trim().max(60).optional() });
+const WithdrawalBody = z.strictObject({ note: Note.optional(), payoutTxnId: z.string().trim().max(60).optional(), channel: z.string().trim().max(40).optional() });
 const IssueStatusBody = z.strictObject({ status: z.enum(['open', 'in_progress', 'resolved']), resolution: z.string().trim().max(1000).optional() });
 const MessageBody = z.strictObject({ body: z.string().trim().min(1).max(2000) });
 const FlagBody = z.strictObject({ key: z.enum(['deposits_paused', 'withdrawals_paused']), currency: z.string().length(3).toUpperCase(), active: z.boolean(), reason: z.string().trim().min(5).max(500) });
@@ -47,6 +47,8 @@ const ChannelBody = z.strictObject({
   country: z.string().trim().length(2),
   accountName: z.string().trim().min(2).max(80),
   accountNumber: z.string().trim().min(3).max(40),
+  ussdCode: z.string().trim().min(2).max(40).optional(),
+  merchantCode: z.string().trim().min(2).max(40).optional(),
   instructions: z.string().trim().max(600).optional(),
   depositsEnabled: z.boolean().default(true),
   payoutsEnabled: z.boolean().default(true),
@@ -251,6 +253,7 @@ export function paymentsAdminRouter(services: Services): Router {
       withdrawal: { ...withdrawalView(w), approvedBy: w.approver, processingBy: w.processor, paidBy: w.payer, closedBy: w.closer },
       member: { ...member, balances: summary, lifetime: { depositedMinor: recent.deposits, withdrawnMinor: recent.withdrawals } },
       events, issues: issues.map(issueView),
+      channels: (await listChannels(pool, { currency: w.currency_code })).map(c => ({ code: c.code, name: c.name, country: c.countryCode })),
       you: { canApproveLarge: req.auth!.roles.includes('admin'), isApprover: String(staff(req)) === w.approved_by },
     });
   });
@@ -260,7 +263,7 @@ export function paymentsAdminRouter(services: Services): Router {
       const id = uuid(req.params.id);
       const body = parse(WithdrawalBody, req.body);
       const result = await idempotent(pool, req, `admin.withdrawal.${action}.${id}`, async db => {
-        const { before, after } = await staffWithdrawalAction(db, id, { action, staffId: staff(req), roles: req.auth!.roles, note: body.note ?? null, payoutTxnId: body.payoutTxnId });
+        const { before, after } = await staffWithdrawalAction(db, id, { action, staffId: staff(req), roles: req.auth!.roles, note: body.note ?? null, payoutTxnId: body.payoutTxnId, channel: body.channel });
         await audit(db, req, { action: `withdrawal.${action}`, targetType: 'withdrawal', targetId: after.reference, before, after, reason: body.note });
         return { status: 200, body: { withdrawal: after } };
       });
@@ -314,7 +317,8 @@ export function paymentsAdminRouter(services: Services): Router {
       const issue = await findIssue(db, id);
       await addMessage(db, issue, staff(req), true, body);
       await audit(db, req, { action: 'issue.replied', targetType: 'payment_issue', targetId: id });
-    });
+      return issue;
+    }).then(issue => void notifyIssueReply(services, Number(issue.user_id), body));
     res.status(201).json({ ok: true });
   });
 
@@ -449,9 +453,9 @@ export function paymentsAdminRouter(services: Services): Router {
       if (!country) throw badRequest('validation_failed', 'Unknown country.', { country: ['Unknown country.'] });
       if (await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [body.code])) throw conflict('channel.exists', 'A channel with this code already exists.');
       await db.query(
-        `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, instructions, deposits_enabled, payouts_enabled)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [body.code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled],
+        `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [body.code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled],
       );
       await audit(db, req, { action: 'channel.created', targetType: 'payment_channel', targetId: body.code, after: body });
     });
@@ -462,13 +466,14 @@ export function paymentsAdminRouter(services: Services): Router {
     const body = parse(ChannelPatch, req.body);
     const code = String(req.params.code);
     await withTransaction(pool, async db => {
-      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, instructions, deposits_enabled, payouts_enabled FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
       if (!before) throw notFound();
       await db.query(
         `UPDATE payment_channels SET name = coalesce($2, name), account_name = coalesce($3, account_name), account_number = coalesce($4, account_number),
+           ussd_code = coalesce($8, ussd_code), merchant_code = coalesce($9, merchant_code),
            instructions = coalesce($5, instructions), deposits_enabled = coalesce($6, deposits_enabled), payouts_enabled = coalesce($7, payouts_enabled)
          WHERE code = $1`,
-        [code, body.name ?? null, body.accountName ?? null, body.accountNumber ?? null, body.instructions ?? null, body.depositsEnabled ?? null, body.payoutsEnabled ?? null],
+        [code, body.name ?? null, body.accountName ?? null, body.accountNumber ?? null, body.instructions ?? null, body.depositsEnabled ?? null, body.payoutsEnabled ?? null, body.ussdCode ?? null, body.merchantCode ?? null],
       );
       await audit(db, req, { action: 'channel.updated', targetType: 'payment_channel', targetId: code, before, after: body });
     });

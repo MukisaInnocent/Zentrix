@@ -1,18 +1,76 @@
 import { api, ApiError } from '../core/api.js';
-import { $ } from '../core/dom.js';
+import { $, h } from '../core/dom.js';
+import { formatMoney, loadCurrencies } from '../core/format.js';
 
-export function init() {
+// Picks the visitor's country (from the network when known, else the browser time zone, else the browser
+// language), fills the phone prefix with its country code, and shows its currency and activation fee.
+let countries = [];
+let lastDial = '';
+
+function guessFromLanguage() {
+  const region = (navigator.language || '').split('-')[1]?.toUpperCase();
+  return region && countries.some(c => c.code === region) ? region : null;
+}
+
+async function detectCountry() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+  try {
+    const found = await api.get(`/api/reference/detect?tz=${encodeURIComponent(tz)}`, { noRedirect: true });
+    if (found.country) return found.country;
+  } catch {
+    // Fall through to the browser language.
+  }
+  return guessFromLanguage();
+}
+
+async function applyCountry(code) {
+  const country = countries.find(c => c.code === code);
+  const phone = $('#phone');
+  const hint = $('#country-hint');
+  if (!country) {
+    hint.textContent = '';
+    return;
+  }
+  // Keep the country code at the start of the number, replacing the previous country's code.
+  const dial = `+${country.dialCode}`;
+  const typed = phone.value.trim();
+  if (typed === '' || typed === lastDial) phone.value = dial;
+  lastDial = dial;
+  phone.placeholder = `${dial}...`;
+  try {
+    await loadCurrencies();
+    const { config } = await api.get(`/api/reference/config/${country.code}`, { noRedirect: true });
+    hint.textContent = `Currency ${country.currency}. Activation fee ${formatMoney(config.activationFee)}.`;
+  } catch {
+    hint.textContent = `Currency ${country.currency}. The activation fee for your country is not set yet.`;
+  }
+}
+
+async function loadCountries() {
+  const select = $('#country');
+  ({ countries } = await api.get('/api/reference/countries'));
+  select.replaceChildren(h('option', { value: '' }, 'Choose your country'), ...countries.map(c => h('option', { value: c.code }, `${c.name} (${c.currency})`)));
+  const wanted = new URLSearchParams(location.search).get('country')?.toUpperCase() ?? (await detectCountry());
+  if (wanted && countries.some(c => c.code === wanted)) select.value = wanted;
+  select.addEventListener('change', () => void applyCountry(select.value));
+  await applyCountry(select.value);
+}
+
+export async function init() {
   const form = $('#register-form');
   const alert = $('#register-alert');
   const submitBtn = $('#register-submit');
   const referralInput = $('#referralCode');
 
-  // Auto-fill referral code from query string: ?ref=CODE
+  // An invite link carries the username of the member who invited you: ?ref=username
   const params = new URLSearchParams(location.search);
   const ref = params.get('ref') || params.get('referral');
   if (ref && referralInput) {
-    referralInput.value = ref.trim().toUpperCase();
+    referralInput.value = ref.trim().replace(/^@/, '').toLowerCase();
   }
+  await loadCountries().catch(() => {
+    $('#country').replaceChildren(h('option', { value: '' }, 'Could not load countries. Reload the page.'));
+  });
 
   function clearErrors() {
     if (alert) {
@@ -45,8 +103,7 @@ export function init() {
     const username = String(data.get('username') || '').trim().toLowerCase();
     const email = String(data.get('email') || '').trim().toLowerCase();
     const password = String(data.get('password') || '');
-    const dateOfBirth = String(data.get('dateOfBirth') || '');
-    const referralCode = String(data.get('referralCode') || '').trim().toUpperCase() || undefined;
+    const referralCode = String(data.get('referralCode') || '').trim().replace(/^@/, '').toLowerCase() || undefined;
 
     try {
       await api.post('/api/auth/register', {
@@ -55,13 +112,12 @@ export function init() {
         username,
         email,
         password,
-        dateOfBirth,
         referralCode,
         acceptTerms: true,
         acceptPrivacy: true,
       });
 
-      location.assign('/dashboard.html');
+      location.assign('/activate.html');
     } catch (err) {
       submitBtn.removeAttribute('aria-busy');
       submitBtn.disabled = false;
@@ -80,7 +136,7 @@ export function init() {
               inputEl.style.borderColor = 'var(--zx-danger)';
               inputEl.setAttribute('aria-invalid', 'true');
             }
-            const fieldLabel = field === 'dateOfBirth' ? 'Date of birth' : field.charAt(0).toUpperCase() + field.slice(1);
+            const fieldLabel = field === 'referralCode' ? 'Referred by' : field.charAt(0).toUpperCase() + field.slice(1);
             const msgList = Array.isArray(msgs) ? msgs.join(', ') : String(msgs);
             errorMessages.push(`<strong>${fieldLabel}:</strong> ${msgList}`);
           }

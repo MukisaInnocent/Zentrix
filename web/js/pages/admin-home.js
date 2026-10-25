@@ -21,7 +21,7 @@ function renderKpis(c) {
     kpi({ label: 'Payouts to send', value: String(n('withdrawals_approved') + n('withdrawals_processing')), note: `${n('withdrawals_processing')} being sent · ${money(c.withdrawals_open_ugx, 'UGX')} open`, href: '/admin/withdrawals.html?status=open', tone: n('withdrawals_approved') + n('withdrawals_processing') ? 'attention' : 'good' }),
     kpi({ label: 'Member issues', value: String(n('issues_open')), note: 'Open or in progress', href: '/admin/issues.html', tone: n('issues_open') ? 'attention' : 'good' }),
     kpi({ label: 'Confirmed today', value: money(c.deposits_confirmed_today_ugx, 'UGX'), note: `${n('deposits_confirmed_today')} deposits · ${n('deposits_rejected_today')} rejected` }),
-    kpi({ label: 'Paid out today', value: money(c.withdrawals_paid_today_ugx, 'UGX'), note: `${n('withdrawals_paid_today')} withdrawals · ${n('memberships_today')} new memberships` }),
+    kpi({ label: 'Paid out today', value: money(c.withdrawals_paid_today_ugx, 'UGX'), note: `${n('withdrawals_paid_today')} withdrawals · ${n('memberships_today')} new activations` }),
   );
 }
 

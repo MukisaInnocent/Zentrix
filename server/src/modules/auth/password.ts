@@ -5,6 +5,7 @@ import { parse } from '../../http/validate.js';
 import { randomToken, sha256 } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
+import { consumeGrant } from './changes.js';
 import { hashPassword, passwordProblems, verifyPassword } from './passwords.js';
 import { revokeUserSessions, TOKEN_PATTERN } from './sessions.js';
 
@@ -79,6 +80,7 @@ export async function changePassword(services: Services, userId: number, session
   if (problems.length > 0) throw badRequest('validation_failed', problems[0] ?? 'Choose a stronger password.', { newPassword: problems });
   const hash = await hashPassword(input.newPassword);
   await withTransaction(services.pool, async db => {
+    await consumeGrant(db, userId, 'password');
     await db.query('UPDATE users SET password_hash = $2 WHERE id = $1', [userId, hash]);
     await revokeUserSessions(db, userId, 'password_changed', sessionId);
     await db.query(`INSERT INTO auth_events (user_id, kind) VALUES ($1, 'password_changed')`, [userId]);

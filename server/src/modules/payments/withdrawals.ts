@@ -6,7 +6,7 @@ import { basisPointsOf } from '../../lib/money.js';
 import type { Role } from '../auth/context.js';
 import { accountId, InsufficientFundsError, post, type Leg } from '../ledger/ledger.js';
 import { memberInfo, newReference, requireActive, requireConfig, sourceAccount, type BalanceSource } from '../wallet/service.js';
-import { assertNotPaused, channelByCode, normalizeTxnId, setActor } from './common.js';
+import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor } from './common.js';
 
 // Manual payouts. On request the amount plus fee moves from the chosen balance to the member's withdrawal
 // hold. Staff approve, start the payout (claiming it so nobody pays twice), send the money from the business
@@ -92,7 +92,7 @@ export const withdrawalView = (w: WithdrawalRow): WithdrawalView => ({
   processingAt: w.processing_at, paidAt: w.paid_at, closedAt: w.closed_at,
 });
 
-export async function requestWithdrawal(db: PoolClient, userId: number, input: { source: BalanceSource; amountMinor: bigint; channelCode: string }): Promise<{ withdrawal: WithdrawalView; quote: Quote }> {
+export async function requestWithdrawal(db: PoolClient, userId: number, input: { source: BalanceSource; amountMinor: bigint }): Promise<{ withdrawal: WithdrawalView; quote: Quote }> {
   await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
   const member = await memberInfo(db, userId);
   requireActive(member);
@@ -101,10 +101,10 @@ export async function requestWithdrawal(db: PoolClient, userId: number, input: {
     throw forbidden('withdrawal.locked', 'Withdrawals are locked for 48 hours after a phone number change.');
   }
   await assertNotPaused(db, 'withdrawals_paused', member.currency);
-  const channel = await channelByCode(db, input.channelCode);
-  if (!channel.payoutsEnabled || channel.currency !== member.currency) {
-    throw badRequest('payments.channel_unavailable', 'That payout method is not available for your account.');
-  }
+  // The member does not pick a network: the request is assigned to the first payout channel for their country,
+  // and staff confirm which channel they really paid from when they record the payout.
+  const channel = (await listChannels(db, { currency: member.currency, country: member.countryCode })).find(c => c.payoutsEnabled);
+  if (!channel) throw badRequest('payments.channel_unavailable', 'Payouts are not set up for your country yet. Please contact support.');
   const quote = await quoteWithdrawal(db, userId, input.amountMinor);
   const amount = input.amountMinor;
   const field = (message: string) => badRequest('validation_failed', message, { amount: [message] });
@@ -182,6 +182,7 @@ export interface StaffActionInput {
   roles: Role[];
   note?: string | null | undefined;
   payoutTxnId?: string | undefined;
+  channel?: string | undefined;
 }
 
 export async function staffWithdrawalAction(db: PoolClient, publicId: string, input: StaffActionInput): Promise<{ before: WithdrawalView; after: WithdrawalView }> {
@@ -227,28 +228,37 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
       if (!/^[A-Z0-9.-]{4,40}$/.test(txnId)) {
         throw badRequest('validation_failed', 'Enter the payout transaction ID.', { payoutTxnId: ['Enter the payout transaction ID.'] });
       }
-      if (await maybeOne(db, 'SELECT 1 FROM withdrawals WHERE channel_id = $1 AND payout_txn_id = $2', [w.channel_id, txnId])) {
+      // The money leaves from the channel staff actually used; the default is the one assigned at request time.
+      let paidChannelId = Number(w.channel_id);
+      let paidChannelName = w.channel_name;
+      if (input.channel) {
+        const used = await channelByCode(db, input.channel);
+        if (used.currency !== w.currency_code) throw badRequest('validation_failed', 'That channel uses another currency.', { channel: ['Wrong currency.'] });
+        paidChannelId = used.id;
+        paidChannelName = used.name;
+      }
+      if (await maybeOne(db, 'SELECT 1 FROM withdrawals WHERE channel_id = $1 AND payout_txn_id = $2', [paidChannelId, txnId])) {
         throw conflict('withdrawal.duplicate_txn', 'That payout transaction ID is already recorded on another withdrawal.');
       }
       const hold = await accountId(db, { kind: 'member_withdrawal_hold', userId: Number(w.user_id), currency: w.currency_code });
-      const clearing = await accountId(db, { kind: 'payment_clearing', channelId: Number(w.channel_id), currency: w.currency_code });
+      const clearing = await accountId(db, { kind: 'payment_clearing', channelId: paidChannelId, currency: w.currency_code });
       const amount = BigInt(w.amount_minor);
       const fee = BigInt(w.fee_minor);
       const legs: Leg[] = [{ account: hold, side: 'debit', amountMinor: amount + fee }, { account: clearing, side: 'credit', amountMinor: amount }];
       if (fee > 0n) legs.push({ account: await accountId(db, { kind: 'fees', currency: w.currency_code }), side: 'credit', amountMinor: fee });
       let txn: number;
       try {
-        txn = await post(db, { kind: 'withdrawal_paid', memo: `Withdrawal ${w.reference} paid via ${w.channel_name}`, refType: 'withdrawal', refId: w.reference, actorUserId: staffId, legs });
+        txn = await post(db, { kind: 'withdrawal_paid', memo: `Withdrawal ${w.reference} paid via ${paidChannelName}`, refType: 'withdrawal', refId: w.reference, actorUserId: staffId, legs });
       } catch (err) {
         if (err instanceof InsufficientFundsError) {
-          throw conflict('withdrawal.channel_short', `The ledger shows less money held on ${w.channel_name} than this payout. Record a channel transfer first.`);
+          throw conflict('withdrawal.channel_short', `The ledger shows less money held on ${paidChannelName} than this payout. Record a channel transfer first.`);
         }
         throw err;
       }
       await setActor(db, staffId, input.note ?? `Paid, transaction ${txnId}`);
       await db.query(
-        `UPDATE withdrawals SET status = 'paid', paid_by = $2, paid_at = now(), payout_txn_id = $3, final_transaction_id = $4 WHERE id = $1`,
-        [w.id, staffId, txnId, txn],
+        `UPDATE withdrawals SET status = 'paid', paid_by = $2, paid_at = now(), payout_txn_id = $3, final_transaction_id = $4, channel_id = $5 WHERE id = $1`,
+        [w.id, staffId, txnId, txn, paidChannelId],
       );
       break;
     }

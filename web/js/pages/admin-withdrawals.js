@@ -56,7 +56,7 @@ async function openWithdrawal(id) {
       h('div', {}, statusBadge(w.status)),
       kv([
         ['Send to', copyable(w.payoutPhone)],
-        ['Network', w.channel.name],
+        ['Assigned network', w.channel.name],
         ['Fee kept', money(w.feeMinor, w.currency)],
         ['Taken from', SOURCE[w.source] ?? w.source],
         ['Reference', copyable(w.reference)],
@@ -123,9 +123,13 @@ async function openWithdrawal(id) {
     }));
     actions.push(button('Mark paid', 'success', async () => {
       if (await askForm({
-        title: 'Record payout', text: `Send ${money(w.amountMinor, w.currency)} to ${w.payoutPhone} on ${w.channel.name}, then enter the transaction ID from the confirmation message.`, submitLabel: 'Mark paid', tone: 'success',
-        fields: [{ name: 'payoutTxnId', label: 'Payout transaction ID', required: true, minLength: 4 }, { name: 'note', label: 'Note (optional)', type: 'textarea' }],
-        submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/paid`, { payoutTxnId: v.payoutTxnId, ...(v.note ? { note: v.note } : {}) }),
+        title: 'Record payout', text: `Send ${money(w.amountMinor, w.currency)} to ${w.payoutPhone}, then say which network you paid from and enter the transaction ID from the confirmation message.`, submitLabel: 'Mark paid', tone: 'success',
+        fields: [
+          { name: 'channel', label: 'Paid from', type: 'select', value: w.channel.code, options: data.channels.map(c => ({ value: c.code, label: c.name })) },
+          { name: 'payoutTxnId', label: 'Payout transaction ID', required: true, minLength: 4 },
+          { name: 'note', label: 'Note (optional)', type: 'textarea' },
+        ],
+        submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/paid`, { payoutTxnId: v.payoutTxnId, channel: v.channel, ...(v.note ? { note: v.note } : {}) }),
       })) await done();
     }));
   }

@@ -5,7 +5,7 @@ import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse } from '../../http/validate.js';
 import { randomCode } from '../../lib/crypto.js';
 import type { Services } from '../../services.js';
-import { requireAuth } from '../auth/middleware.js';
+import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent } from '../ledger/idempotency.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
@@ -16,7 +16,7 @@ import { memberInfo, newReference, requireActive } from '../wallet/service.js';
 export function vouchersRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
-  router.use(requireAuth);
+  router.use(requireAuth, requireActivated(services));
 
   router.get('/', async (req, res) => {
     const list = await rows<{ id: string; code: string; amount_minor: string; currency_code: string; status: string; created_at: Date }>(
@@ -85,7 +85,7 @@ export function vouchersRouter(services: Services): Router {
 export function clientPaymentsRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
-  router.use(requireAuth);
+  router.use(requireAuth, requireActivated(services));
 
   router.get('/', async (req, res) => {
     const list = await rows<{ reference: string; amount_minor: string; currency_code: string; note: string | null; created_at: Date; payer: string; payee: string; outgoing: boolean }>(

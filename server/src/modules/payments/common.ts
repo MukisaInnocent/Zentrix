@@ -1,4 +1,4 @@
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/max';
+import { parseInternational, PHONE_HELP } from '../../lib/phone.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, notFound, serviceUnavailable } from '../../lib/errors.js';
@@ -12,23 +12,28 @@ export interface Channel {
   accountName: string;
   accountNumber: string;
   instructions: string | null;
+  ussdCode: string | null;
+  merchantCode: string | null;
   depositsEnabled: boolean;
   payoutsEnabled: boolean;
 }
 
 interface ChannelRow {
   id: string; code: string; name: string; country_code: string; currency_code: string; account_name: string; account_number: string;
-  instructions: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
+  instructions: string | null; ussd_code: string | null; merchant_code: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
 }
 
 const toChannel = (r: ChannelRow): Channel => ({
   id: Number(r.id), code: r.code, name: r.name, countryCode: r.country_code, currency: r.currency_code, accountName: r.account_name,
-  accountNumber: r.account_number, instructions: r.instructions, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
+  accountNumber: r.account_number, instructions: r.instructions, ussdCode: r.ussd_code, merchantCode: r.merchant_code, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
 });
 
-export async function listChannels(db: Db, filter: { currency?: string } = {}): Promise<Channel[]> {
+export async function listChannels(db: Db, filter: { currency?: string; country?: string } = {}): Promise<Channel[]> {
   const list = await rows<ChannelRow>(
-    db, 'SELECT * FROM payment_channels WHERE ($1::char(3) IS NULL OR currency_code = $1) ORDER BY country_code, name', [filter.currency ?? null],
+    db,
+    `SELECT * FROM payment_channels WHERE ($1::char(3) IS NULL OR currency_code = $1) AND ($2::char(2) IS NULL OR country_code = $2)
+     ORDER BY country_code, id`,
+    [filter.currency ?? null, filter.country ?? null],
   );
   return list.map(toChannel);
 }
@@ -42,6 +47,7 @@ export async function channelByCode(db: Db, code: string): Promise<Channel> {
 // Channel details as members see them (no internal ids).
 export const publicChannel = (c: Channel) => ({
   code: c.code, name: c.name, currency: c.currency, accountName: c.accountName, accountNumber: c.accountNumber, instructions: c.instructions,
+  ussdCode: c.ussdCode, merchantCode: c.merchantCode,
   depositsEnabled: c.depositsEnabled, payoutsEnabled: c.payoutsEnabled,
 });
 
@@ -77,9 +83,10 @@ export async function setActor(db: Db, actorId: number, note?: string | null): P
   await db.query(`SELECT set_config('zentrix.actor_id', $1, true), set_config('zentrix.status_note', $2, true)`, [String(actorId), note ?? '']);
 }
 
-export function normalizePhone(input: string, country: string): string {
-  const phone = parsePhoneNumberFromString(input, country as CountryCode);
-  if (!phone?.isValid()) throw badRequest('validation_failed', 'Enter a valid mobile number.', { senderPhone: ['Enter a valid mobile number.'] });
+// The phone a payment was sent from: any valid number that starts with its country code.
+export function normalizePhone(input: string): string {
+  const phone = parseInternational(input);
+  if (!phone) throw badRequest('validation_failed', `Enter a valid mobile number. ${PHONE_HELP}`, { senderPhone: [`Enter a valid mobile number. ${PHONE_HELP}`] });
   return phone.number;
 }
 

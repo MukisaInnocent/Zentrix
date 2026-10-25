@@ -19,7 +19,6 @@ export function newMemberInput(overrides: Record<string, unknown> = {}) {
     password: PASSWORD,
     country: 'UG',
     phone: uniquePhoneUG(),
-    dateOfBirth: '1995-05-05',
     timezone: 'Africa/Kampala',
     acceptTerms: true,
     acceptPrivacy: true,
@@ -54,7 +53,7 @@ export async function createStaff(app: TestApp, roles: Role[], opts: { totp?: bo
   const totpSecret = opts.totp === false ? null : newTotpSecret();
   const created = await withTransaction(app.owner, db =>
     createUserDirect(db, app.services.config.dataEncryptionKey, {
-      username: input.username, email: input.email, phone: input.phone, country: 'UG', dateOfBirth: '1990-01-01',
+      username: input.username, email: input.email, phone: input.phone, country: 'UG',
       password: PASSWORD, roles: [...roles, 'member'], verified: true, ...(totpSecret ? { totpSecret } : {}),
     }),
   );

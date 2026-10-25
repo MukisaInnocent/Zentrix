@@ -1,4 +1,4 @@
-import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
+import { parseInternational } from '../../lib/phone.js';
 import { z } from 'zod';
 import { maybeOne, one } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
@@ -63,18 +63,12 @@ function findUserByIdentifier(pool: Services['pool'], identifier: string): Promi
     );
   }
 
-  // Check phone variants: national format (0700...) or international (+256...)
+  // A phone number signs in only when it starts with the country code (+256... or 256...).
   const digits = clean.replace(/[\s\-()]/g, '');
   let phoneE164: string | null = null;
   if (/^\+?\d{8,15}$/.test(digits)) {
-    const parsed =
-      (digits.startsWith('+') ? parsePhoneNumberFromString(digits) : null) ??
-      parsePhoneNumberFromString(digits, 'UG') ??
-      parsePhoneNumberFromString(digits, 'KE') ??
-      parsePhoneNumberFromString(digits, 'TZ') ??
-      parsePhoneNumberFromString(digits, 'RW') ??
-      parsePhoneNumberFromString(digits, 'NG');
-    if (parsed?.isValid()) phoneE164 = parsed.number;
+    const parsed = parseInternational(digits);
+    if (parsed) phoneE164 = parsed.number;
   }
 
   if (phoneE164) {

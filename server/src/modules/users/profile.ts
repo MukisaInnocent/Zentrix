@@ -20,6 +20,7 @@ interface ProfileRow {
   created_at: Date;
   referrer_username: string | null;
   mfa_enabled: boolean;
+  activated: boolean;
   roles: Role[];
 }
 
@@ -40,6 +41,8 @@ export interface Profile {
   roles: Role[];
   isStaff: boolean;
   mfaEnabled: boolean;
+  // True once the activation fee is confirmed. Members use the site only when this is true.
+  activated: boolean;
   createdAt: string;
 }
 
@@ -48,7 +51,7 @@ export async function loadProfile(db: Db, userId: number): Promise<Profile | nul
     db,
     `SELECT u.public_id, u.username, u.email, u.email_verified_at, u.phone_e164, u.phone_verified_at, u.country_code,
             c.name AS country_name, u.currency_code, u.locale, u.timezone, u.status, u.referral_code, u.created_at,
-            ref.username AS referrer_username, t.enabled_at IS NOT NULL AS mfa_enabled,
+            ref.username AS referrer_username, t.enabled_at IS NOT NULL AS mfa_enabled, EXISTS (SELECT 1 FROM memberships ms WHERE ms.user_id = u.id) AS activated,
             coalesce((SELECT array_agg(role ORDER BY role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
      FROM users u
      JOIN countries c ON c.code = u.country_code
@@ -75,6 +78,7 @@ export async function loadProfile(db: Db, userId: number): Promise<Profile | nul
     roles: row.roles,
     isStaff: row.roles.some(isStaffRole),
     mfaEnabled: row.mfa_enabled,
+    activated: row.activated,
     createdAt: row.created_at.toISOString(),
   };
 }
