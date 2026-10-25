@@ -14,6 +14,7 @@ import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messa
 import { listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
 import { rows } from '../../db/sql.js';
 import { notifyPayment } from '../notifications/notify.js';
+import { autoConfirmDeposit, autoPayWithdrawal, ensureTestChannel } from './autopilot.js';
 
 const HOUR = 3_600_000;
 
@@ -66,6 +67,7 @@ export function paymentsRouter(services: Services): Router {
   // codes), and whether the account is already active.
   router.get('/channels', async (req, res) => {
     const member = await memberInfo(pool, req.auth!.userId);
+    await ensureTestChannel(services, member);
     const [channels, deposits, withdrawals, summary] = await Promise.all([
       listChannels(pool, { currency: member.currency, country: member.countryCode }),
       flagActive(pool, 'deposits_paused', member.currency),
@@ -79,6 +81,8 @@ export function paymentsRouter(services: Services): Router {
       payoutPhone: member.phoneVerified ? member.phone : null,
       depositsPaused: deposits.active,
       withdrawalsPaused: withdrawals.active,
+      // Test mode with TEST_AUTO_APPROVE: payments pass by themselves, and the page says so.
+      autoApprove: services.config.appMode === 'test' && services.config.testAutoApprove,
       activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor },
       channels: channels.filter(c => c.depositsEnabled || c.payoutsEnabled).map(publicChannel),
     });
@@ -94,7 +98,11 @@ export function paymentsRouter(services: Services): Router {
       const deposit = await submitDeposit(db, req.auth!.userId, { channelCode: input.channel, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note });
       return { status: 201, body: { deposit } };
     });
-    if (!result.replayed) void notifyPayment(services, 'deposit_submitted', (result.body.deposit as { reference: string }).reference);
+    if (!result.replayed) {
+      const deposit = result.body.deposit as { id: string; reference: string };
+      void notifyPayment(services, 'deposit_submitted', deposit.reference);
+      if (await autoConfirmDeposit(services, deposit.id)) void notifyPayment(services, 'deposit_confirmed', deposit.reference);
+    }
     res.status(result.status).json(result.body);
   });
 
@@ -123,7 +131,11 @@ export function paymentsRouter(services: Services): Router {
       const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor });
       return { status: 201, body: { withdrawal, quote } };
     });
-    if (!result.replayed) void notifyPayment(services, 'withdrawal_requested', (result.body.withdrawal as { reference: string }).reference);
+    if (!result.replayed) {
+      const withdrawal = result.body.withdrawal as { id: string; reference: string; currency: string };
+      void notifyPayment(services, 'withdrawal_requested', withdrawal.reference);
+      if (await autoPayWithdrawal(services, withdrawal.id, withdrawal.currency)) void notifyPayment(services, 'withdrawal_paid', withdrawal.reference, 'test mode');
+    }
     res.status(result.status).json(result.body);
   });
 

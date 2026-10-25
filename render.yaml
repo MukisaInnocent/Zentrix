@@ -55,6 +55,9 @@ services:
         value: "true"
       # Fake seed data (members, admin, campaigns). Leave off on a public URL. For a private demo set it to
       # "true" once, read the generated passwords from the logs, then set it back to "false".
+      # Test mode only: activation payments and withdrawals pass by themselves. Must be false (or removed) for live.
+      - key: TEST_AUTO_APPROVE
+        value: "true"
       - key: SEED_ON_START
         value: "false"
       # Run scheduled jobs (reconciliation, referral release) inside the web process; background workers are

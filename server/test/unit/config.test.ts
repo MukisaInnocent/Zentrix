@@ -54,5 +54,9 @@ describe('configuration', () => {
       DATABASE_SSL: 'verify',
     });
     expect(c.cookieSecure).toBe(true);
+    expect(() => loadConfig({
+      ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', SMTP_URL: 'smtp://mail.example:587',
+      DATABASE_SSL: 'verify', TEST_AUTO_APPROVE: 'true',
+    })).toThrow(/TEST_AUTO_APPROVE must be false/);
   });
 });

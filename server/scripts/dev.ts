@@ -37,7 +37,7 @@ const databaseUrl = `postgres://postgres:${password}@127.0.0.1:${port}/zentrix`;
 loadEnvFile();
 const defaults: Record<string, string> = {
   APP_MODE: 'test', NODE_ENV: 'development', DATABASE_URL: databaseUrl, DATABASE_APP_ROLE: 'zentrix_app',
-  PUBLIC_ORIGIN: 'http://localhost:3000', COOKIE_SECURE: 'false', GEOIP_PROVIDER: 'test-header', ...secrets,
+  PUBLIC_ORIGIN: 'http://localhost:3000', COOKIE_SECURE: 'false', GEOIP_PROVIDER: 'test-header', TEST_AUTO_APPROVE: 'true', ...secrets,
 };
 for (const [key, value] of Object.entries(defaults)) process.env[key] ??= value;
 

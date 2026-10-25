@@ -33,6 +33,8 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MIGRATE_ON_START: z.stringbool().default(false),
   SEED_ON_START: z.stringbool().default(false),
+  // Test mode only: activation payments and withdrawals pass by themselves (owner, 2026-10-25).
+  TEST_AUTO_APPROVE: z.stringbool().default(false),
   RUN_JOBS_IN_WEB: z.stringbool().default(false),
 });
 
@@ -59,6 +61,7 @@ export interface Config {
   logLevel: string;
   migrateOnStart: boolean;
   seedOnStart: boolean;
+  testAutoApprove: boolean;
   runJobsInWeb: boolean;
 }
 
@@ -118,6 +121,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     logLevel: e.LOG_LEVEL,
     migrateOnStart: e.MIGRATE_ON_START,
     seedOnStart: e.SEED_ON_START,
+    testAutoApprove: e.TEST_AUTO_APPROVE,
     runJobsInWeb: e.RUN_JOBS_IN_WEB,
   };
   assertModeRules(config, env);
@@ -144,5 +148,6 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (config.databaseSsl === 'disable') problems.push('DATABASE_SSL must not be disable');
   if (config.geoipProvider === 'test-header') problems.push('GEOIP_PROVIDER=test-header is test-only');
   if (config.seedOnStart) problems.push('SEED_ON_START must be false');
+  if (config.testAutoApprove) problems.push('TEST_AUTO_APPROVE must be false');
   if (problems.length > 0) throw new ConfigError(`Live mode refuses to start: ${problems.join('; ')}.`);
 }
