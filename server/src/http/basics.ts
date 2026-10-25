@@ -15,14 +15,26 @@ export function requestId() {
 }
 
 // One line per request: method, path (never the query string), status, duration, user. No bodies.
+// Successful health checks and static files (css, js, images, fonts) are logged at debug so the info log shows
+// pages and API calls. Failures are always logged.
+export function requestLogLevel(path: string, status: number): 'error' | 'warn' | 'info' | 'debug' {
+  if (status >= 500) return 'error';
+  if (status >= 400) return 'warn';
+  if (path === '/healthz' || path === '/readyz') return 'debug';
+  if (/\.(css|js|mjs|json|svg|png|jpe?g|webp|gif|ico|woff2?|map|txt)$/i.test(path)) return 'debug';
+  return 'info';
+}
+
 export function requestLog(logger: Logger) {
   return (req: Request, res: Response, next: NextFunction) => {
     const start = process.hrtime.bigint();
+    // The full path as requested. req.path is relative to the router that handled it, which turned
+    // /api/wallet/summary into /summary by the time the response finished.
+    const path = req.originalUrl.split('?')[0] ?? req.path;
     res.on('finish', () => {
       const ms = Number(process.hrtime.bigint() - start) / 1e6;
-      const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-      logger[level](
-        { reqId: req.id, method: req.method, path: req.path, status: res.statusCode, ms: Math.round(ms), user: req.auth?.publicId },
+      logger[requestLogLevel(path, res.statusCode)](
+        { reqId: req.id, method: req.method, path, status: res.statusCode, ms: Math.round(ms), user: req.auth?.publicId },
         'request',
       );
     });
