@@ -198,6 +198,12 @@ function setupBackToTop() {
 }
 
 // Renders the member or staff shell around the page's <main>.
+// The site name in the logo's colours (see web/img/logo.svg): "Pexer" navy, "earn" green.
+function wordmark(suffix = null) {
+  return h('span', { class: 'zx-wordmark' }, h('span', { class: 'zx-wordmark__pexer' }, 'Pexer'), h('span', { class: 'zx-wordmark__earn' }, 'earn'),
+    suffix ? h('span', { class: 'zx-wordmark__suffix' }, ` ${suffix}`) : null);
+}
+
 export function renderShell({ me, meta, page, admin = false }) {
   const locked = !admin && !me.isStaff && !me.activated;
   const config = (admin ? ADMIN_NAV : locked ? LOCKED_NAV : MEMBER_NAV).map(section => ({
@@ -216,7 +222,7 @@ export function renderShell({ me, meta, page, admin = false }) {
   const closeBtn = h('button', { type: 'button', class: 'zx-icon-btn zx-icon-btn--square zx-drawer__close', 'aria-label': t('common.closeMenu') }, icon('close'));
   const drawer = h(
     'nav', { class: 'zx-drawer', id: drawerId, 'aria-label': t('common.mainMenu') },
-    h('div', { class: 'zx-drawer__head' }, h('a', { class: 'zx-brand', href: admin ? '/admin/index.html' : '/dashboard.html' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, admin ? 'Pexerearn Staff' : 'Pexerearn')), closeBtn),
+    h('div', { class: 'zx-drawer__head' }, h('a', { class: 'zx-brand', href: admin ? '/admin/index.html' : '/dashboard.html' }, h('img', { src: '/img/mark.svg', alt: '' }), wordmark(admin ? 'Staff' : null)), closeBtn),
     h('div', { class: 'zx-drawer__body' }, buildNav(config, page)),
   );
   const scrim = h('div', { class: 'zx-scrim', 'aria-hidden': 'true' });
@@ -265,7 +271,7 @@ export function renderPublicChrome() {
   main.tabIndex = -1;
   const header = h('header', { class: 'zx-public-header' },
     h('div', { class: 'zx-public-header__inner' },
-      h('a', { class: 'zx-brand', href: '/' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, 'Pexerearn')),
+      h('a', { class: 'zx-brand', href: '/' }, h('img', { src: '/img/mark.svg', alt: '' }), wordmark()),
       h('nav', { class: 'zx-public-nav', 'aria-label': t('common.mainMenu') },
         h('a', { href: '/#how' }, t('nav.howItWorks')), h('a', { href: '/contact.html' }, t('nav.contact'))),
       h('div', { class: 'zx-public-header__cta' },

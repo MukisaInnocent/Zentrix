@@ -55,6 +55,17 @@ body.zx-drawer-open .zx-scrim { opacity: 1; pointer-events: auto; }
 /* The logo symbol sits on a white tile so its blue and green read on light, dark and brand backgrounds. */
 .zx-brand img { inline-size: 38px; block-size: 38px; padding: 3px; border-radius: 11px; background: #fff; box-shadow: 0 4px 12px rgb(1 42 110 / 25%); }
 .zx-drawer .zx-brand, .zx-drawer .zx-brand:hover { color: #fff; }
+/* The site name in the logo's colours (web/img/logo.svg): "Pexer" navy, "earn" a green gradient. */
+.zx-wordmark__pexer { color: #012a6e; }
+.zx-wordmark__earn { background: linear-gradient(180deg, #05b171, #04a46c 50%, #039568); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.zx-wordmark__suffix { color: #012a6e; font-weight: 600; }
+/* On dark backgrounds the logo and name sit on a white plate, so the colours stay exactly as designed. */
+.zx-drawer .zx-brand, .zx-auth-art .zx-brand, :root[data-theme="dark"] .zx-brand { padding: 4px 14px 4px 4px; border-radius: 14px; background: #fff; }
+.zx-drawer .zx-brand img, .zx-auth-art .zx-brand img, :root[data-theme="dark"] .zx-brand img { box-shadow: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .zx-brand { padding: 4px 14px 4px 4px; border-radius: 14px; background: #fff; }
+  :root:not([data-theme="light"]) .zx-brand img { box-shadow: none; }
+}
 
 .zx-nav__heading { margin: var(--zx-space-5) var(--zx-space-3) var(--zx-space-2); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--zx-side-muted); }
 .zx-nav__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
