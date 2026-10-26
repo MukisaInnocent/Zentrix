@@ -52,7 +52,8 @@ body.zx-drawer-open .zx-scrim { opacity: 1; pointer-events: auto; }
 
 .zx-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--zx-text); text-decoration: none; font-weight: 800; font-size: 1.25rem; letter-spacing: -.02em; }
 .zx-brand:hover { color: var(--zx-text); }
-.zx-brand img { inline-size: 38px; block-size: 38px; border-radius: 11px; box-shadow: 0 4px 12px rgb(91 43 214 / 35%); }
+/* The logo symbol sits on a white tile so its blue and green read on light, dark and brand backgrounds. */
+.zx-brand img { inline-size: 38px; block-size: 38px; padding: 3px; border-radius: 11px; background: #fff; box-shadow: 0 4px 12px rgb(1 42 110 / 25%); }
 .zx-drawer .zx-brand, .zx-drawer .zx-brand:hover { color: #fff; }
 
 .zx-nav__heading { margin: var(--zx-space-5) var(--zx-space-3) var(--zx-space-2); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--zx-side-muted); }
