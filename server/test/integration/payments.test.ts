@@ -567,5 +567,8 @@ describe('deposit balance', () => {
     const p = await summary(payee);
     expect([p.availableBalanceMinor, p.depositBalanceMinor]).toEqual(['0', '1000']);
     expect((await summary(buyer)).spendableMinor).toBe('0');
+    // The statement labels each row with the balance it touched.
+    const statement = (await buyer.client.get<Body>('/api/wallet/transactions?limit=20')).body.transactions;
+    expect(statement.filter((t: Body) => t.balance === 'deposit').map((t: Body) => t.amountMinor)).toEqual(['-30000', '30000']);
   });
 });

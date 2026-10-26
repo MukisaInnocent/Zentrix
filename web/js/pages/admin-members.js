@@ -1,6 +1,7 @@
 import { api } from '../core/api.js';
 import { $, h, on } from '../core/dom.js';
-import { act, ago, askForm, debounce, emptyRow, kv, money, pager, panel, queryParam, sheet, statusBadge, when } from '../admin/kit.js';
+import { act, ago, askForm, debounce, emptyRow, kv, money, moneyPost, pager, panel, queryParam, sheet, statusBadge, when } from '../admin/kit.js';
+import { toast } from '../core/toast.js';
 
 // Member search and detail: profile, balances, recent payments and statement, and freeze or unfreeze.
 const state = { q: '', page: 1 };
@@ -47,6 +48,7 @@ async function openMember(id) {
       panel('Balances', kv([
         ['Balance (referrals)', money(b.availableBalanceMinor, b.currency)],
         ['Deposit', money(b.depositBalanceMinor, b.currency)],
+        b.debtMinor !== '0' ? ['Owes (moved referral rewards)', money(b.debtMinor, b.currency)] : null,
         ...Object.entries(b.taskBalancesMinor).map(([k, v]) => [`${k} earnings`, money(v, b.currency)]),
         ['On hold for withdrawals', money(b.reservedBalanceMinor, b.currency)],
         ['Deposits waiting review', money(b.pendingDepositsMinor, b.currency)],
@@ -92,7 +94,25 @@ async function openMember(id) {
         return b;
       })
       : [];
-    view.setActions(canFreeze ? btn : null, ...unlockButtons);
+    // Admins can change who invited the member; referral rewards then move to the new line.
+    const inviterBtn = me.roles.includes('admin') && me.id !== m.id ? h('button', { type: 'button', class: 'zx-btn zx-btn--secondary' }, 'Change inviter') : null;
+    inviterBtn?.addEventListener('click', async () => {
+      const result = await askForm({
+        title: 'Change inviter',
+        text: `Now invited by ${m.referrer ? `@${m.referrer.username}` : 'nobody'}. Rewards already paid for this member, and for the people up to two levels below them, move to the new line. If an old inviter already used the money, their balance goes below zero and their next referral earnings repay it.`,
+        submitLabel: 'Change inviter', tone: 'danger',
+        fields: [
+          { name: 'username', label: 'Username of the new inviter', required: true, minLength: 3 },
+          { name: 'reason', label: 'Why does the inviter change?', type: 'textarea', required: true, minLength: 5 },
+        ],
+        submit: v => moneyPost(`/api/admin/members/${id}/inviter`, { username: v.username.replace(/^@/, ''), reason: v.reason }),
+      });
+      if (!result) return;
+      const debts = result.moved.filter(r => r.debtMinor !== '0');
+      toast.success(`Now invited by @${result.inviter}. ${result.moved.length} reward(s) moved${debts.length ? `; ${debts.length} left a debt` : ''}.`);
+      await render();
+    });
+    view.setActions(canFreeze ? btn : null, inviterBtn, ...unlockButtons);
   };
   try {
     await render();

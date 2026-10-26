@@ -5,7 +5,7 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { basisPointsOf } from '../../lib/money.js';
 import type { Role } from '../auth/context.js';
 import { accountId, InsufficientFundsError, post, type Leg } from '../ledger/ledger.js';
-import { memberInfo, newReference, requireActive, requireConfig, sourceAccount, type BalanceSource } from '../wallet/service.js';
+import { memberInfo, newReference, requireActive, requireConfig, settleDebt, sourceAccount, type BalanceSource } from '../wallet/service.js';
 import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor } from './common.js';
 
 // Manual payouts. On request the amount plus fee moves from the chosen balance to the member's withdrawal
@@ -132,6 +132,8 @@ export async function requestWithdrawal(
     throw forbidden('withdrawal.locked', 'Withdrawals are locked for 48 hours after a phone number change.');
   }
   await assertNotPaused(db, 'withdrawals_paused', member.currency);
+  // A debt from a moved referral reward is repaid from the balance before anything can be withdrawn from it.
+  await settleDebt(db, userId, member.currency);
   // The member does not pick a network: the request is assigned to the first payout channel for their country,
   // and staff confirm which channel they really paid from when they record the payout.
   const channel = (await listChannels(db, { currency: member.currency, country: member.countryCode })).find(c => c.payoutsEnabled);
@@ -189,6 +191,7 @@ async function release(db: PoolClient, w: WithdrawalRow, actorId: number, status
     refType: 'withdrawal', refId: w.reference, actorUserId: actorId,
     legs: [{ account: hold, side: 'debit', amountMinor: total }, { account: Number(w.source_account_id), side: 'credit', amountMinor: total }],
   });
+  if (w.source === 'main') await settleDebt(db, Number(w.user_id), w.currency_code);
   await setActor(db, actorId, reason);
   await db.query(
     'UPDATE withdrawals SET status = $2, final_transaction_id = $3, closed_by = $4, closed_reason = $5, closed_at = now() WHERE id = $1',

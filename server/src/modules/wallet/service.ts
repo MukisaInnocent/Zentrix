@@ -1,9 +1,10 @@
+import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { randomCode } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
-import { accountId, balanceOf, move, TASK_MODULES, type Leg, type TaskModule } from '../ledger/ledger.js';
+import { accountId, balanceOf, move, post, TASK_MODULES, type Leg, type TaskModule } from '../ledger/ledger.js';
 
 export const BALANCE_SOURCES = ['main', ...TASK_MODULES] as const;
 export type BalanceSource = (typeof BALANCE_SOURCES)[number];
@@ -55,9 +56,11 @@ export function sourceAccount(db: Db, userId: number, currency: string, source: 
 
 export interface WalletSummary {
   currency: string;
-  // Balance: referral money only (member_main). Deposit balance: confirmed deposits, Pay For Client money
-  // received and voucher value above the fee (member_deposit). Spendable: both, used for vouchers and Pay For Client.
+  // Balance: referral money only (member_main), less any debt from a moved referral reward, so it can be below
+  // zero. Deposit balance: confirmed deposits, Pay For Client money received and voucher value above the fee
+  // (member_deposit). Spendable: both, used for vouchers and Pay For Client.
   availableBalanceMinor: string;
+  debtMinor: string;
   depositBalanceMinor: string;
   spendableMinor: string;
   reservedBalanceMinor: string;
@@ -101,11 +104,13 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
   const totalEarnings = BigInt(totals.referral) + BigInt(totals.tasks);
   const find = (kind: string, module: string | null = null) =>
     balances.find(b => b.kind === kind && b.module === module)?.balance_minor ?? '0';
+  const balance = BigInt(find('member_main')) - BigInt(find('member_debt'));
   return {
     currency: member.currency,
-    availableBalanceMinor: find('member_main'),
+    availableBalanceMinor: balance.toString(),
+    debtMinor: find('member_debt'),
     depositBalanceMinor: find('member_deposit'),
-    spendableMinor: (BigInt(find('member_main')) + BigInt(find('member_deposit'))).toString(),
+    spendableMinor: (balance + BigInt(find('member_deposit'))).toString(),
     reservedBalanceMinor: find('member_withdrawal_hold'),
     pendingDepositsMinor: totals.pending,
     totalDepositedMinor: totals.deposited,
@@ -138,34 +143,55 @@ export interface TransactionRecord {
 // The member's statement: every ledger entry on their main and task balances (holds are internal).
 export async function getTransactions(db: Db, userId: number, limit = 50): Promise<TransactionRecord[]> {
   const list = await rows<{
-    id: string; kind: string; module: string | null; side: string; normal_side: string; amount_minor: string; currency_code: string;
-    balance_after_minor: string; memo: string; ref_id: string | null; created_at: Date;
+    id: string; kind: string; account_kind: string; module: string | null; side: string; normal_side: string; amount_minor: string;
+    currency_code: string; balance_after_minor: string; memo: string; ref_id: string | null; created_at: Date;
   }>(
     db,
-    `SELECT e.id, t.kind, a.module, e.side, a.normal_side, e.amount_minor, e.currency_code, e.balance_after_minor, t.memo, t.ref_id, e.created_at
+    `SELECT e.id, t.kind, a.kind AS account_kind, a.module, e.side, a.normal_side, e.amount_minor, e.currency_code, e.balance_after_minor,
+            t.memo, t.ref_id, e.created_at
      FROM ledger_entries e JOIN accounts a ON a.id = e.account_id JOIN ledger_transactions t ON t.id = e.transaction_id
-     WHERE a.user_id = $1 AND a.kind IN ('member_main', 'member_deposit', 'member_task')
+     WHERE a.user_id = $1 AND a.kind IN ('member_main', 'member_deposit', 'member_task', 'member_debt')
      ORDER BY e.id DESC LIMIT $2`,
     [userId, limit],
   );
-  return list.map(e => ({
-    id: e.id,
-    kind: e.kind,
-    balance: e.module ?? (e.kind === 'member_deposit' ? 'deposit' : 'main'),
-    amountMinor: e.side === e.normal_side ? e.amount_minor : `-${e.amount_minor}`,
-    currency: e.currency_code,
-    balanceAfterMinor: e.balance_after_minor,
-    description: e.memo,
-    reference: e.ref_id,
-    createdAt: e.created_at,
-  }));
+  return list.map(e => {
+    // A debt is shown from the member's side: it growing is money out, and its balance is below zero.
+    const debt = e.account_kind === 'member_debt';
+    const grows = e.side === e.normal_side;
+    return {
+      id: e.id,
+      kind: e.kind,
+      balance: e.module ?? (debt ? 'debt' : e.account_kind === 'member_deposit' ? 'deposit' : 'main'),
+      amountMinor: grows !== debt ? e.amount_minor : `-${e.amount_minor}`,
+      currency: e.currency_code,
+      balanceAfterMinor: debt && e.balance_after_minor !== '0' ? `-${e.balance_after_minor}` : e.balance_after_minor,
+      description: e.memo,
+      reference: e.ref_id,
+      createdAt: e.created_at,
+    };
+  });
+}
+
+// Repays a member's debt (from a moved referral reward) out of their balance, as far as the balance allows.
+// Called whenever money reaches the balance, and before the balance is spent or withdrawn, so the balance is
+// empty for as long as any debt remains.
+export async function settleDebt(db: PoolClient, userId: number, currency: string): Promise<void> {
+  const debt = await accountId(db, { kind: 'member_debt', userId, currency });
+  const owed = await balanceOf(db, debt);
+  if (owed === 0n) return;
+  const main = await accountId(db, { kind: 'member_main', userId, currency });
+  const held = await balanceOf(db, main);
+  const repay = held < owed ? held : owed;
+  if (repay === 0n) return;
+  await post(db, { kind: 'debt_repayment', memo: 'Repayment of a moved referral reward', refType: 'debt', legs: move(main, debt, repay) });
 }
 
 export const newReference = (prefix: string) => `${prefix}-${randomCode(8)}`;
 
 // Legs that pay `amountMinor` to `to` from the member's own money: the deposit balance first, then the balance
 // (referral money) for the rest. A shortfall surfaces as InsufficientFundsError on the balance leg.
-export async function spendLegs(db: Db, userId: number, currency: string, amountMinor: bigint, to: number): Promise<Leg[]> {
+export async function spendLegs(db: PoolClient, userId: number, currency: string, amountMinor: bigint, to: number): Promise<Leg[]> {
+  await settleDebt(db, userId, currency);
   const deposit = await accountId(db, { kind: 'member_deposit', userId, currency });
   const main = await accountId(db, { kind: 'member_main', userId, currency });
   const held = await balanceOf(db, deposit);

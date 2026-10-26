@@ -4,6 +4,7 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { currentCountryConfig } from '../countries/service.js';
 import { accountId, move, post } from '../ledger/ledger.js';
 import { getSetting } from '../settings/registry.js';
+import { settleDebt } from '../wallet/service.js';
 
 // Referral rewards (owner decision: levels 1 to 3, left as the owner built them). The amounts are the Uganda
 // ones, set by an admin in the `referral.tier_amounts_ugx` setting (UGX 10,000 / 5,000 / 2,000 until changed);
@@ -17,7 +18,7 @@ export async function referralTiersUgx(db: Db): Promise<Record<number, bigint>> 
 
 /** Referral rewards stop at level 3. Nothing is paid above this level. */
 export const MAX_REFERRAL_LEVEL = 3;
-const UGANDA_FEE_UGX = 19_000n;
+export const UGANDA_FEE_UGX = 19_000n;
 
 export interface LevelCounts {
   total: number;
@@ -91,6 +92,7 @@ export async function distributeReferralRewards(
          VALUES ($1, $2, $3, $4, $5, 'credited')`,
         [currentReferrerId, newUserId, level, rewardMinor.toString(), newUser.currency_code],
       );
+      await settleDebt(db, currentReferrerId, newUser.currency_code);
       distributedCount++;
       totalDistributedMinor += rewardMinor;
     }

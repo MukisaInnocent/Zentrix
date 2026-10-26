@@ -10,6 +10,8 @@ import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
 import { revokeUserSessions } from '../auth/sessions.js';
 import { CHANGE_KINDS, grantChange, openGrants } from '../auth/changes.js';
+import { idempotent } from '../ledger/idempotency.js';
+import { changeInviter } from '../referrals/reassign.js';
 import { loadProfile } from '../users/profile.js';
 
 const Uuid = z.uuid();
@@ -23,6 +25,10 @@ const UnlockSchema = z.strictObject({
   verification: z.string().trim().min(10, { error: 'Describe how you verified the member\'s identity.' }).max(500),
 });
 const RoleSchema = z.strictObject({ role: z.enum(['member', 'advertiser', 'support', 'reviewer', 'finance', 'compliance', 'admin']), grant: z.boolean() });
+const InviterSchema = z.strictObject({
+  username: z.string().trim().min(3, { error: 'Enter the username of the new inviter.' }).max(40),
+  reason: z.string().trim().min(5, { error: 'Say why the inviter changes.' }).max(500),
+});
 const ListQuery = z.object({ q: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).max(10_000).default(1) });
 
 const PAGE = 25;
@@ -137,6 +143,24 @@ export function membersRouter(services: Services): Router {
       });
     });
     res.json({ ok: true, withdrawalsLockedUntil: lockUntil });
+  });
+
+  // Changes who invited the member, by username. Referral rewards follow the new line (see referrals/reassign.ts);
+  // it moves money, so it runs as an idempotent SERIALIZABLE money operation and is audited with every reward moved.
+  router.post('/:id/inviter', requireStaff('admin'), async (req, res) => {
+    const userId = await memberId(services, req.params.id);
+    notSelf(req, userId);
+    const { username, reason } = parse(InviterSchema, req.body);
+    const result = await idempotent(pool, req, `member.inviter.${userId}`, async db => {
+      const target = await one<{ public_id: string }>(db, 'SELECT public_id FROM users WHERE id = $1', [userId]);
+      const change = await changeInviter(db, req.auth!.userId, userId, username);
+      await audit(db, req, {
+        action: 'member.inviter_changed', targetType: 'user', targetId: target.public_id,
+        before: { inviter: change.before }, after: { inviter: change.after, movedRewards: change.moved }, reason,
+      });
+      return { status: 200, body: { ok: true, inviter: change.after, previousInviter: change.before, moved: change.moved } };
+    });
+    res.status(result.status).json(result.body);
   });
 
   // Unlocks one password, email or phone change for 24 hours after the admin has checked who is asking.
