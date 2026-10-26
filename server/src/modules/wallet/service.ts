@@ -3,7 +3,7 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { randomCode } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
-import { accountId, TASK_MODULES, type TaskModule } from '../ledger/ledger.js';
+import { accountId, balanceOf, move, TASK_MODULES, type Leg, type TaskModule } from '../ledger/ledger.js';
 
 export const BALANCE_SOURCES = ['main', ...TASK_MODULES] as const;
 export type BalanceSource = (typeof BALANCE_SOURCES)[number];
@@ -55,7 +55,11 @@ export function sourceAccount(db: Db, userId: number, currency: string, source: 
 
 export interface WalletSummary {
   currency: string;
+  // Balance: referral money only (member_main). Deposit balance: confirmed deposits, Pay For Client money
+  // received and voucher value above the fee (member_deposit). Spendable: both, used for vouchers and Pay For Client.
   availableBalanceMinor: string;
+  depositBalanceMinor: string;
+  spendableMinor: string;
   reservedBalanceMinor: string;
   pendingDepositsMinor: string;
   totalDepositedMinor: string;
@@ -100,6 +104,8 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
   return {
     currency: member.currency,
     availableBalanceMinor: find('member_main'),
+    depositBalanceMinor: find('member_deposit'),
+    spendableMinor: (BigInt(find('member_main')) + BigInt(find('member_deposit'))).toString(),
     reservedBalanceMinor: find('member_withdrawal_hold'),
     pendingDepositsMinor: totals.pending,
     totalDepositedMinor: totals.deposited,
@@ -138,14 +144,14 @@ export async function getTransactions(db: Db, userId: number, limit = 50): Promi
     db,
     `SELECT e.id, t.kind, a.module, e.side, a.normal_side, e.amount_minor, e.currency_code, e.balance_after_minor, t.memo, t.ref_id, e.created_at
      FROM ledger_entries e JOIN accounts a ON a.id = e.account_id JOIN ledger_transactions t ON t.id = e.transaction_id
-     WHERE a.user_id = $1 AND a.kind IN ('member_main', 'member_task')
+     WHERE a.user_id = $1 AND a.kind IN ('member_main', 'member_deposit', 'member_task')
      ORDER BY e.id DESC LIMIT $2`,
     [userId, limit],
   );
   return list.map(e => ({
     id: e.id,
     kind: e.kind,
-    balance: e.module ?? 'main',
+    balance: e.module ?? (e.kind === 'member_deposit' ? 'deposit' : 'main'),
     amountMinor: e.side === e.normal_side ? e.amount_minor : `-${e.amount_minor}`,
     currency: e.currency_code,
     balanceAfterMinor: e.balance_after_minor,
@@ -156,3 +162,17 @@ export async function getTransactions(db: Db, userId: number, limit = 50): Promi
 }
 
 export const newReference = (prefix: string) => `${prefix}-${randomCode(8)}`;
+
+// Legs that pay `amountMinor` to `to` from the member's own money: the deposit balance first, then the balance
+// (referral money) for the rest. A shortfall surfaces as InsufficientFundsError on the balance leg.
+export async function spendLegs(db: Db, userId: number, currency: string, amountMinor: bigint, to: number): Promise<Leg[]> {
+  const deposit = await accountId(db, { kind: 'member_deposit', userId, currency });
+  const main = await accountId(db, { kind: 'member_main', userId, currency });
+  const held = await balanceOf(db, deposit);
+  const fromDeposit = held < amountMinor ? held : amountMinor;
+  const fromMain = amountMinor - fromDeposit;
+  const legs: Leg[] = [];
+  if (fromDeposit > 0n) legs.push(...move(deposit, to, fromDeposit));
+  if (fromMain > 0n) legs.push(...move(main, to, fromMain));
+  return legs;
+}

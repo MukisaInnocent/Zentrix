@@ -159,13 +159,13 @@ describe('users guard', () => {
 
 describe('country configuration', () => {
   it('requires the country currency, keeps limits ordered and is append-only', async () => {
-    // Migration 0007 ships Uganda's config as version 1 (fee UGX 19,000).
+    // Migration 0007 ships Uganda's config as version 1 (fee UGX 19,000); 0014 adds version 2 (withdrawal limits).
     expect((await owner.query(`SELECT membership_fee_minor FROM country_configs WHERE country_code = 'UG' AND version = 1`)).rows[0]?.membership_fee_minor).toBe('19000');
-    expect(await sqlState(owner.query(configInsert, ['UG', 2, 'USD', 1000]))).toBe('ZX003');
-    await owner.query(configInsert, ['UG', 2, 'UGX', 1000]);
+    expect(await sqlState(owner.query(configInsert, ['UG', 3, 'USD', 1000]))).toBe('ZX003');
+    await owner.query(configInsert, ['UG', 3, 'UGX', 1000]);
     const update = owner.query(`UPDATE country_configs SET membership_fee_minor = 1 WHERE country_code = 'UG'`);
     expect(await sqlState(update)).toBe('ZX001');
     // Minimum above the per-request maximum violates a CHECK.
-    expect(await sqlState(owner.query(configInsert, ['UG', 3, 'UGX', 5_000_000]))).toBe('23514');
+    expect(await sqlState(owner.query(configInsert, ['UG', 4, 'UGX', 5_000_000]))).toBe('23514');
   });
 });

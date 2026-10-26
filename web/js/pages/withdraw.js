@@ -21,7 +21,9 @@ async function updateQuote(amount) {
     const { quote: q } = await api.get(`/api/payments/withdrawals/quote?amount=${encodeURIComponent(amount)}`);
     if (seq !== quoteSeq) return;
     box.replaceChildren(
-      h('div', {}, h('span', {}, 'Fee'), h('span', {}, formatMoney(q.feeMinor, q.currency))),
+      h('div', {}, h('span', {}, 'Charge'), h('span', {}, formatMoney(q.chargeMinor, q.currency))),
+      h('div', {}, h('span', {}, 'Tax (0.5%)'), h('span', {}, formatMoney(q.taxMinor, q.currency))),
+      h('div', {}, h('span', {}, 'Total fee'), h('span', {}, formatMoney(q.feeMinor, q.currency))),
       h('div', {}, h('span', {}, 'Total taken'), h('span', {}, formatMoney(q.totalMinor, q.currency))));
     box.hidden = false;
   } catch (err) {
@@ -29,6 +31,19 @@ async function updateQuote(amount) {
     box.replaceChildren(h('div', {}, h('span', { class: 'zx-error' }, err instanceof ApiError ? err.message : 'Could not preview the fee.')));
     box.hidden = false;
   }
+}
+
+// The charge table for the member's country, as the server sends it.
+async function renderCharges() {
+  const c = await api.get('/api/payments/withdrawals/charges');
+  const percent = `${c.taxBasisPoints / 100}%`;
+  $('#charges-note').textContent = `Minimum withdrawal ${formatMoney(c.minMinor, c.currency)}. Maximum ${formatMoney(c.maxMinor, c.currency)}. A ${percent} tax on the amount is added to every charge.`;
+  $('#charges-body').replaceChildren(...(c.bands.length
+    ? c.bands.map(b => h('tr', {},
+      h('td', {}, formatMoney(b.fromMinor, c.currency)),
+      h('td', {}, formatMoney(b.upToMinor, c.currency)),
+      h('td', { class: 'zx-td-strong' }, formatMoney(b.chargeMinor, c.currency))))
+    : [h('tr', {}, h('td', { colspan: '3', class: 'zx-td-empty' }, 'Charges for your country are not set yet.'))]));
 }
 
 async function refresh() {
@@ -98,5 +113,5 @@ export async function init() {
     await refresh();
   });
 
-  await refresh();
+  await Promise.all([refresh(), renderCharges().catch(() => undefined)]);
 }

@@ -13,7 +13,8 @@ import { assertNotPaused, channelByCode, exponentOf, normalizePhone, normalizeTx
 // confirm it; only then does the ledger move. Two kinds:
 //   activation  exactly the activation fee: cash on the channel -> platform revenue, the account is activated
 //               with a numbered receipt, and referral rewards are paid;
-//   wallet      any amount, after activation: cash on the channel -> the member's balance.
+//   wallet      any amount, after activation: cash on the channel -> the member's deposit balance (kept apart
+//               from the balance, which holds referral money only).
 
 export type DepositPurpose = 'activation' | 'wallet';
 const MAX_PENDING: Record<DepositPurpose, number> = { activation: 1, wallet: 3 };
@@ -181,10 +182,10 @@ async function confirmWalletDeposit(db: PoolClient, staffId: number, d: DepositR
   const member = await memberInfo(db, Number(d.user_id));
   if (member.status !== 'active') throw conflict('deposit.member_not_active', 'This member account is frozen or closed. Resolve that first.');
   const clearing = await accountId(db, { kind: 'payment_clearing', channelId: Number(d.channel_id), currency: d.currency_code });
-  const main = await accountId(db, { kind: 'member_main', userId: Number(d.user_id), currency: d.currency_code });
+  const deposit = await accountId(db, { kind: 'member_deposit', userId: Number(d.user_id), currency: d.currency_code });
   const txn = await post(db, {
     kind: 'deposit', memo: `Deposit via ${d.channel_name}`, refType: 'deposit', refId: d.reference, actorUserId: staffId,
-    legs: move(clearing, main, receivedMinor),
+    legs: move(clearing, deposit, receivedMinor),
   });
   await setActor(db, staffId, note ?? 'Confirmed against the channel statement');
   await db.query(

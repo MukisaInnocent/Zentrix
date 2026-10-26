@@ -172,6 +172,7 @@
 .zx-dashx__card-icon { position: absolute; inset-inline-end: var(--zx-space-5); inset-block-start: 50%; transform: translateY(-50%); display: grid; place-items: center; inline-size: 52px; block-size: 52px; border-radius: 14px; background: rgb(255 255 255 / 20%); z-index: 1; }
 .zx-dashx__card-icon .zx-icon { inline-size: 24px; block-size: 24px; }
 .zx-dashx__card--balance { background: linear-gradient(135deg, #0f8a5f, #17b884); }
+.zx-dashx__card--deposit { background: linear-gradient(135deg, #4520a8, #6d44e6); }
 .zx-dashx__card--withdrawn { background: linear-gradient(135deg, #0b6fb8, #1e9be0); }
 .zx-dashx__card--pending { background: linear-gradient(135deg, #c62f45, #ef5466); }
 .zx-dashx__card--referral { background: linear-gradient(135deg, #c96a00, #f0a030); }

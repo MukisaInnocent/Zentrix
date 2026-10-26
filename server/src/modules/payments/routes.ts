@@ -7,11 +7,11 @@ import { MoneyFormatError, toMinor } from '../../lib/money.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent, moneyTx } from '../ledger/idempotency.js';
-import { BALANCE_SOURCES, getWalletSummary, memberInfo } from '../wallet/service.js';
+import { BALANCE_SOURCES, getWalletSummary, memberInfo, requireConfig } from '../wallet/service.js';
 import { exponentOf, flagActive, listChannels, publicChannel } from './common.js';
 import { cancelDeposit, listMemberDeposits, submitDeposit } from './deposits.js';
 import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messagesOf, openIssue, type IssueRow } from './issues.js';
-import { listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
+import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
 import { rows } from '../../db/sql.js';
 import { notifyPayment } from '../notifications/notify.js';
 import { autoConfirmDeposit, autoPayWithdrawal, ensureTestChannel } from './autopilot.js';
@@ -132,6 +132,25 @@ export function paymentsRouter(services: Services): Router {
     const { amount } = parse(QuoteQuery, req.query);
     const member = await memberInfo(pool, req.auth!.userId);
     res.json({ quote: await quoteWithdrawal(pool, req.auth!.userId, await amountToMinor(pool, member.currency, amount)) });
+  });
+
+  // The withdrawal charge table and limits for the member's country, shown on the withdraw page.
+  router.get('/withdrawals/charges', async (req, res) => {
+    const member = await memberInfo(pool, req.auth!.userId);
+    const config = await requireConfig(pool, member.countryCode);
+    const bands = await chargeBands(pool, member.currency);
+    let from = BigInt(config.withdrawalMinMinor);
+    res.json({
+      currency: member.currency,
+      minMinor: config.withdrawalMinMinor,
+      maxMinor: config.withdrawalMaxMinor,
+      taxBasisPoints: config.withdrawalFeeBp,
+      bands: bands.map(b => {
+        const band = { fromMinor: from.toString(), upToMinor: b.upToMinor, chargeMinor: b.chargeMinor };
+        from = BigInt(b.upToMinor);
+        return band;
+      }),
+    });
   });
 
   router.post('/withdrawals', limiter(pool, { name: 'withdrawal', windowMs: HOUR, limit: 20, key: byUser }), async (req, res) => {

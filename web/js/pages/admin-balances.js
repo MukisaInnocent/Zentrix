@@ -37,6 +37,7 @@ function renderSummary(report) {
     h('h3', {}, `${c.currency} `, c.ok ? h('span', { class: 'zx-badge zx-badge--success' }, 'Covered') : h('span', { class: 'zx-badge zx-badge--danger' }, 'Check failing')),
     h('div', { class: 'zx-equation' },
       equationRow('Main balances', money(c.memberMainMinor, c.currency)),
+      equationRow('Deposit balances', money(c.memberDepositMinor, c.currency)),
       equationRow('Task earnings', money(c.memberTaskMinor, c.currency)),
       equationRow('Withdrawals on hold', money(c.memberHeldMinor, c.currency)),
       equationRow('Members are owed', money(c.liabilitiesMinor, c.currency), true)),

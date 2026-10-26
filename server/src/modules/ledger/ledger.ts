@@ -15,7 +15,7 @@ export const SYSTEM_KINDS = [
 export type SystemKind = (typeof SYSTEM_KINDS)[number];
 
 export type AccountRef =
-  | { kind: 'member_main' | 'member_withdrawal_hold'; userId: number; currency: string }
+  | { kind: 'member_main' | 'member_deposit' | 'member_withdrawal_hold'; userId: number; currency: string }
   | { kind: 'member_task'; userId: number; module: TaskModule; currency: string }
   | { kind: 'payment_clearing'; channelId: number; currency: string }
   | { kind: SystemKind; currency: string };

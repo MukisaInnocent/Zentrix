@@ -5,7 +5,7 @@ import { withTransaction } from '../../db/tx.js';
 import { setFlag } from './common.js';
 
 // The balance check (rule 6 and section 5). Per currency it proves the ledger balances, that every cached
-// balance equals the sum of its entries, and that what members are owed (main, task and held balances) is
+// balance equals the sum of its entries, and that what members are owed (main, deposit, task and held balances) is
 // covered by the money actually held on the payment channels. Money held is the latest balance staff read off
 // each channel statement; a channel with no recorded statement counts at its ledger value and is flagged as
 // unverified. Solvency, drift or an unbalanced ledger pause withdrawals in that currency and raise a critical
@@ -27,6 +27,7 @@ export interface CurrencyReport {
   ok: boolean;
   liabilitiesMinor: string;
   memberMainMinor: string;
+  memberDepositMinor: string;
   memberTaskMinor: string;
   memberHeldMinor: string;
   ledgerHeldMinor: string;
@@ -85,9 +86,10 @@ export async function buildReport(db: Db): Promise<Report> {
   const reports = currencies.map((currency): CurrencyReport => {
     const sum = (kind: string) => BigInt(balances.find(b => b.currency_code === currency && b.kind === kind)?.total ?? '0');
     const main = sum('member_main');
+    const deposit = sum('member_deposit');
     const task = sum('member_task');
     const held = sum('member_withdrawal_hold');
-    const liabilities = main + task + held;
+    const liabilities = main + deposit + task + held;
     const positions = channels.filter(c => c.currency_code === currency).map((c): ChannelPosition => {
       const ledger = BigInt(c.ledger ?? '0');
       return {
@@ -113,7 +115,7 @@ export async function buildReport(db: Db): Promise<Report> {
       system[kind] = sum(kind).toString();
     }
     return {
-      currency, ok: !findings.some(f => f.severity === 'critical'), liabilitiesMinor: liabilities.toString(), memberMainMinor: main.toString(),
+      currency, ok: !findings.some(f => f.severity === 'critical'), liabilitiesMinor: liabilities.toString(), memberMainMinor: main.toString(), memberDepositMinor: deposit.toString(),
       memberTaskMinor: task.toString(), memberHeldMinor: held.toString(), ledgerHeldMinor: ledgerHeld.toString(), fundsHeldMinor: funds.toString(),
       coverageMinor: (funds - liabilities).toString(), unverifiedChannels: positions.filter(p => p.statementMinor === null).length, system, channels: positions, findings,
     };

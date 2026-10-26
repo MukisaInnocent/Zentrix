@@ -20,33 +20,20 @@
       <p id="ref-lead"></p>
     </div>
   </div>
-  <div id="ref-stats" class="zx-stat-grid" hidden>
-    <div class="zx-stat">
-      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
-      <div id="stat-total" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">Total</div>
-    </div>
-    <div class="zx-stat zx-stat--mint">
-      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#check-circle"></use></svg></div>
-      <div id="stat-active" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">Active</div>
-    </div>
-    <div class="zx-stat zx-stat--sand">
-      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#hourglass"></use></svg></div>
-      <div id="stat-inactive" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">Inactive</div>
-    </div>
-    <div class="zx-stat zx-stat--lilac">
-      <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#coins"></use></svg></div>
-      <div id="stat-rewards" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">Rewards earned</div>
-    </div>
-  </div>
-  <section class="zx-card">
-    <div class="zx-section-title"><h2 id="table-title">Members</h2></div>
+  <section id="stats-card" class="zx-card" hidden>
+    <div class="zx-section-title"><h2 id="stats-title">Overview</h2></div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Member</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Status</th><th scope="col">Reward</th></tr></thead>
+        <thead><tr><th scope="col">Level</th><th scope="col">Total</th><th scope="col">Active</th><th scope="col">Inactive</th><th scope="col">Rewards earned</th></tr></thead>
+        <tbody id="stats-body"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+  <section id="list-card" class="zx-card" hidden>
+    <div class="zx-section-title"><h2 id="table-title">Usernames</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Username</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Status</th><th scope="col">Reward</th></tr></thead>
         <tbody id="ref-body"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
       </table>
     </div>

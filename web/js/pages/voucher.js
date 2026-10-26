@@ -25,7 +25,7 @@ function fillSelect(select, options, empty) {
 
 async function refresh() {
   const [summary, data] = await Promise.all([api.get('/api/wallet/summary'), api.get('/api/vouchers')]);
-  $('#voucher-wallet-balance').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
+  $('#voucher-wallet-balance').textContent = formatMoney(summary.spendableMinor, summary.currency);
   const unused = data.vouchers.filter(v => v.status === 'active');
   $('#active-vouchers-count').textContent = String(unused.length);
 

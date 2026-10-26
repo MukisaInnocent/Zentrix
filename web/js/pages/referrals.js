@@ -2,39 +2,50 @@ import { api } from '../core/api.js';
 import { $, h } from '../core/dom.js';
 import { formatDate, formatMoney } from '../core/format.js';
 
-// Referrals by level, shown as tables. Level 1 has an overview plus active and inactive lists; levels 2 and 3 list
-// everyone. A member is Active once their activation fee is confirmed.
+// Referrals by level, shown as tables. Every level has an overview (that level's figures only) and lists of its
+// active and inactive usernames. A username is Active once its activation fee is confirmed.
 const VIEWS = {
-  overview: { status: 'all', title: 'Overview', empty: 'Nobody has joined through your link yet.' },
-  active: { status: 'active', title: 'Active Members', empty: 'No active members yet.' },
-  inactive: { status: 'inactive', title: 'Inactive Members', empty: 'No inactive members. Everyone who joined has activated.' },
+  overview: { status: null, title: 'Overview' },
+  active: { status: 'active', title: 'Active Usernames', empty: 'No active usernames at this level yet.' },
+  inactive: { status: 'inactive', title: 'Inactive Usernames', empty: 'No inactive usernames at this level.' },
+};
+const LEADS = {
+  1: 'Usernames that joined with your username.',
+  2: 'Usernames invited by your level 1 usernames.',
+  3: 'Usernames invited by your level 2 usernames.',
 };
 
 export async function init() {
   const params = new URLSearchParams(location.search);
   const level = [1, 2, 3].includes(Number(params.get('level'))) ? Number(params.get('level')) : 1;
-  const view = level === 1 && VIEWS[params.get('view')] ? params.get('view') : 'overview';
-  const query = level === 1 ? `?level=1&view=${view}` : `?level=${level}`;
+  const view = VIEWS[params.get('view')] ? params.get('view') : 'overview';
+  const query = `?level=${level}&view=${view}`;
   if (`?${params}` !== query) history.replaceState(null, '', `${location.pathname}${query}`);
 
   const config = VIEWS[view];
-  $('#ref-title').textContent = level === 1 ? `Level 1 · ${config.title}` : `Level ${level}`;
-  $('#ref-lead').textContent = level === 1 ? 'People who joined with your username.' : `People ${level === 2 ? 'invited by your level 1 members' : 'invited by your level 2 members'}.`;
-  $('#table-title').textContent = level === 1 ? config.title : `Level ${level} members`;
-  $('#ref-stats').hidden = !(level === 1 && view === 'overview');
+  $('#ref-title').textContent = `Level ${level} · ${config.title}`;
+  $('#ref-lead').textContent = LEADS[level];
+  $('#stats-card').hidden = view !== 'overview';
+  $('#list-card').hidden = view === 'overview';
 
-  const [data, overview] = await Promise.all([
-    api.get(`/api/referrals/members?level=${level}&status=${level === 1 ? config.status : 'all'}`),
-    api.get('/api/referrals'),
-  ]);
-  $('#stat-total').textContent = String(data.counts.total);
-  $('#stat-active').textContent = String(data.counts.active);
-  $('#stat-inactive').textContent = String(data.counts.inactive);
-  $('#stat-rewards').textContent = formatMoney(overview.totalRewardsMinor, overview.currency);
+  if (view === 'overview') {
+    const overview = await api.get('/api/referrals');
+    const c = overview.levels[level];
+    $('#stats-title').textContent = `Level ${level} overview`;
+    $('#stats-body').replaceChildren(h('tr', {},
+      h('td', { class: 'zx-td-strong' }, `Level ${level}`),
+      h('td', {}, String(c.total)),
+      h('td', {}, String(c.active)),
+      h('td', {}, String(c.inactive)),
+      h('td', { class: 'zx-amount' }, formatMoney(c.rewardsMinor, overview.currency))));
+    return;
+  }
 
+  $('#table-title').textContent = `Level ${level} ${config.title.toLowerCase()}`;
+  const data = await api.get(`/api/referrals/members?level=${level}&status=${config.status}`);
   const body = $('#ref-body');
   if (!data.members.length) {
-    body.replaceChildren(h('tr', {}, h('td', { colspan: '5', class: 'zx-td-empty' }, level === 1 ? config.empty : `Nobody at level ${level} yet.`)));
+    body.replaceChildren(h('tr', {}, h('td', { colspan: '5', class: 'zx-td-empty' }, config.empty)));
     return;
   }
   body.replaceChildren(...data.members.map(m => h('tr', {},

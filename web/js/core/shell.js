@@ -25,18 +25,15 @@ const MEMBER_NAV = [
     items: [
       {
         id: 'referrals', href: `${REF}?level=1&view=overview`, icon: 'users', label: 'nav.referrals', bottom: true,
-        children: [
-          {
-            id: 'ref-level-1', label: 'nav.level1',
-            children: [
-              { id: 'ref-1-overview', href: `${REF}?level=1&view=overview`, label: 'nav.overview' },
-              { id: 'ref-1-active', href: `${REF}?level=1&view=active`, label: 'nav.activeMembers' },
-              { id: 'ref-1-inactive', href: `${REF}?level=1&view=inactive`, label: 'nav.inactiveMembers' },
-            ],
-          },
-          { id: 'ref-level-2', href: `${REF}?level=2`, label: 'nav.level2' },
-          { id: 'ref-level-3', href: `${REF}?level=3`, label: 'nav.level3' },
-        ],
+        // Every level has its own overview (that level's figures only) and active and inactive lists.
+        children: [1, 2, 3].map(n => ({
+          id: `ref-level-${n}`, label: `nav.level${n}`,
+          children: [
+            { id: `ref-${n}-overview`, href: `${REF}?level=${n}&view=overview`, label: 'nav.overview' },
+            { id: `ref-${n}-active`, href: `${REF}?level=${n}&view=active`, label: 'nav.activeMembers' },
+            { id: `ref-${n}-inactive`, href: `${REF}?level=${n}&view=inactive`, label: 'nav.inactiveMembers' },
+          ],
+        })),
       },
     ],
   },

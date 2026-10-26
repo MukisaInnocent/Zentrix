@@ -8,7 +8,7 @@ import { toast } from '../core/toast.js';
 export async function init() {
   async function refresh() {
     const [summary, data] = await Promise.all([api.get('/api/wallet/summary'), api.get('/api/client-payments')]);
-    $('#pfc-balance').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
+    $('#pfc-balance').textContent = formatMoney(summary.spendableMinor, summary.currency);
     $('#pfc-count').textContent = String(data.payments.length);
     const body = $('#pfc-history-body');
     if (!data.payments.length) {

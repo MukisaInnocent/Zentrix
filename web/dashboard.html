@@ -35,11 +35,16 @@
       </div>
     </section>
 
-    <!-- 2 to 5. Balance, withdrawn, pending, referral earnings -->
+    <!-- 2 to 6. Balance (referral money only), deposit, withdrawn, pending, referral earnings -->
     <a class="zx-dashx__card zx-dashx__card--balance" href="/withdraw.html">
       <span class="zx-dashx__card-label">Balance</span>
       <strong id="stat-available" class="zx-dashx__card-value">0</strong>
       <span class="zx-dashx__card-icon" aria-hidden="true"><svg class="zx-icon"><use href="/img/icons.svg#wallet"></use></svg></span>
+    </a>
+    <a class="zx-dashx__card zx-dashx__card--deposit" href="/deposit.html">
+      <span class="zx-dashx__card-label">Deposit</span>
+      <strong id="stat-deposit" class="zx-dashx__card-value">0</strong>
+      <span class="zx-dashx__card-icon" aria-hidden="true"><svg class="zx-icon"><use href="/img/icons.svg#deposit"></use></svg></span>
     </a>
     <a class="zx-dashx__card zx-dashx__card--withdrawn" href="/withdraw.html">
       <span class="zx-dashx__card-label">Withdrawn</span>
@@ -57,7 +62,7 @@
       <span class="zx-dashx__card-icon" aria-hidden="true"><svg class="zx-icon"><use href="/img/icons.svg#users"></use></svg></span>
     </a>
 
-    <!-- 6. Task earnings -->
+    <!-- 7. Task earnings -->
     <section class="zx-card">
       <h2 class="zx-dashx__heading">Task earnings</h2>
       <div class="zx-dashx__tasks">
@@ -70,7 +75,7 @@
       </div>
     </section>
 
-    <!-- 7. Refer and earn -->
+    <!-- 8. Refer and earn -->
     <section class="zx-card zx-stack-3">
       <h2 class="zx-dashx__heading">Refer and earn</h2>
       <p class="zx-hint">Share your link. You earn when the people you invite activate their account.</p>
@@ -80,7 +85,7 @@
       </div>
     </section>
 
-    <!-- 8. My details -->
+    <!-- 9. My details -->
     <section class="zx-card">
       <div class="zx-card__title"><h2 class="zx-dashx__heading">My details</h2><a href="/profile.html">Profile</a></div>
       <dl class="zx-kv zx-kv--tight">
@@ -92,26 +97,6 @@
       </dl>
     </section>
 
-    <!-- 9. Pending withdrawals and recent activity -->
-    <section class="zx-card">
-      <div class="zx-card__title"><h2 class="zx-dashx__heading">Pending withdrawals</h2><a href="/withdraw.html">Withdraw</a></div>
-      <div class="zx-table-wrap">
-        <table class="zx-table">
-          <thead><tr><th scope="col">Date</th><th scope="col">Reference</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
-          <tbody id="pending-body"><tr><td colspan="4" class="zx-td-empty">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="zx-card">
-      <div class="zx-card__title"><h2 class="zx-dashx__heading">Recent transactions</h2><a href="/accounts.html">Statement</a></div>
-      <div class="zx-table-wrap">
-        <table class="zx-table">
-          <thead><tr><th scope="col">Date</th><th scope="col">Description</th><th scope="col">Amount</th><th scope="col">Balance after</th></tr></thead>
-          <tbody id="transactions-body"><tr><td colspan="4" class="zx-td-empty">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </section>
   </div>
 </main>
 </body>

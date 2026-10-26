@@ -31,20 +31,23 @@ describe('test autopilot', () => {
   it('activates on submit and pays a withdrawal straight away, with every step in the ledger', async () => {
     const referrer = await registerMember(app);
     const member = await registerMember(app, { referralCode: referrer.input.username });
+    const second = await registerMember(app, { referralCode: referrer.input.username });
     await app.owner.query('UPDATE users SET phone_verified_at = now() WHERE public_id = $1', [referrer.user.id]);
 
     await activate(referrer);
     await activate(member);
+    await activate(second);
     expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
-    expect((await referrer.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('10000');
+    expect((await referrer.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('20000');
 
-    const w = await referrer.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '5000' }, key());
+    // UGX 15,000 pays the UGX 1,500 charge plus the 0.5% tax (75).
+    const w = await referrer.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key());
     expect(w.status, JSON.stringify(w.body)).toBe(201);
     const list = await referrer.client.get<Body>('/api/payments/withdrawals');
     expect(list.body.withdrawals[0]).toMatchObject({ status: 'paid' });
     expect(list.body.withdrawals[0].payoutTxnId).toMatch(/^AUTO-/);
     const s = (await referrer.client.get<Body>('/api/wallet/summary')).body;
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['4975', '0', '5000']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3425', '0', '15000']);
 
     // The approver and the payer are different system accounts, so the two-person rule still holds.
     const row = (await app.owner.query<{ approver: string; payer: string }>(

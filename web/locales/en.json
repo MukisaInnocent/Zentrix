@@ -79,8 +79,8 @@
     "level2": "Level 2",
     "level3": "Level 3",
     "overview": "Overview",
-    "activeMembers": "Active Members",
-    "inactiveMembers": "Inactive Members",
+    "activeMembers": "Active Usernames",
+    "inactiveMembers": "Inactive Usernames",
     "deposit": "Deposit"
   },
   "admin": {

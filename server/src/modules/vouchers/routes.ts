@@ -8,17 +8,18 @@ import { toDecimalString } from '../../lib/money.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent } from '../ledger/idempotency.js';
-import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
+import { accountId, InsufficientFundsError, move, post } from '../ledger/ledger.js';
 import { notifyVoucherActivation } from '../notifications/notify.js';
 import { exponentOf } from '../payments/common.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { distributeReferralRewards } from '../referrals/service.js';
-import { memberInfo, newReference, requireActive, requireConfig } from '../wallet/service.js';
+import { memberInfo, newReference, requireActive, requireConfig, spendLegs } from '../wallet/service.js';
 
-// Vouchers are bought from the main balance (main -> voucher_liability) and used to activate another member's
-// account. A voucher is worth at least the activation fee. On use the fee goes voucher_liability -> platform
-// revenue, any value above the fee goes to the activated member's main balance, and referral rewards are paid as
-// for a confirmed activation payment. Full Phase 4 vouchers (expiry, encrypted codes) are still to come.
+// Vouchers are bought from the member's own money (deposit balance first, then balance -> voucher_liability) and
+// used to activate another member's account. A voucher is worth at least the activation fee. On use the fee goes
+// voucher_liability -> platform revenue, any value above the fee goes to the activated member's deposit balance,
+// and referral rewards are paid as for a confirmed activation payment. Full Phase 4 vouchers (expiry, encrypted
+// codes) are still to come.
 const VALUE_MULTIPLES = [1n, 2n, 3n, 5n];
 
 async function activationFee(db: Db, countryCode: string): Promise<bigint> {
@@ -61,13 +62,13 @@ export function vouchersRouter(services: Services): Router {
       if (each < (await activationFee(db, member.countryCode))) {
         throw badRequest('validation_failed', 'A voucher must be worth at least the activation fee.', { amount: ['Must be at least the activation fee.'] });
       }
-      const main = await accountId(db, { kind: 'member_main', userId, currency: member.currency });
       const liability = await accountId(db, { kind: 'voucher_liability', currency: member.currency });
+      const legs = await spendLegs(db, userId, member.currency, each * BigInt(input.quantity), liability);
       let txn: number;
       try {
-        txn = await post(db, { kind: 'voucher_purchase', memo: `Bought ${input.quantity} voucher(s)`, refType: 'voucher', actorUserId: userId, legs: move(main, liability, each * BigInt(input.quantity)) });
+        txn = await post(db, { kind: 'voucher_purchase', memo: `Bought ${input.quantity} voucher(s)`, refType: 'voucher', actorUserId: userId, legs });
       } catch (err) {
-        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your main balance is too low for these vouchers.');
+        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your deposit and balance together are too low for these vouchers.');
         throw err;
       }
       const vouchers = [];
@@ -79,7 +80,7 @@ export function vouchersRouter(services: Services): Router {
         );
         vouchers.push({ code, amountMinor: each.toString(), currency: member.currency });
       }
-      return { status: 201, body: { ok: true, vouchers, balance: (await balanceOf(db, main)).toString() } };
+      return { status: 201, body: { ok: true, vouchers } };
     });
     res.status(result.status).json(result.body);
   });
@@ -119,7 +120,7 @@ export function vouchersRouter(services: Services): Router {
       const liability = await accountId(db, { kind: 'voucher_liability', currency: voucher.currency_code });
       const revenue = await accountId(db, { kind: 'platform_revenue', currency: voucher.currency_code });
       const legs = move(liability, revenue, fee);
-      if (value > fee) legs.push(...move(liability, await accountId(db, { kind: 'member_main', userId: targetId, currency: voucher.currency_code }), value - fee));
+      if (value > fee) legs.push(...move(liability, await accountId(db, { kind: 'member_deposit', userId: targetId, currency: voucher.currency_code }), value - fee));
       const receiptNo = newReference('MB');
       const txn = await post(db, {
         kind: 'voucher_activation', memo: `Activation of @${target.username} with voucher ${voucher.code}`, refType: 'membership', refId: receiptNo, actorUserId: userId, legs,
@@ -186,14 +187,16 @@ export function clientPaymentsRouter(services: Services): Router {
       if (Number(payee.id) === userId) throw badRequest('validation_failed', 'You cannot pay yourself.', { recipient: ['You cannot pay yourself.'] });
       if (payee.currency_code !== payer.currency) throw conflict('transfer.currency', 'That member uses another currency. Currency conversion is not available yet.');
       const amount = await amountToMinor(db, payer.currency, input.amount);
-      const from = await accountId(db, { kind: 'member_main', userId, currency: payer.currency });
-      const to = await accountId(db, { kind: 'member_main', userId: Number(payee.id), currency: payer.currency });
+      // Paid from the payer's deposit balance first, then their balance; received into the payee's deposit
+      // balance, since a member's balance holds referral money only.
+      const to = await accountId(db, { kind: 'member_deposit', userId: Number(payee.id), currency: payer.currency });
+      const legs = await spendLegs(db, userId, payer.currency, amount, to);
       const reference = newReference('PT');
       let txn: number;
       try {
-        txn = await post(db, { kind: 'member_transfer', memo: `Payment to @${payee.username}`, refType: 'transfer', refId: reference, actorUserId: userId, legs: move(from, to, amount) });
+        txn = await post(db, { kind: 'member_transfer', memo: `Payment to @${payee.username}`, refType: 'transfer', refId: reference, actorUserId: userId, legs });
       } catch (err) {
-        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your main balance is too low for this payment.');
+        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your deposit and balance together are too low for this payment.');
         throw err;
       }
       await one(
@@ -202,7 +205,7 @@ export function clientPaymentsRouter(services: Services): Router {
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [reference, userId, payee.id, amount.toString(), payer.currency, null, txn],
       );
-      return { status: 201, body: { ok: true, reference, payee: payee.username, balance: (await balanceOf(db, from)).toString() } };
+      return { status: 201, body: { ok: true, reference, payee: payee.username } };
     });
     res.status(result.status).json(result.body);
   });

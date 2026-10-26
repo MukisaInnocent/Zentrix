@@ -435,7 +435,7 @@ export function paymentsAdminRouter(services: Services): Router {
         id: t.id, kind: t.kind, memo: t.memo, refType: t.ref_type, refId: t.ref_id, createdAt: t.created_at, actor: t.actor,
         entries: entries.filter(e => e.transaction_id === t.id).map(e => ({
           side: e.side, amountMinor: e.amount_minor, currency: e.currency_code, balanceAfterMinor: e.balance_after_minor,
-          account: e.username ? `${e.kind === 'member_task' ? `${e.module} earnings` : e.kind === 'member_withdrawal_hold' ? 'withdrawal hold' : 'main balance'} @${e.username}` : e.channel ? `cash on ${e.channel}` : e.kind,
+          account: e.username ? `${e.kind === 'member_task' ? `${e.module} earnings` : e.kind === 'member_withdrawal_hold' ? 'withdrawal hold' : e.kind === 'member_deposit' ? 'deposit balance' : 'main balance'} @${e.username}` : e.channel ? `cash on ${e.channel}` : e.kind,
         })),
       })),
     });

@@ -6,7 +6,8 @@ import { paymentBadge } from '../core/payments.js';
 import { toast } from '../core/toast.js';
 
 // Wallet deposit: the member sends money to a business channel, then submits the transaction ID. Staff confirm it
-// against the statement and the amount is credited to the balance. The page never changes a balance itself.
+// against the statement and the amount is credited to the deposit (kept apart from the balance, which holds
+// referral money only). The page never changes a balance itself.
 let info = null;
 let selected = null;
 

@@ -50,7 +50,7 @@ The reference screenshots from another platform are visual inspiration only. Nev
 ## Ledger rules
 
 - Append-only double-entry ledger: `accounts`, `ledger_transactions`, `ledger_entries`. Only `server/src/modules/ledger` writes ledger rows.
-- Each member has a main balance, one balance per task module (YouTube, TikTok, ads, trivia, Fix Tap, music) and a withdrawal-hold account. Every balance is withdrawable with its own limits. Withdrawal fee: 0.5% of the amount, minimum withdrawal UGX 1,000, admin approval from UGX 200,000.
+- Each member has a main balance (referral money only), a deposit balance (`member_deposit`: confirmed deposits, Pay For Client money received, voucher value above the fee), one balance per task module (YouTube, TikTok, ads, trivia, Fix Tap, music) and a withdrawal-hold account. Vouchers and Pay For Client spend the deposit balance first, then the main balance. The main and task balances are withdrawable; the deposit balance is not (TODO(owner)). Withdrawal fee: a fixed charge from `withdrawal_charges` by amount (UGX 1,500 to 26,500) plus a 0.5% tax on the amount; withdrawals UGX 15,000 to 5,000,000; admin approval from UGX 200,000.
 - Each ledger transaction balances per currency, checked at commit by a deferred constraint trigger. An entry may only touch an account of its own currency.
 - Ledger rows are immutable: triggers reject UPDATE, DELETE and TRUNCATE. Corrections are new reversing transactions.
 - Amounts are BIGINT minor units, always greater than zero, with a currency code. Exponents come from the `currencies` table (UGX 0, USD 2, KWD 3). No floats anywhere. APIs return `amountMinor` as a string.

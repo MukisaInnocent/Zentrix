@@ -16,7 +16,10 @@ import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor 
 
 export interface Quote {
   amountMinor: string;
+  // feeMinor = chargeMinor (fixed, from the charge table) + taxMinor (0.5% of the amount).
   feeMinor: string;
+  chargeMinor: string;
+  taxMinor: string;
   totalMinor: string;
   currency: string;
   needsAdminApproval: boolean;
@@ -34,15 +37,39 @@ async function windowTotals(db: Db, userId: number): Promise<{ day: bigint; mont
   return { day: BigInt(row.day), month: BigInt(row.month) };
 }
 
+export interface ChargeBand {
+  upToMinor: string;
+  chargeMinor: string;
+}
+
+export async function chargeBands(db: Db, currency: string): Promise<ChargeBand[]> {
+  const list = await rows<{ up_to_minor: string; charge_minor: string }>(
+    db, 'SELECT up_to_minor, charge_minor FROM withdrawal_charges WHERE currency_code = $1 ORDER BY up_to_minor', [currency],
+  );
+  return list.map(b => ({ upToMinor: b.up_to_minor, chargeMinor: b.charge_minor }));
+}
+
+// The fixed charge for an amount (owner, 2026-10-26): the smallest band whose upper limit covers it, or the top
+// band above the table. A currency without a table pays the country's minimum fee as its charge.
+export function chargeFor(bands: ChargeBand[], fallbackMinor: bigint, amountMinor: bigint): bigint {
+  if (!bands.length) return fallbackMinor;
+  const band = bands.find(b => amountMinor <= BigInt(b.upToMinor)) ?? bands[bands.length - 1]!;
+  return BigInt(band.chargeMinor);
+}
+
 export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigint): Promise<Quote> {
   const member = await memberInfo(db, userId);
   const config = await requireConfig(db, member.countryCode);
-  const fee = [basisPointsOf(amountMinor, config.withdrawalFeeBp), BigInt(config.withdrawalFeeMinMinor)].reduce((a, b) => (a > b ? a : b));
+  const charge = chargeFor(await chargeBands(db, member.currency), BigInt(config.withdrawalFeeMinMinor), amountMinor);
+  const tax = basisPointsOf(amountMinor, config.withdrawalFeeBp);
+  const fee = charge + tax;
   const used = await windowTotals(db, userId);
   const ageDays = (Date.now() - member.createdAt.getTime()) / 86_400_000;
   return {
     amountMinor: amountMinor.toString(),
     feeMinor: fee.toString(),
+    chargeMinor: charge.toString(),
+    taxMinor: tax.toString(),
     totalMinor: (amountMinor + fee).toString(),
     currency: member.currency,
     needsAdminApproval: amountMinor >= BigInt(config.withdrawalApprovalThresholdMinor) || ageDays < config.newAccountReviewDays,

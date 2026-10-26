@@ -22,6 +22,8 @@ export interface LevelCounts {
   total: number;
   active: number;
   inactive: number;
+  // Referral rewards credited to the user from this level.
+  rewardsMinor: string;
 }
 
 export interface ReferralOverview {
@@ -113,22 +115,24 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
     `${TREE} SELECT t.level, count(*) AS total, count(m.user_id) AS active FROM tree t LEFT JOIN memberships m ON m.user_id = t.id GROUP BY t.level`,
     [userId],
   );
-  const rewards = await one<{ credited: string }>(
-    db, `SELECT coalesce(sum(amount_minor), 0)::text AS credited FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited'`, [userId],
+  const rewards = await rows<{ level: number; credited: string }>(
+    db, `SELECT level, sum(amount_minor)::text AS credited FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited' GROUP BY level`, [userId],
   );
   const config = await currentCountryConfig(db, user.country_code);
   const fee = config ? BigInt(config.membershipFeeMinor) : 0n;
-  const levels: ReferralOverview['levels'] = { 1: { total: 0, active: 0, inactive: 0 }, 2: { total: 0, active: 0, inactive: 0 }, 3: { total: 0, active: 0, inactive: 0 } };
-  for (const c of counts) {
-    const total = Number(c.total);
-    const active = Number(c.active);
-    levels[c.level as 1 | 2 | 3] = { total, active, inactive: total - active };
+  const rewardsAt = (level: number) => rewards.find(r => r.level === level)?.credited ?? '0';
+  const levels = {} as ReferralOverview['levels'];
+  for (const level of [1, 2, 3] as const) {
+    const c = counts.find(x => x.level === level);
+    const total = Number(c?.total ?? 0);
+    const active = Number(c?.active ?? 0);
+    levels[level] = { total, active, inactive: total - active, rewardsMinor: rewardsAt(level) };
   }
   return {
     username: user.username,
     upline: user.upline ? { username: user.upline } : null,
     currency: user.currency_code,
-    totalRewardsMinor: rewards.credited,
+    totalRewardsMinor: rewards.reduce((sum, r) => sum + BigInt(r.credited), 0n).toString(),
     levels,
     tierAmounts: Object.entries(REFERRAL_TIERS_UGX).map(([level, tier]) => ({ level: Number(level), amountMinor: ((tier * fee) / UGANDA_FEE_UGX).toString() })),
   };

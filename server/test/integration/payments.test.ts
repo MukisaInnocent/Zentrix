@@ -225,8 +225,9 @@ describe('wallet deposits', () => {
     expect(noNote.body.error?.fields?.note).toBeDefined();
     const ok = await financeClient.post<Body>(`/api/admin/payments/deposits/${res.body.deposit.id}/confirm`, { amount: '19500', note: 'Statement shows 19,500' }, key());
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    // Deposited money shows under Deposit, never in the balance (which holds referral money only).
     const s = await summary(member);
-    expect([s.availableBalanceMinor, s.totalDepositedMinor, s.expensesMinor]).toEqual(['19500', '19500', FEE]);
+    expect([s.availableBalanceMinor, s.depositBalanceMinor, s.totalDepositedMinor, s.expensesMinor]).toEqual(['0', '19500', '19500', FEE]);
     await new Promise(r => setTimeout(r, 300));
     expect((await app.outbox(member.input.email)).some(m => m.subject === `Pexerearn: Deposit ${res.body.deposit.reference} credited`)).toBe(true);
     // An activation payment cannot carry an amount of its own.
@@ -266,7 +267,10 @@ describe('referral rewards', () => {
     const overview = await referrer.client.get<Body>('/api/referrals');
     expect(overview.body.upline).toEqual({ username: grand.input.username });
     expect(overview.body.referralLink).toContain(`ref=${referrer.input.username}`);
-    expect(overview.body.levels['1']).toEqual({ total: 1, active: 1, inactive: 0 });
+    expect(overview.body.levels['1']).toEqual({ total: 1, active: 1, inactive: 0, rewardsMinor: '10000' });
+    // Each level's overview counts only that level: the top member's level 1 (never activated) earned nothing; level 3 earned 2,000.
+    const topLevels = (await top.client.get<Body>('/api/referrals')).body.levels;
+    expect([topLevels['1'], topLevels['3']]).toEqual([{ total: 1, active: 0, inactive: 1, rewardsMinor: '0' }, { total: 1, active: 1, inactive: 0, rewardsMinor: '2000' }]);
   });
 
   it('scale to the invited member country and skip a level whose referrer uses another currency', async () => {
@@ -291,11 +295,11 @@ describe('manual withdrawals', () => {
     expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key())).body.error?.code).toBe('activation.required');
   });
 
-  it('holds amount plus 0.5% fee, needs an admin approval and a second person to record the payout', async () => {
+  it('holds amount plus the table charge and 0.5% tax, needs an admin approval and a second person to record the payout', async () => {
     const member = await verifiedMember();
     await fund(member, '50000');
     const quote = await member.client.get<Body>('/api/payments/withdrawals/quote?amount=20000');
-    expect(quote.body.quote.feeMinor).toBe('100');
+    expect([quote.body.quote.chargeMinor, quote.body.quote.taxMinor, quote.body.quote.feeMinor]).toEqual(['1500', '100', '1600']);
     expect(quote.body.quote.needsAdminApproval).toBe(true); // new account
 
     // The member picks no network: the request is assigned one automatically.
@@ -306,7 +310,7 @@ describe('manual withdrawals', () => {
     expect(res.body.withdrawal.payoutPhone).toBe(member.input.phone);
     expect(res.body.withdrawal.channel.code).toBe(CHANNEL);
     let s = await summary(member);
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['29900', '20100']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['28400', '21600']);
 
     expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/approve`, {}, key())).body.error?.code).toBe('withdrawal.admin_required');
     expect((await adminClient.post<Body>(`/api/admin/payments/withdrawals/${id}/approve`, {}, key())).status).toBe(200);
@@ -325,49 +329,55 @@ describe('manual withdrawals', () => {
     const paidMail = (await app.outbox(member.input.email)).find(m => m.subject?.endsWith(`${res.body.withdrawal.reference} paid`));
     expect(paidMail?.body).toContain('UGX 20,000');
     s = await summary(member);
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['29900', '0', '20000']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['28400', '0', '20000']);
     const fees = await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'fees' AND currency_code = 'UGX'`);
-    expect(BigInt(fees.rows[0]!.balance_minor)).toBeGreaterThanOrEqual(100n);
+    expect(BigInt(fees.rows[0]!.balance_minor)).toBeGreaterThanOrEqual(1600n);
     await expect(app.owner.query(`UPDATE withdrawals SET status = 'requested' WHERE public_id = $1`, [id])).rejects.toSatisfy(e => (e as { code?: string }).code === 'ZX012');
   });
 
   it('returns the full hold when the member cancels or the payout fails', async () => {
     const member = await verifiedMember();
-    await fund(member, '10000');
-    const a = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '4000' }, key());
+    await fund(member, '40000');
+    const a = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key());
     expect((await member.client.post<Body>(`/api/payments/withdrawals/${a.body.withdrawal.id}/cancel`, {}, key())).body.withdrawal.status).toBe('cancelled');
-    expect((await summary(member)).availableBalanceMinor).toBe('10000');
+    expect((await summary(member)).availableBalanceMinor).toBe('40000');
 
-    const b = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '4000' }, key());
+    const b = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key());
     await adminClient.post(`/api/admin/payments/withdrawals/${b.body.withdrawal.id}/approve`, {}, key());
     await financeClient.post(`/api/admin/payments/withdrawals/${b.body.withdrawal.id}/start`, {}, key());
     expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${b.body.withdrawal.id}/fail`, {}, key())).body.error?.fields?.note).toBeDefined();
     const failed = await financeClient.post<Body>(`/api/admin/payments/withdrawals/${b.body.withdrawal.id}/fail`, { note: 'Number not registered for mobile money' }, key());
     expect(failed.body.withdrawal.status).toBe('failed');
     const s = await summary(member);
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['10000', '0']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['40000', '0']);
   });
 
   it('cannot overdraw with simultaneous requests, and enforces the minimum and a verified phone', async () => {
     const member = await verifiedMember();
-    await fund(member, '10000');
+    await fund(member, '30000');
     const results = await Promise.all(
-      Array.from({ length: 4 }, () => member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '6000' }, key())),
+      Array.from({ length: 4 }, () => member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key())),
     );
     expect(results.filter(r => r.status === 201)).toHaveLength(1);
-    expect((await summary(member)).availableBalanceMinor).toBe('3970');
-    expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '500' }, key())).body.error?.fields?.amount).toBeDefined();
+    expect((await summary(member)).availableBalanceMinor).toBe('8400');
+    // Withdrawals run from UGX 15,000 to UGX 5,000,000.
+    const tooSmall = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '14999' }, key());
+    expect(tooSmall.body.error?.fields?.amount).toEqual(['This is below the minimum withdrawal.']);
+    const table = await member.client.get<Body>('/api/payments/withdrawals/charges');
+    expect([table.body.minMinor, table.body.maxMinor, table.body.taxBasisPoints, table.body.bands.length]).toEqual(['15000', '5000000', 50, 17]);
+    expect(table.body.bands[0]).toEqual({ fromMinor: '15000', upToMinor: '50000', chargeMinor: '1500' });
+    expect(table.body.bands[16]).toEqual({ fromMinor: '3000000', upToMinor: '5000000', chargeMinor: '26500' });
 
     const unverified = await registerMember(app);
     await activate(unverified);
-    expect((await unverified.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key())).body.error?.code).toBe('withdrawal.phone_unverified');
+    expect((await unverified.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key())).body.error?.code).toBe('withdrawal.phone_unverified');
   });
 });
 
 describe('balance check, pauses and alerts', () => {
   it('pauses withdrawals when the channel statement shows less than members are owed', async () => {
     const member = await verifiedMember();
-    await fund(member, '8000');
+    await fund(member, '40000');
     const clean = await financeClient.post<Body>('/api/admin/payments/reconciliation/run', {});
     expect(clean.body.report.ok, JSON.stringify(clean.body.report)).toBe(true);
 
@@ -377,7 +387,7 @@ describe('balance check, pauses and alerts', () => {
     expect(ugx.ok).toBe(false);
     expect(ugx.findings.map((f: Body) => f.kind)).toContain('solvency');
 
-    const blocked = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key());
+    const blocked = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key());
     expect(blocked.status).toBe(503);
     expect(blocked.body.error?.code).toBe('payments.withdrawals_paused');
     expect((await adminClient.post<Body>('/api/admin/payments/flags', { key: 'withdrawals_paused', currency: 'UGX', active: false, reason: 'Trying to resume' })).body.error?.code).toBe('flags.check_failing');
@@ -391,7 +401,7 @@ describe('balance check, pauses and alerts', () => {
     expect((await financeClient.post<Body>('/api/admin/payments/reconciliation/run', {})).body.report.ok).toBe(true);
     expect((await financeClient.post<Body>('/api/admin/payments/flags', { key: 'withdrawals_paused', currency: 'UGX', active: false, reason: 'Check passes again' })).body.error?.code).toBe('flags.admin_required');
     expect((await adminClient.post<Body>('/api/admin/payments/flags', { key: 'withdrawals_paused', currency: 'UGX', active: false, reason: 'Check passes again' })).status).toBe(200);
-    expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key())).status).toBe(201);
+    expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key())).status).toBe(201);
   });
 });
 
@@ -495,7 +505,7 @@ describe('vouchers', () => {
     expect(replay.body).toEqual(res.body);
 
     expect(((await target.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
-    expect((await summary(target)).availableBalanceMinor).toBe('19000');
+    expect([(await summary(target)).availableBalanceMinor, (await summary(target)).depositBalanceMinor]).toEqual(['0', '19000']);
     expect((await summary(referrer)).referralEarningsMinor).toBe('10000');
     const fees = await app.owner.query<{ n: string }>(
       `SELECT count(*) AS n FROM memberships m JOIN users u ON u.id = m.user_id WHERE u.public_id = $1 AND m.fee_minor = 19000`, [target.user.id],
@@ -524,5 +534,38 @@ describe('vouchers', () => {
     expect((await active.client.post<Body>('/api/vouchers/activate', { code, username: target.input.username }, key())).status).toBe(404);
     expect(((await target.client.get<Body>('/api/me')).body.user as Body).activated).toBe(false);
     expect((await buyer.client.get<Body>('/api/vouchers')).body.vouchers[0].status).toBe('active');
+  });
+});
+
+describe('deposit balance', () => {
+  // Confirms a wallet deposit the real way: the member claims it, finance confirms it.
+  async function deposit(member: Member, amount: string): Promise<void> {
+    const res = await member.client.post<Body>('/api/payments/deposits', { purpose: 'wallet', amount, channel: CHANNEL, senderPhone: member.input.phone, providerTxnId: txnId() }, key());
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const ok = await financeClient.post<Body>(`/api/admin/payments/deposits/${res.body.deposit.id}/confirm`, { amount }, key());
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+  }
+
+  it('spends the deposit first, then the balance, and Pay For Client lands in the payee deposit', async () => {
+    const buyer = await verifiedMember();
+    await fund(buyer, '9000');
+    await deposit(buyer, '30000');
+    let s = await summary(buyer);
+    expect([s.availableBalanceMinor, s.depositBalanceMinor, s.spendableMinor]).toEqual(['9000', '30000', '39000']);
+
+    // A 38,000 voucher takes all 30,000 of the deposit and 8,000 of the balance.
+    expect((await buyer.client.post<Body>('/api/vouchers/buy', { amount: '38000', quantity: 1 }, key())).status).toBe(201);
+    s = await summary(buyer);
+    expect([s.availableBalanceMinor, s.depositBalanceMinor]).toEqual(['1000', '0']);
+    const tooMuch = await buyer.client.post<Body>('/api/vouchers/buy', { amount: FEE, quantity: 1 }, key());
+    expect(tooMuch.body.error?.code).toBe('insufficient_funds');
+
+    const payee = await verifiedMember();
+    await activate(payee);
+    const paid = await buyer.client.post<Body>('/api/client-payments', { recipient: payee.input.username, amount: '1000' }, key());
+    expect(paid.status, JSON.stringify(paid.body)).toBe(201);
+    const p = await summary(payee);
+    expect([p.availableBalanceMinor, p.depositBalanceMinor]).toEqual(['0', '1000']);
+    expect((await summary(buyer)).spendableMinor).toBe('0');
   });
 });
