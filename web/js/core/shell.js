@@ -114,6 +114,7 @@ const ADMIN_NAV = [
     items: [
       { id: 'admin-members', href: '/admin/members.html', icon: 'users', label: 'admin.nav.members' },
       { id: 'admin-chats', href: '/admin/chats.html', icon: 'message', label: 'admin.nav.chats' },
+      { id: 'admin-leaderboard', href: '/admin/leaderboard.html', icon: 'trophy', label: 'admin.nav.leaderboard' },
       { id: 'admin-fraud', icon: 'flag', label: 'admin.nav.fraud', soon: true },
     ],
   },

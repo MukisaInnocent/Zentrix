@@ -26,7 +26,7 @@ if (!(STAFF_ROLES as readonly string[]).includes(values.role)) {
   process.exit(2);
 }
 const password = await promptSecret('Password for the new staff account: ', 'ADMIN_PASSWORD');
-const problems = passwordProblems(password, { username: values.username, email: values.email });
+const problems = passwordProblems(password, { username: values.username, email: values.email, staff: true });
 if (problems.length > 0) {
   console.error(problems.join(' '));
   process.exit(2);

@@ -21,4 +21,15 @@ describe('password policy', () => {
     expect(passwordProblems('x'.repeat(129))).not.toHaveLength(0);
     expect(passwordProblems('correct horse battery 9', { username: 'alice', email: 'alice@example.com' })).toEqual([]);
   });
+
+  it('lets members use a short, easy password but makes staff mix letters, numbers and a symbol', () => {
+    expect(passwordProblems('sunset')).toEqual([]);
+    expect(passwordProblems('kampala')).toEqual([]);
+    expect(passwordProblems('12345')).not.toHaveLength(0);
+    expect(passwordProblems('123456')).not.toHaveLength(0);
+    expect(passwordProblems('qwerty')).not.toHaveLength(0);
+    expect(passwordProblems('sunset', { staff: true })).not.toHaveLength(0);
+    expect(passwordProblems('sunsetboulevard', { staff: true })).toEqual(['Staff passwords need letters, numbers and at least one symbol.']);
+    expect(passwordProblems('sunset-boulevard-7', { staff: true })).toEqual([]);
+  });
 });

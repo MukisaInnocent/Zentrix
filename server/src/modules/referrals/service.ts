@@ -39,6 +39,8 @@ export interface ReferralOverview {
 
 export interface ReferralMember {
   username: string;
+  // Shown to the people above them in the referral pages (owner, 2026-10-26).
+  phone: string | null;
   country: string;
   level: number;
   joinedAt: Date;
@@ -145,11 +147,11 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
 // The members at one level below the user, optionally only the activated or the not-yet-activated ones.
 export async function listReferralMembers(db: Db, userId: number, level: number, status: 'all' | 'active' | 'inactive'): Promise<ReferralMember[]> {
   const list = await rows<{
-    username: string; country_code: string; created_at: Date; level: number; activated_at: Date | null; reward: string; currency_code: string;
+    username: string; phone_e164: string | null; country_code: string; created_at: Date; level: number; activated_at: Date | null; reward: string; currency_code: string;
   }>(
     db,
     `${TREE}
-     SELECT u.username, u.country_code, u.created_at, t.level, m.activated_at, u.currency_code,
+     SELECT u.username, u.phone_e164, u.country_code, u.created_at, t.level, m.activated_at, u.currency_code,
             coalesce((SELECT sum(r.amount_minor) FROM referral_rewards r
                       WHERE r.referrer_user_id = $1 AND r.referred_user_id = u.id AND r.status = 'credited'), 0)::text AS reward
      FROM tree t JOIN users u ON u.id = t.id LEFT JOIN memberships m ON m.user_id = u.id
@@ -158,7 +160,7 @@ export async function listReferralMembers(db: Db, userId: number, level: number,
     [userId, level, status],
   );
   return list.map(r => ({
-    username: r.username, country: r.country_code, level: r.level, joinedAt: r.created_at, status: r.activated_at ? 'Active' : 'Inactive',
+    username: r.username, phone: r.phone_e164, country: r.country_code, level: r.level, joinedAt: r.created_at, status: r.activated_at ? 'Active' : 'Inactive',
     activatedAt: r.activated_at, rewardMinor: r.reward, currency: r.currency_code,
   }));
 }

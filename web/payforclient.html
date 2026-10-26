@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pay For Client · Pexerearn</title>
-<meta name="description" content="Pay another Pexerearn member from your balance.">
+<meta name="description" content="Pay another Pexerearn member, or pay a member's activation fee.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -17,40 +17,55 @@
   <div class="zx-page-head">
     <div>
       <h1>Pay For Client</h1>
-      <p>Send money to another Pexerearn member, for example to help them with their activation fee. It is paid from your deposit first, then your balance, and arrives in their deposit.</p>
+      <p>Activate a member in your country by paying their activation fee, or send money to a member who is already active. Payments come from your deposit first, then your balance.</p>
     </div>
   </div>
   <div class="zx-stat-grid zx-stat-grid--2">
     <div class="zx-stat">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#wallet"></use></svg></div>
-      <div id="pfc-balance" class="zx-stat__value">UGX 0</div>
+      <div id="pfc-balance" class="zx-stat__value"><span class="zx-skeleton zx-skeleton--text"></span></div>
       <div class="zx-stat__label">Deposit and balance</div>
-      <div class="zx-stat__note">Funds used to pay for client</div>
+      <div class="zx-stat__note">What you can pay with</div>
     </div>
     <div class="zx-stat zx-stat--mint">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#users"></use></svg></div>
       <div id="pfc-count" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">Payments</div>
-      <div class="zx-stat__note">Sent and received</div>
+      <div class="zx-stat__label">Payments and activations</div>
+      <div class="zx-stat__note">Sent, received and paid for others</div>
     </div>
   </div>
-  <div class="zx-card">
-    <h2>New payment</h2>
-    <p class="zx-hint">Payments cannot be reversed, so check the username.</p>
-    <form id="pfc-form" class="zx-form">
-      <div id="pfc-alert" class="zx-error zx-error--slot" role="alert"></div>
-      <div class="zx-field">
-        <label for="pfc-recipient">Member username</label>
-        <input id="pfc-recipient" class="zx-input" name="recipient" required autocomplete="off" placeholder="e.g. alex256">
-        <span id="pfc-recipient-error" class="zx-error" hidden></span>
-      </div>
-      <div class="zx-field">
-        <label for="pfc-amount">Amount (UGX)</label>
-        <input id="pfc-amount" class="zx-input" name="amount" inputmode="decimal" required value="19000">
-        <span id="pfc-amount-error" class="zx-error" hidden></span>
-      </div>
-      <button id="pfc-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Send payment</button>
-    </form>
+  <div class="zx-split">
+    <div class="zx-card">
+      <h2>Activate a user</h2>
+      <p id="pfc-activate-hint" class="zx-hint">Pay the activation fee for a member of your own country who has not activated yet.</p>
+      <form id="pfc-activate-form" class="zx-form" novalidate>
+        <div class="zx-error" data-form-error hidden role="alert"></div>
+        <div class="zx-field">
+          <label for="pfc-activate-username">Username to activate</label>
+          <input id="pfc-activate-username" class="zx-input" name="username" required minlength="3" autocomplete="off" placeholder="e.g. alex256">
+          <span id="pfc-activate-username-error" class="zx-error" hidden></span>
+        </div>
+        <button id="pfc-activate-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Activate user</button>
+      </form>
+    </div>
+    <div class="zx-card">
+      <h2>Send money</h2>
+      <p class="zx-hint">To a member who is already active. Payments cannot be reversed, so check the username.</p>
+      <form id="pfc-form" class="zx-form" novalidate>
+        <div class="zx-error" data-form-error hidden role="alert"></div>
+        <div class="zx-field">
+          <label for="pfc-recipient">Username</label>
+          <input id="pfc-recipient" class="zx-input" name="recipient" required minlength="3" autocomplete="off" placeholder="e.g. alex256">
+          <span id="pfc-recipient-error" class="zx-error" hidden></span>
+        </div>
+        <div class="zx-field">
+          <label id="pfc-amount-label" for="pfc-amount">Amount</label>
+          <input id="pfc-amount" class="zx-input" name="amount" inputmode="decimal" required>
+          <span id="pfc-amount-error" class="zx-error" hidden></span>
+        </div>
+        <button id="pfc-submit" class="zx-btn zx-btn--block zx-btn--secondary zx-btn--lg" type="submit">Send money</button>
+      </form>
+    </div>
   </div>
   <div class="zx-card">
     <div class="zx-card__title">
@@ -58,7 +73,7 @@
     </div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">Member</th><th scope="col">Direction</th><th scope="col">Amount</th><th scope="col">Reference</th><th scope="col">Status</th></tr></thead>
+        <thead><tr><th scope="col">Date</th><th scope="col">Username</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Reference</th><th scope="col">Status</th></tr></thead>
         <tbody id="pfc-history-body">
           <tr><td colspan="6" class="zx-td-empty">Loading payments...</td></tr>
         </tbody>

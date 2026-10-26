@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { PoolClient } from '../../db/pool.js';
 import { z } from 'zod';
 import { maybeOne, one, rows, type Db } from '../../db/sql.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
@@ -8,8 +9,8 @@ import { toDecimalString } from '../../lib/money.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent } from '../ledger/idempotency.js';
-import { accountId, InsufficientFundsError, move, post } from '../ledger/ledger.js';
-import { notifyVoucherActivation } from '../notifications/notify.js';
+import { accountId, InsufficientFundsError, move, post, type Leg } from '../ledger/ledger.js';
+import { notifyActivatedBy } from '../notifications/notify.js';
 import { exponentOf } from '../payments/common.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { distributeReferralRewards } from '../referrals/service.js';
@@ -24,6 +25,36 @@ import { memberInfo, newReference, requireActive, requireConfig, spendLegs } fro
 
 async function activationFee(db: Db, countryCode: string): Promise<bigint> {
   return BigInt((await requireConfig(db, countryCode)).membershipFeeMinor);
+}
+
+interface ActivationTarget { id: number; username: string; currency: string; country: string }
+
+// The member to activate, by username: must exist, be in good standing and not be activated yet.
+async function activationTarget(db: PoolClient, username: string): Promise<ActivationTarget> {
+  const field = (message: string) => badRequest('validation_failed', message, { username: [message] });
+  const target = await maybeOne<{ id: string; username: string; status: string; currency_code: string; country_code: string }>(
+    db, 'SELECT id, username, status, currency_code, country_code FROM users WHERE anonymized_at IS NULL AND username = $1 FOR UPDATE',
+    [username.trim().toLowerCase().replace(/^@/, '')],
+  );
+  if (!target) throw field('No member has that username.');
+  if (await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [target.id])) throw field('That account is already activated.');
+  if (target.status !== 'active') throw conflict('activation.member_not_active', 'That account is on hold, so it cannot be activated now.');
+  return { id: Number(target.id), username: target.username, currency: target.currency_code, country: target.country_code };
+}
+
+// Posts the activation payment, opens the membership with a receipt and pays the referral rewards, exactly as
+// for a confirmed activation payment. `legs` must credit platform revenue with the fee.
+async function openMembership(
+  db: PoolClient, target: ActivationTarget, fee: bigint, payment: { kind: string; memo: string; actorUserId: number; legs: Leg[] },
+): Promise<string> {
+  const receiptNo = newReference('MB');
+  const txn = await post(db, { ...payment, refType: 'membership', refId: receiptNo });
+  await db.query(
+    'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5)',
+    [target.id, receiptNo, fee.toString(), target.currency, txn],
+  );
+  await distributeReferralRewards(db, target.id);
+  return receiptNo;
 }
 
 export function vouchersRouter(services: Services): Router {
@@ -102,46 +133,31 @@ export function vouchersRouter(services: Services): Router {
       );
       if (!voucher || Number(voucher.creator_user_id) !== userId) throw notFound('voucher.not_found', 'You have no voucher with that code.');
       if (voucher.status !== 'active') throw badRequest('voucher.already_used', 'This voucher has already been used or cancelled.');
-      const handle = input.username.toLowerCase().replace(/^@/, '');
-      const target = await maybeOne<{ id: string; username: string; status: string; currency_code: string; country_code: string }>(
-        db, 'SELECT id, username, status, currency_code, country_code FROM users WHERE anonymized_at IS NULL AND username = $1 FOR UPDATE', [handle],
-      );
-      if (!target) throw badRequest('validation_failed', 'No member has that username.', { username: ['No member has that username.'] });
-      const targetId = Number(target.id);
-      if (await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [targetId])) {
-        throw badRequest('validation_failed', 'That account is already activated.', { username: ['That account is already activated.'] });
-      }
-      if (target.status !== 'active') throw conflict('voucher.member_not_active', 'That account is on hold, so it cannot be activated now.');
-      if (target.currency_code !== voucher.currency_code) throw conflict('voucher.currency', 'That member uses another currency, so this voucher cannot activate their account.');
-      const fee = await activationFee(db, target.country_code);
+      const target = await activationTarget(db, input.username);
+      if (target.currency !== voucher.currency_code) throw conflict('voucher.currency', 'That member uses another currency, so this voucher cannot activate their account.');
+      const fee = await activationFee(db, target.country);
       const value = BigInt(voucher.amount_minor);
       if (value < fee) throw badRequest('voucher.too_small', 'This voucher is worth less than the activation fee for that account.');
 
       const liability = await accountId(db, { kind: 'voucher_liability', currency: voucher.currency_code });
       const revenue = await accountId(db, { kind: 'platform_revenue', currency: voucher.currency_code });
       const legs = move(liability, revenue, fee);
-      if (value > fee) legs.push(...move(liability, await accountId(db, { kind: 'member_deposit', userId: targetId, currency: voucher.currency_code }), value - fee));
-      const receiptNo = newReference('MB');
-      const txn = await post(db, {
-        kind: 'voucher_activation', memo: `Activation of @${target.username} with voucher ${voucher.code}`, refType: 'membership', refId: receiptNo, actorUserId: userId, legs,
+      if (value > fee) legs.push(...move(liability, await accountId(db, { kind: 'member_deposit', userId: target.id, currency: voucher.currency_code }), value - fee));
+      const receiptNo = await openMembership(db, target, fee, {
+        kind: 'voucher_activation', memo: `Activation of @${target.username} with voucher ${voucher.code}`, actorUserId: userId, legs,
       });
-      await db.query(
-        'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5)',
-        [targetId, receiptNo, fee.toString(), voucher.currency_code, txn],
-      );
-      await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [targetId, voucher.id]);
-      // Referral rewards for the people who invited the activated member, exactly as for a confirmed payment.
-      await distributeReferralRewards(db, targetId);
+      await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [target.id, voucher.id]);
       return { status: 200, body: { ok: true, username: target.username, code: voucher.code, receiptNo } };
     });
-    if (!result.replayed) void notifyVoucherActivation(services, String(result.body.username), String(result.body.code));
+    if (!result.replayed) void notifyActivatedBy(services, String(result.body.username), `voucher ${String(result.body.code)}`);
     res.status(result.status).json(result.body);
   });
 
   return router;
 }
 
-// Pay For Client: a wallet-to-wallet payment to another verified member, found by username only, same currency.
+// Pay For Client: a payment to another activated member, found by username only, same currency; or the activation
+// fee for a member of your own country who has not activated yet, paid from your own money.
 export function clientPaymentsRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
@@ -155,12 +171,24 @@ export function clientPaymentsRouter(services: Services): Router {
        WHERE t.payer_user_id = $1 OR t.payee_user_id = $1 ORDER BY t.id DESC LIMIT 50`,
       [req.auth!.userId],
     );
-    res.json({
-      payments: list.map(p => ({
+    const activations = await rows<{ receipt_no: string; fee_minor: string; currency_code: string; activated_at: Date; username: string }>(
+      pool,
+      `SELECT m.receipt_no, m.fee_minor, m.currency_code, m.activated_at, u.username
+       FROM memberships m JOIN ledger_transactions t ON t.id = m.ledger_transaction_id JOIN users u ON u.id = m.user_id
+       WHERE t.kind = 'client_activation' AND t.actor_user_id = $1 ORDER BY m.activated_at DESC LIMIT 50`,
+      [req.auth!.userId],
+    );
+    const payments = [
+      ...list.map(p => ({
         reference: p.reference, amountMinor: p.amount_minor, currency: p.currency_code, note: p.note, createdAt: p.created_at,
         direction: p.outgoing ? 'out' : 'in', counterparty: p.outgoing ? p.payee : p.payer, status: 'completed',
       })),
-    });
+      ...activations.map(a => ({
+        reference: a.receipt_no, amountMinor: a.fee_minor, currency: a.currency_code, note: null, createdAt: a.activated_at,
+        direction: 'activation', counterparty: a.username, status: 'completed',
+      })),
+    ].sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime());
+    res.json({ payments });
   });
 
   router.post('/', async (req, res) => {
@@ -176,14 +204,16 @@ export function clientPaymentsRouter(services: Services): Router {
       const payer = await memberInfo(db, userId);
       requireActive(payer);
       const handle = input.recipient.toLowerCase().replace(/^@/, '');
-      const payee = await maybeOne<{ id: string; username: string; currency_code: string; status: string; phone_ok: boolean }>(
+      const payee = await maybeOne<{ id: string; username: string; currency_code: string; status: string; activated: boolean }>(
         db,
-        `SELECT id, username, currency_code, status, phone_verified_at IS NOT NULL AS phone_ok FROM users
-         WHERE anonymized_at IS NULL AND username = $1`,
+        `SELECT u.id, u.username, u.currency_code, u.status, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id) AS activated
+         FROM users u WHERE u.anonymized_at IS NULL AND u.username = $1`,
         [handle],
       );
-      const fail = () => badRequest('validation_failed', 'No verified member has that username.', { recipient: ['No verified member has that username.'] });
-      if (!payee || payee.status !== 'active' || !payee.phone_ok) throw fail();
+      const fail = (message: string) => badRequest('validation_failed', message, { recipient: [message] });
+      if (!payee || payee.status !== 'active') throw fail('No member in good standing has that username.');
+      // Money sent to a member who has not activated could not be used; activate them instead.
+      if (!payee.activated) throw fail('That member has not activated their account yet. Use Activate a user to pay their activation fee.');
       if (Number(payee.id) === userId) throw badRequest('validation_failed', 'You cannot pay yourself.', { recipient: ['You cannot pay yourself.'] });
       if (payee.currency_code !== payer.currency) throw conflict('transfer.currency', 'That member uses another currency. Currency conversion is not available yet.');
       const amount = await amountToMinor(db, payer.currency, input.amount);
@@ -207,6 +237,33 @@ export function clientPaymentsRouter(services: Services): Router {
       );
       return { status: 201, body: { ok: true, reference, payee: payee.username } };
     });
+    res.status(result.status).json(result.body);
+  });
+
+  // Pays the activation fee of a member in the payer's own country from the payer's deposit, then balance.
+  router.post('/activate', async (req, res) => {
+    const input = parse(z.strictObject({ username: z.string().trim().min(3, { error: 'Enter the username of the account to activate.' }).max(40) }), req.body);
+    const result = await idempotent(pool, req, 'client.activate', async db => {
+      const userId = req.auth!.userId;
+      const payer = await memberInfo(db, userId);
+      requireActive(payer);
+      const target = await activationTarget(db, input.username);
+      if (target.country !== payer.countryCode) {
+        throw badRequest('validation_failed', 'You can only activate members in your own country.', { username: ['That member is in another country.'] });
+      }
+      const fee = await activationFee(db, target.country);
+      const revenue = await accountId(db, { kind: 'platform_revenue', currency: payer.currency });
+      const legs = await spendLegs(db, userId, payer.currency, fee, revenue);
+      let receiptNo: string;
+      try {
+        receiptNo = await openMembership(db, target, fee, { kind: 'client_activation', memo: `Activation of @${target.username} paid by @${payer.username}`, actorUserId: userId, legs });
+      } catch (err) {
+        if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your deposit and balance together are below the activation fee.');
+        throw err;
+      }
+      return { status: 201, body: { ok: true, username: target.username, receiptNo, feeMinor: fee.toString(), currency: payer.currency, payer: payer.username } };
+    });
+    if (!result.replayed) void notifyActivatedBy(services, String(result.body.username), `a payment from @${String(result.body.payer)}`);
     res.status(result.status).json(result.body);
   });
 

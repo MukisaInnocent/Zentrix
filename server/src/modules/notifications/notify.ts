@@ -88,15 +88,15 @@ export async function notifyIssueReply(services: Services, userId: number, reply
   }
 }
 
-// Tells a member that another member activated their account with a voucher.
-export async function notifyVoucherActivation(services: Services, username: string, code: string): Promise<void> {
+// Tells a member that another member activated their account (`how`: "voucher ZX-..." or "a payment from @...").
+export async function notifyActivatedBy(services: Services, username: string, how: string): Promise<void> {
   try {
     const user = await maybeOne<{ email: string | null }>(services.pool, 'SELECT email FROM users WHERE username = $1', [username]);
     if (!user?.email) return;
     await services.mailer.send({
       to: user.email,
       subject: 'Pexerearn: Account activated',
-      text: `Hello @${username},\n\nYour account was activated with voucher ${code}. You can now use every part of Pexerearn.\n\nPexerearn`,
+      text: `Hello @${username},\n\nYour account was activated with ${how}. You can now use every part of Pexerearn.\n\nPexerearn`,
     });
   } catch (err) {
     services.logger.error({ err, username }, 'voucher activation email failed');

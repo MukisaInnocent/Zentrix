@@ -5,7 +5,10 @@ import { hash, verify, type Options } from '@node-rs/argon2';
 const ARGON2ID = 2 as NonNullable<Options['algorithm']>;
 export const PASSWORD_PARAMS: Options = { algorithm: ARGON2ID, memoryCost: 19_456, timeCost: 2, parallelism: 1 };
 
-export const PASSWORD_MIN = 10;
+// Members (owner, 2026-10-26): at least 6 characters and easy to type, with no letter, number or symbol mix
+// required. Staff accounts reach money and member data, so theirs must be strong.
+export const PASSWORD_MIN = 6;
+export const STAFF_PASSWORD_MIN = 12;
 export const PASSWORD_MAX = 128;
 
 export const hashPassword = (password: string): Promise<string> => hash(password, PASSWORD_PARAMS);
@@ -27,15 +30,21 @@ export async function burnPasswordCheck(password: string): Promise<void> {
 }
 
 const COMMON = new Set([
+  '123456', '1234567', '654321', '123123', '112233', '121212', '696969', 'qwerty', 'abc123', 'abcdef', 'asdfgh', 'zxcvbn',
+  'iloveu', 'monkey', 'dragon', 'secret', 'passwd', 'qwert1', 'pexerearn', 'pexer123',
   'password', 'password1', 'password123', '1234567890', '123456789', '12345678', 'qwerty123', 'qwertyuiop',
   'iloveyou', 'admin12345', 'welcome123', 'letmein123', 'football123', 'monkey12345', 'abc1234567', 'zentrix123',
   'passw0rd123', 'uganda12345', 'kampala123', 'money12345', '0987654321', '1111111111', 'aaaaaaaaaa',
 ]);
 
-export function passwordProblems(password: string, context: { username?: string; email?: string } = {}): string[] {
+export function passwordProblems(password: string, context: { username?: string; email?: string; staff?: boolean } = {}): string[] {
   const problems: string[] = [];
-  if (password.length < PASSWORD_MIN) problems.push(`Use at least ${PASSWORD_MIN} characters.`);
+  const min = context.staff ? STAFF_PASSWORD_MIN : PASSWORD_MIN;
+  if (password.length < min) problems.push(`Use at least ${min} characters.`);
   if (password.length > PASSWORD_MAX) problems.push(`Use at most ${PASSWORD_MAX} characters.`);
+  if (context.staff && !(/[A-Za-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password))) {
+    problems.push('Staff passwords need letters, numbers and at least one symbol.');
+  }
   const lower = password.toLowerCase();
   if (COMMON.has(lower) || /^(.)\1+$/.test(password)) problems.push('That password is too common.');
   const local = context.email?.split('@')[0]?.toLowerCase();

@@ -45,14 +45,14 @@ export async function requestPasswordReset(services: Services, raw: unknown, ip:
 export async function resetPassword(services: Services, raw: unknown): Promise<void> {
   const input = parse(ResetSchema, raw);
   const now = services.now();
-  const target = await maybeOne<{ user_id: string; username: string; email: string }>(
+  const target = await maybeOne<{ user_id: string; username: string; email: string; staff: boolean }>(
     services.pool,
-    `SELECT r.user_id, u.username, u.email FROM password_resets r JOIN users u ON u.id = r.user_id
+    `SELECT r.user_id, u.username, u.email, EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.name = ur.role WHERE ur.user_id = u.id AND ro.is_staff) AS staff FROM password_resets r JOIN users u ON u.id = r.user_id
      WHERE r.token_hash = $1 AND r.used_at IS NULL AND r.expires_at > $2`,
     [sha256(input.token), now],
   );
   if (!target) throw badRequest('reset.invalid_link', 'This reset link is invalid or has expired. Ask for a new one.');
-  const problems = passwordProblems(input.password, { username: target.username, email: target.email });
+  const problems = passwordProblems(input.password, { username: target.username, email: target.email, staff: target.staff });
   if (problems.length > 0) throw badRequest('validation_failed', problems[0] ?? 'Choose a stronger password.', { password: problems });
   const hash = await hashPassword(input.password);
   const done = await withTransaction(services.pool, async db => {
@@ -70,13 +70,13 @@ export async function resetPassword(services: Services, raw: unknown): Promise<v
 
 export async function changePassword(services: Services, userId: number, sessionId: number, raw: unknown): Promise<void> {
   const input = parse(ChangeSchema, raw);
-  const user = await one<{ password_hash: string; username: string; email: string }>(
-    services.pool, 'SELECT password_hash, username, email FROM users WHERE id = $1', [userId],
+  const user = await one<{ password_hash: string; username: string; email: string; staff: boolean }>(
+    services.pool, 'SELECT u.password_hash, u.username, u.email, EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.name = ur.role WHERE ur.user_id = u.id AND ro.is_staff) AS staff FROM users u WHERE u.id = $1', [userId],
   );
   if (!(await verifyPassword(user.password_hash, input.currentPassword))) {
     throw forbidden('auth.current_password_wrong', 'Your current password is not right.');
   }
-  const problems = passwordProblems(input.newPassword, { username: user.username, email: user.email });
+  const problems = passwordProblems(input.newPassword, { username: user.username, email: user.email, staff: user.staff });
   if (problems.length > 0) throw badRequest('validation_failed', problems[0] ?? 'Choose a stronger password.', { newPassword: problems });
   const hash = await hashPassword(input.newPassword);
   await withTransaction(services.pool, async db => {

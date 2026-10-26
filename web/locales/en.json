@@ -110,6 +110,7 @@
       "chats": "Chat reports",
       "vouchers": "Vouchers",
       "paymentMethods": "Payment methods",
+      "leaderboard": "Referral leaderboard",
       "balances": "Balance check",
       "ledger": "Ledger"
     },
@@ -248,7 +249,7 @@
     "usernameHint": "3 to 30 letters, numbers or underscores. Others may see it.",
     "email": "Email address",
     "password": "Password",
-    "passwordHint": "At least 10 characters. A short sentence works well.",
+    "passwordHint": "At least 6 characters. Staff accounts need 12 with letters, numbers and a symbol.",
     "dob": "Date of birth",
     "dobHint": "You must be 18 or older.",
     "referral": "Referral code",

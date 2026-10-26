@@ -45,11 +45,12 @@ export async function init() {
   const data = await api.get(`/api/referrals/members?level=${level}&status=${config.status}`);
   const body = $('#ref-body');
   if (!data.members.length) {
-    body.replaceChildren(h('tr', {}, h('td', { colspan: '5', class: 'zx-td-empty' }, config.empty)));
+    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, config.empty)));
     return;
   }
   body.replaceChildren(...data.members.map(m => h('tr', {},
     h('td', { class: 'zx-td-strong' }, `@${m.username}`),
+    h('td', { class: 'zx-td-mono' }, m.phone ?? '-'),
     h('td', {}, m.country),
     h('td', { class: 'zx-td-muted' }, formatDate(m.joinedAt)),
     h('td', {}, h('span', { class: `zx-badge ${m.status === 'Active' ? 'zx-badge--success' : 'zx-badge--warning'}` }, m.status)),

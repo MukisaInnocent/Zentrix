@@ -12,8 +12,8 @@ const KINDS = {
     title: 'Change password', submit: 'Change password',
     fields: [
       { name: 'currentPassword', label: 'Current password', type: 'password', required: true },
-      { name: 'newPassword', label: 'New password', type: 'password', required: true, minLength: 10 },
-      { name: 'confirmPassword', label: 'Repeat new password', type: 'password', required: true, minLength: 10 },
+      { name: 'newPassword', label: 'New password', type: 'password', required: true, minLength: 6 },
+      { name: 'confirmPassword', label: 'Repeat new password', type: 'password', required: true, minLength: 6 },
     ],
     send: v => {
       if (v.newPassword !== v.confirmPassword) throw new ApiError(400, 'validation_failed', 'The two new passwords do not match.', { confirmPassword: ['The two new passwords do not match.'] });
