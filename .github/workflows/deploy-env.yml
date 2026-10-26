@@ -1,0 +1,101 @@
+# Deploys one environment. Called by deploy.yml. AWS access comes from GitHub OpenID Connect: the job assumes
+# the environment's deploy role (vars.AWS_DEPLOY_ROLE_ARN), which trusts only this repository and environment.
+name: Deploy one environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: eu-west-1
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_alarm_email: ${{ vars.ALARM_EMAIL }}
+      TF_DIR: infra/terraform/envs/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build the Lambda package
+        run: |
+          npm ci
+          npm run build
+          node infra/scripts/package-lambda.mjs
+
+      - name: Sign in to AWS (OpenID Connect, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.6
+          terraform_wrapper: false
+
+      - name: Terraform plan
+        run: |
+          terraform -chdir="$TF_DIR" init -input=false
+          terraform -chdir="$TF_DIR" plan -input=false -out=tfplan
+
+      - name: Terraform apply
+        run: terraform -chdir="$TF_DIR" apply -input=false tfplan
+
+      - name: Read outputs
+        id: out
+        run: |
+          for name in site_url web_bucket cloudfront_distribution_id migrate_function; do
+            echo "$name=$(terraform -chdir="$TF_DIR" output -raw $name)" >> "$GITHUB_OUTPUT"
+          done
+
+      # The database is private, so migrations run inside the VPC through the migrate function.
+      - name: Run database migrations
+        run: |
+          aws lambda invoke --function-name "${{ steps.out.outputs.migrate_function }}" \
+            --cli-binary-format raw-in-base64-out --payload '{"action":"migrate"}' \
+            --cli-read-timeout 310 migrate.json --query FunctionError --output text > migrate-error.txt
+          cat migrate.json; echo
+          if [ "$(cat migrate-error.txt)" != "None" ]; then echo "Migrations failed"; exit 1; fi
+
+      # Fake test data, only in test mode (the function refuses otherwise) and only if not already there.
+      - name: Seed test data
+        if: vars.PEXA_SEED == 'true'
+        run: |
+          aws lambda invoke --function-name "${{ steps.out.outputs.migrate_function }}" \
+            --cli-binary-format raw-in-base64-out --payload '{"action":"seed"}' \
+            --cli-read-timeout 310 seed.json --query FunctionError --output text > seed-error.txt
+          cat seed.json; echo
+          if [ "$(cat seed-error.txt)" != "None" ]; then echo "Seeding failed"; exit 1; fi
+
+      # Static pages to S3. The staff pages (/admin) are served by the API, which checks the session first.
+      - name: Upload the static site
+        run: |
+          aws s3 sync web/ "s3://${{ steps.out.outputs.web_bucket }}/" --delete --exclude "admin/*" \
+            --cache-control "public, max-age=300"
+          aws cloudfront create-invalidation --distribution-id "${{ steps.out.outputs.cloudfront_distribution_id }}" --paths "/*"
+
+      - name: Smoke test
+        run: |
+          url="${{ steps.out.outputs.site_url }}"
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$url/readyz"; then echo; break; fi
+            echo "Waiting for the API (the database may be resuming)..."; sleep 15
+          done
+          curl -fsS "$url/readyz" > /dev/null
+          curl -fsS -o /dev/null "$url/"
+          echo "Deployed: $url"

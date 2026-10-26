@@ -25,6 +25,7 @@ export function createServices(config: Config, logger: Logger, overrides: Partia
       max: config.databasePoolMax,
       appRole: config.databaseAppRole,
       logger,
+      connectTimeoutMs: config.databaseConnectTimeoutMs,
     });
   return {
     config,

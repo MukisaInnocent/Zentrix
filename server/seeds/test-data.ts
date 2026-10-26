@@ -40,7 +40,9 @@ export interface SeedReport {
   members: string[];
 }
 
-export async function seedTestData(services: Services): Promise<SeedReport | null> {
+// `quiet`: hosted runs (AWS Lambda) never log or write the generated credentials; logins there come from the
+// SEED_* passwords set in the secret store.
+export async function seedTestData(services: Services, opts: { quiet?: boolean } = {}): Promise<SeedReport | null> {
   const { pool, config, logger } = services;
   if (config.appMode !== 'test' || (await databaseMode(pool)) !== 'test') {
     throw new Error('Seed data is test-only. Refusing to seed outside test mode or into a live database.');
@@ -97,6 +99,10 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
     await seedPayments(db, staffIds, memberIds);
   });
 
+  if (opts.quiet) {
+    logger.info({ staff: report.staff.map(s => s.username), members: report.members.length }, 'test seed created: fake accounts');
+    return report;
+  }
   const lines = [
     'Pexerearn TEST MODE seed credentials (fake accounts, no real money).',
     `Staff password: ${report.staffPassword}`,

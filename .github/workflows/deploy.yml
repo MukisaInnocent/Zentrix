@@ -1,0 +1,45 @@
+# Pexa deploy pipeline (docs/DEPLOYMENT.md).
+#   Push to the staging branch      -> checks, then deploy to staging automatically.
+#   Then, if production is switched on (repository variable PEXA_PRODUCTION_ENABLED = true), the production job
+#   waits for a reviewer to approve it in GitHub (the production environment's required-reviewers rule).
+#   Run workflow (manual)           -> deploy the chosen environment; production still needs the approval.
+name: Deploy
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  staging:
+    needs: checks
+    if: github.event_name == 'push' || inputs.environment == 'staging'
+    uses: ./.github/workflows/deploy-env.yml
+    with:
+      environment: staging
+
+  production:
+    needs: [checks, staging]
+    if: >-
+      always() && needs.checks.result == 'success' && vars.PEXA_PRODUCTION_ENABLED == 'true' &&
+      (needs.staging.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production'))
+    uses: ./.github/workflows/deploy-env.yml
+    with:
+      environment: production

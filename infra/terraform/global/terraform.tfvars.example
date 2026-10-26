@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (not committed) and fill in.
+budget_email       = "you@example.com"
+monthly_budget_usd = 30

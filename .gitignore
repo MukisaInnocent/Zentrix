@@ -7,3 +7,22 @@ coverage/
 !.env.example
 npm-debug.log*
 *.log
+
+# Terraform: state lives in S3; never commit local state, plans, variable files or build output.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/terraform/**/.build/
+# Lambda package built by infra/scripts/package-lambda.mjs
+.lambda/

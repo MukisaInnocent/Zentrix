@@ -17,6 +17,7 @@ export interface PoolOptions {
   max: number;
   appRole: string | null;
   logger: Logger;
+  connectTimeoutMs?: number;
   applicationName?: string;
 }
 
@@ -30,7 +31,7 @@ export function createPool(opts: PoolOptions): Pool {
     ssl: sslOption(opts.ssl),
     max: opts.max,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    connectionTimeoutMillis: opts.connectTimeoutMs ?? 10_000,
     application_name: opts.applicationName ?? 'zentrix',
     options: startup.join(' '),
   });

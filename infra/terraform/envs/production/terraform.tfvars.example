@@ -1,0 +1,2 @@
+# Copy to terraform.tfvars (not committed) and fill in.
+alarm_email = "you@example.com"

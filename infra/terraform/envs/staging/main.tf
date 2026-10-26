@@ -1,0 +1,84 @@
+# Pexa staging. Test mode only (fake money). Run with $env:AWS_PROFILE = "Pexerearn" (docs/DEPLOYMENT.md).
+terraform {
+  required_version = ">= 1.10.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.4"
+    }
+  }
+  # State in the existing versioned bucket; use_lockfile is S3-native state locking (no DynamoDB table).
+  backend "s3" {
+    bucket       = "pexerearn-tfstate-48213"
+    key          = "pexa/staging/terraform.tfstate"
+    region       = "eu-west-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+provider "aws" {
+  region = "eu-west-1"
+  default_tags {
+    tags = {
+      Project     = "Pexa"
+      Environment = "staging"
+      AppMode     = "test"
+      ManagedBy   = "Terraform"
+      Repository  = "MukisaInnocent/Zentrix"
+    }
+  }
+}
+
+variable "alarm_email" {
+  description = "Where alarm emails go."
+  type        = string
+}
+
+variable "lambda_package_dir" {
+  description = "Folder built by infra/scripts/package-lambda.mjs."
+  type        = string
+  default     = "../../../../.lambda/package"
+}
+
+module "pexa" {
+  source             = "../../modules/pexa"
+  environment        = "staging"
+  app_mode           = "test"
+  alarm_email        = var.alarm_email
+  lambda_package_dir = var.lambda_package_dir
+  aurora_min_acu     = 0
+  aurora_max_acu     = 2
+}
+
+output "site_url" {
+  value = module.pexa.site_url
+}
+
+output "cloudfront_distribution_id" {
+  value = module.pexa.cloudfront_distribution_id
+}
+
+output "web_bucket" {
+  value = module.pexa.web_bucket
+}
+
+output "migrate_function" {
+  value = module.pexa.migrate_function
+}
+
+output "app_secret_name" {
+  value = module.pexa.app_secret_name
+}
+
+output "email_delivery" {
+  value = module.pexa.email_delivery
+}

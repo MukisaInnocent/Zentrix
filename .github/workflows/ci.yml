@@ -1,0 +1,58 @@
+# Checks on every push and pull request; the deploy workflow runs them first too.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Lint, types, tests and audit
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:ci-only-password@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Dependency audit (production packages)
+        run: npm audit --omit=dev --audit-level=high
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  terraform:
+    name: Terraform format and validate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.6
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Validate each stack (no backend, no AWS access)
+        run: |
+          mkdir -p .lambda/package
+          for dir in infra/terraform/global infra/terraform/envs/staging infra/terraform/envs/production; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done

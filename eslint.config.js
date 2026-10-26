@@ -4,7 +4,12 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  { ignores: ['node_modules/', 'server/dist/', 'coverage/', '.data/'] },
+  { ignores: ['node_modules/', 'server/dist/', 'coverage/', '.data/', '.lambda/', 'infra/terraform/**/.build/', 'infra/terraform/**/.terraform/'] },
+  {
+    // Build tooling (Node scripts that print progress).
+    files: ['infra/scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
   js.configs.recommended,
   {
     // Server code: type-aware rules catch unawaited promises, which matter in money code.
