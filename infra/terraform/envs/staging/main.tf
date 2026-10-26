@@ -81,7 +81,7 @@ module "pexa" {
   # validation records are in and both certificates show ISSUED: set to true and apply again.
   site_domain        = "staging.pexerearn.com"
   api_domain         = "api-staging.pexerearn.com"
-  custom_domain_live = false
+  custom_domain_live = true
 }
 
 output "site_url" {
