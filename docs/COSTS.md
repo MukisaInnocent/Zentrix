@@ -64,9 +64,20 @@ per member); API calls average 200 ms at 1 GB; each request logs about 1 KB.
 At 10,000 members, consider Aurora I/O-Optimized (USD 0.19 per ACU-hour and USD 0.248 per GB-month, no I/O
 charge), a Compute Savings Plan for Lambda, and raising `aurora_max_acu`.
 
+## Custom domain (staging.pexerearn.com)
+
+| Item | Cost |
+| --- | --- |
+| ACM public certificates (us-east-1 for CloudFront, eu-west-1 for the API) | Free |
+| CloudFront alternate domain name (SNI) | Free |
+| API Gateway custom domain name | Free (requests cost the same as before) |
+| DNS at Cloudflare (no Route 53 hosted zone) | Free on Cloudflare's free plan; the domain renewal is paid to Cloudflare |
+
+The domain adds no AWS cost.
+
 ## Not included
 
-- A custom domain (Route 53 hosted zone USD 0.50 a month, plus the domain itself) and its certificate (free).
+- A Route 53 hosted zone (USD 0.50 a month): not used, DNS is at Cloudflare.
 - Email delivery through Resend (their own pricing; free for low volume).
 - Data transfer out of AWS beyond the CloudFront free tier.
 - Taxes.

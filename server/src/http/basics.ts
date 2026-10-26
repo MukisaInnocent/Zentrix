@@ -86,7 +86,7 @@ export function sameOriginJson(config: Config) {
     const origin = req.get('origin');
     const host = req.get('host');
     const sameHostOrigin = host ? `${req.protocol}://${host}` : undefined;
-    const isAllowed = origin === undefined || origin === config.publicOrigin || origin === sameHostOrigin;
+    const isAllowed = origin === undefined || origin === config.publicOrigin || config.extraOrigins.includes(origin) || origin === sameHostOrigin;
     if (!isAllowed) {
       if (config.appMode === 'test' && origin) {
         try {

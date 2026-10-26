@@ -128,3 +128,31 @@ variable "api_throttle_burst" {
   type        = number
   default     = 100
 }
+
+variable "site_domain" {
+  description = "Custom address of the site, for example staging.pexerearn.com. Empty: only the CloudFront link."
+  type        = string
+  default     = ""
+}
+
+variable "api_domain" {
+  description = "Custom address of the API for direct clients, for example api-staging.pexerearn.com. Empty: none."
+  type        = string
+  default     = ""
+}
+
+variable "custom_domain_live" {
+  description = <<-EOT
+    Two-step setup (docs/DOMAIN.md). false: create the certificates only and output the DNS validation records.
+    true (after the records are added and the certificates show ISSUED): attach the domains to CloudFront and API
+    Gateway and make the site address the app's PUBLIC_ORIGIN.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "keep_temporary_links" {
+  description = "Keep accepting the temporary CloudFront link as a site address after the custom domain is live."
+  type        = bool
+  default     = true
+}

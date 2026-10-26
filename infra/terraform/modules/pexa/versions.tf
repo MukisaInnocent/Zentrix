@@ -4,6 +4,8 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"
+      # us_east_1: only for the CloudFront certificate, which AWS requires in us-east-1.
+      configuration_aliases = [aws.us_east_1]
     }
     random = {
       source  = "hashicorp/random"

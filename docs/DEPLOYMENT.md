@@ -149,6 +149,12 @@ Remove-Item .lambda\app-secret.json
 Then redeploy (step 4 from `terraform plan`, or push to the `staging` branch). `terraform output email_delivery`
 shows `resend` once it is on. Without a verified Resend domain, mail goes only to your Resend account's address.
 
+## Custom domain
+
+Staging runs on https://staging.pexerearn.com (DNS at Cloudflare) with the API also on
+https://api-staging.pexerearn.com. The two-step certificate setup, the Cloudflare records and settings and the
+tests are in [DOMAIN.md](DOMAIN.md).
+
 ## Everyday deploys (the pipeline)
 
 ```powershell

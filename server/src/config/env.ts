@@ -17,6 +17,10 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   HOST: z.string().min(1).default('0.0.0.0'),
   PUBLIC_ORIGIN: z.url({ protocol: /^https?$/ }).default('http://localhost:3000'),
+  // Other https site addresses that serve the same app and may send state-changing requests, comma-separated
+  // (for example the temporary CloudFront link while a custom domain is introduced). PUBLIC_ORIGIN stays the
+  // address used in emails.
+  EXTRA_ORIGINS: z.string().default(''),
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DATABASE_SSL: z.enum(['disable', 'require', 'verify']).default('disable'),
@@ -54,6 +58,7 @@ export interface Config {
   port: number;
   host: string;
   publicOrigin: string;
+  extraOrigins: string[];
   trustProxy: number;
   databaseUrl: string;
   databaseSsl: 'disable' | 'require' | 'verify';
@@ -103,6 +108,21 @@ export function isLocalOrigin(origin: string): boolean {
   }
 }
 
+function parseOrigins(raw: string): string[] {
+  return raw.split(',').map(s => s.trim()).filter(Boolean).map(value => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new ConfigError(`EXTRA_ORIGINS: "${value}" is not a URL.`);
+    }
+    if (url.protocol !== 'https:' || url.pathname !== '/' || url.search || url.hash) {
+      throw new ConfigError(`EXTRA_ORIGINS: "${value}" must be an https origin such as https://example.com.`);
+    }
+    return url.origin;
+  });
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = EnvSchema.safeParse(env);
   if (!parsed.success) {
@@ -117,6 +137,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: e.PORT,
     host: e.HOST,
     publicOrigin: origin,
+    extraOrigins: parseOrigins(e.EXTRA_ORIGINS),
     trustProxy: e.TRUST_PROXY,
     databaseUrl: e.DATABASE_URL,
     databaseSsl: e.DATABASE_SSL,

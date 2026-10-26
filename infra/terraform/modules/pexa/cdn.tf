@@ -116,8 +116,14 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
+  # The custom site domain (step 2 of domain.tf) with its us-east-1 certificate and TLS 1.2 or newer; until then
+  # the *.cloudfront.net certificate. The *.cloudfront.net link keeps working either way.
+  aliases = local.site_live ? [var.site_domain] : []
+
   viewer_certificate {
-    # The *.cloudfront.net certificate. A custom domain later needs an ACM certificate in us-east-1.
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = !local.site_live
+    acm_certificate_arn            = local.site_live ? aws_acm_certificate_validation.site[0].certificate_arn : null
+    ssl_support_method             = local.site_live ? "sni-only" : null
+    minimum_protocol_version       = local.site_live ? "TLSv1.2_2021" : null
   }
 }

@@ -38,6 +38,21 @@ provider "aws" {
   }
 }
 
+# us-east-1, only for the CloudFront certificate (an AWS requirement). Everything else stays in eu-west-1.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+  default_tags {
+    tags = {
+      Project     = "Pexa"
+      Environment = "staging"
+      AppMode     = "test"
+      ManagedBy   = "Terraform"
+      Repository  = "MukisaInnocent/Zentrix"
+    }
+  }
+}
+
 variable "alarm_email" {
   description = "Where alarm emails go."
   type        = string
@@ -50,13 +65,23 @@ variable "lambda_package_dir" {
 }
 
 module "pexa" {
-  source             = "../../modules/pexa"
+  source = "../../modules/pexa"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
   environment        = "staging"
   app_mode           = "test"
   alarm_email        = var.alarm_email
   lambda_package_dir = var.lambda_package_dir
   aurora_min_acu     = 0
   aurora_max_acu     = 2
+
+  # Custom domains at Cloudflare (docs/DOMAIN.md). Step 1: false (certificates only). Step 2, after the Cloudflare
+  # validation records are in and both certificates show ISSUED: set to true and apply again.
+  site_domain        = "staging.pexerearn.com"
+  api_domain         = "api-staging.pexerearn.com"
+  custom_domain_live = false
 }
 
 output "site_url" {
@@ -81,4 +106,24 @@ output "app_secret_name" {
 
 output "email_delivery" {
   value = module.pexa.email_delivery
+}
+
+output "temporary_site_url" {
+  value = module.pexa.temporary_site_url
+}
+
+output "api_url" {
+  value = module.pexa.api_url
+}
+
+output "certificate_status" {
+  value = module.pexa.certificate_status
+}
+
+output "cloudflare_dns_records" {
+  value = module.pexa.cloudflare_dns_records
+}
+
+output "cloudflare_dns_table" {
+  value = module.pexa.cloudflare_dns_table
 }

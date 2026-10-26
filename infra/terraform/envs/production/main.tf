@@ -38,6 +38,21 @@ provider "aws" {
   }
 }
 
+# us-east-1, only for the CloudFront certificate (an AWS requirement). Everything else stays in eu-west-1.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+  default_tags {
+    tags = {
+      Project     = "Pexa"
+      Environment = "production"
+      AppMode     = "test"
+      ManagedBy   = "Terraform"
+      Repository  = "MukisaInnocent/Zentrix"
+    }
+  }
+}
+
 variable "alarm_email" {
   description = "Where alarm emails go."
   type        = string
@@ -50,7 +65,11 @@ variable "lambda_package_dir" {
 }
 
 module "pexa" {
-  source                       = "../../modules/pexa"
+  source = "../../modules/pexa"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
   environment                  = "production"
   app_mode                     = "test"
   alarm_email                  = var.alarm_email

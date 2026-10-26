@@ -73,3 +73,13 @@ describe('AWS settings', () => {
     expect(loadConfig({ ...base, DATABASE_CONNECT_TIMEOUT_MS: '25000' }).databaseConnectTimeoutMs).toBe(25000);
   });
 });
+
+describe('extra site addresses', () => {
+  it('reads a comma-separated list of https origins and refuses anything else', () => {
+    expect(loadConfig({ ...base, EXTRA_ORIGINS: '' }).extraOrigins).toEqual([]);
+    expect(loadConfig({ ...base, EXTRA_ORIGINS: ' https://d2f55xhr5rcirb.cloudfront.net , https://staging.pexerearn.com/ ' }).extraOrigins)
+      .toEqual(['https://d2f55xhr5rcirb.cloudfront.net', 'https://staging.pexerearn.com']);
+    expect(() => loadConfig({ ...base, EXTRA_ORIGINS: 'http://insecure.example' })).toThrow(/EXTRA_ORIGINS/);
+    expect(() => loadConfig({ ...base, EXTRA_ORIGINS: 'https://example.com/path' })).toThrow(/EXTRA_ORIGINS/);
+  });
+});

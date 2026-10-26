@@ -10,13 +10,17 @@ data "archive_file" "package" {
 }
 
 locals {
-  public_origin = "https://${aws_cloudfront_distribution.main.domain_name}"
+  # The custom site domain once it is live (domain.tf), else the CloudFront link. The CloudFront link stays an
+  # accepted site address while keep_temporary_links is true.
+  public_origin = local.site_live ? "https://${var.site_domain}" : local.cloudfront_url
+  extra_origins = local.site_live && var.keep_temporary_links ? local.cloudfront_url : ""
 
   # Settings shared by the functions that use the database. Secrets come from Secrets Manager at deploy time.
   db_env = {
     APP_MODE                    = var.app_mode
     NODE_ENV                    = "production"
     PUBLIC_ORIGIN               = local.public_origin
+    EXTRA_ORIGINS               = local.extra_origins
     DATABASE_URL                = local.database_url
     DATABASE_SSL                = "require"
     DATABASE_POOL_MAX           = "2"
