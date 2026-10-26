@@ -33,19 +33,6 @@ async function updateQuote(amount) {
   }
 }
 
-// The charge table for the member's country, as the server sends it.
-async function renderCharges() {
-  const c = await api.get('/api/payments/withdrawals/charges');
-  const percent = `${c.taxBasisPoints / 100}%`;
-  $('#charges-note').textContent = `Minimum withdrawal ${formatMoney(c.minMinor, c.currency)}. Maximum ${formatMoney(c.maxMinor, c.currency)}. A ${percent} tax on the amount is added to every charge.`;
-  $('#charges-body').replaceChildren(...(c.bands.length
-    ? c.bands.map(b => h('tr', {},
-      h('td', {}, formatMoney(b.fromMinor, c.currency)),
-      h('td', {}, formatMoney(b.upToMinor, c.currency)),
-      h('td', { class: 'zx-td-strong' }, formatMoney(b.chargeMinor, c.currency))))
-    : [h('tr', {}, h('td', { colspan: '3', class: 'zx-td-empty' }, 'Charges for your country are not set yet.'))]));
-}
-
 async function refresh() {
   const [summary, list] = await Promise.all([api.get('/api/wallet/summary'), api.get('/api/payments/withdrawals')]);
   $('#stat-available').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
@@ -113,5 +100,5 @@ export async function init() {
     await refresh();
   });
 
-  await Promise.all([refresh(), renderCharges().catch(() => undefined)]);
+  await refresh();
 }
