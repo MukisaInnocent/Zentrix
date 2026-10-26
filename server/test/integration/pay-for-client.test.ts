@@ -88,6 +88,11 @@ describe('referrals for staff and members', () => {
     expect(board.some((l: Body) => staff.rows.some(s => s.username === l.username))).toBe(false);
     expect((await top.client.get<Body>('/api/admin/leaderboard/referrals')).status).toBe(403);
 
+    // Members see the same ranking with usernames and countries only, and their own place.
+    const mine = (await top.client.get<Body>('/api/referrals/leaderboard')).body;
+    expect(mine.me).toMatchObject({ username: top.input.username, activated: 2, invited: 2 });
+    expect(Object.keys(mine.leaders[0]).sort()).toEqual(['activated', 'country', 'invited', 'rank', 'username']);
+    expect(mine.leaders.some((l: Body) => staff.rows.some(s => s.username === l.username))).toBe(false);
     const l1 = (await top.client.get<Body>('/api/referrals/members?level=1')).body.members;
     expect(l1.find((m: Body) => m.username === a.input.username).phone).toBe(a.input.phone);
   });

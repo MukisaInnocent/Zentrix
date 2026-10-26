@@ -9,6 +9,7 @@ import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
 import { chargeBands } from '../payments/withdrawals.js';
+import { referralLeaders } from '../referrals/service.js';
 
 // Staff editing of system variables that live outside settings and country configs: the withdrawal charge table
 // per currency, and the voucher list. Every change is audited with its before and after.
@@ -88,35 +89,11 @@ export function configAdminRouter(services: Services): Router {
     });
   });
 
-  // Staff-only referral report (owner, 2026-10-26): members ranked by the people they invited directly who
-  // activated. Staff and system accounts (including superadmin) are left out. Members never see it, and it pays
-  // no prize (rule 3.3: no member-facing contests or leaderboards ranked by recruiting).
+  // Staff referral report: the full ranking with phone numbers and rewards (see referralLeaders).
   router.get('/leaderboard/referrals', requireStaff('support', 'finance', 'compliance'), async (req, res) => {
     const { period } = parse(LeaderboardQuery, req.query);
-    const since = period === '30d' ? "now() - interval '30 days'" : period === '7d' ? "now() - interval '7 days'" : "'-infinity'::timestamptz";
-    const list = await rows<{ username: string; phone_e164: string | null; country_code: string; currency_code: string; invited: string; activated: string; rewards: string }>(
-      pool,
-      `SELECT u.username, u.phone_e164, u.country_code, u.currency_code,
-              count(i.id) FILTER (WHERE i.created_at > ${since}) AS invited,
-              count(m.user_id) FILTER (WHERE m.activated_at > ${since}) AS activated,
-              coalesce((SELECT sum(r.amount_minor) FROM referral_rewards r WHERE r.referrer_user_id = u.id AND r.status = 'credited' AND r.created_at > ${since}), 0)::text AS rewards
-       FROM users u
-       JOIN users i ON i.referred_by_user_id = u.id
-       LEFT JOIN memberships m ON m.user_id = i.id
-       WHERE u.anonymized_at IS NULL
-         AND NOT EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.name = ur.role WHERE ur.user_id = u.id AND ro.is_staff)
-       GROUP BY u.id
-       HAVING count(i.id) FILTER (WHERE i.created_at > ${since}) > 0
-       ORDER BY activated DESC, invited DESC, rewards DESC, u.username
-       LIMIT 100`,
-    );
-    res.json({
-      period,
-      leaders: list.map((l, i) => ({
-        rank: i + 1, username: l.username, phone: l.phone_e164, country: l.country_code, invited: Number(l.invited), activated: Number(l.activated),
-        rewardsMinor: l.rewards, currency: l.currency_code,
-      })),
-    });
+    const leaders = await referralLeaders(pool, period, 100);
+    res.json({ period, leaders: leaders.map(({ userId: _id, ...l }) => l) });
   });
 
   return router;

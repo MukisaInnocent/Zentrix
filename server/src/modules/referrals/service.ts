@@ -164,3 +164,44 @@ export async function listReferralMembers(db: Db, userId: number, level: number,
     activatedAt: r.activated_at, rewardMinor: r.reward, currency: r.currency_code,
   }));
 }
+
+export type LeaderPeriod = 'all' | '30d' | '7d';
+
+export interface ReferralLeader {
+  rank: number;
+  userId: number;
+  username: string;
+  phone: string | null;
+  country: string;
+  invited: number;
+  activated: number;
+  rewardsMinor: string;
+  currency: string;
+}
+
+// Members ranked by the people they invited directly who activated (owner, 2026-10-26). Staff and system accounts,
+// superadmin included, are left out. Ranking pays no prize (rule 3.3). `period` is one of three fixed values.
+export async function referralLeaders(db: Db, period: LeaderPeriod, limit: number): Promise<ReferralLeader[]> {
+  const since = period === '30d' ? "now() - interval '30 days'" : period === '7d' ? "now() - interval '7 days'" : "'-infinity'::timestamptz";
+  const list = await rows<{ id: string; username: string; phone_e164: string | null; country_code: string; currency_code: string; invited: string; activated: string; rewards: string }>(
+    db,
+    `SELECT u.id, u.username, u.phone_e164, u.country_code, u.currency_code,
+            count(i.id) FILTER (WHERE i.created_at > ${since}) AS invited,
+            count(m.user_id) FILTER (WHERE m.activated_at > ${since}) AS activated,
+            coalesce((SELECT sum(r.amount_minor) FROM referral_rewards r WHERE r.referrer_user_id = u.id AND r.status = 'credited' AND r.created_at > ${since}), 0)::text AS rewards
+     FROM users u
+     JOIN users i ON i.referred_by_user_id = u.id
+     LEFT JOIN memberships m ON m.user_id = i.id
+     WHERE u.anonymized_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.name = ur.role WHERE ur.user_id = u.id AND ro.is_staff)
+     GROUP BY u.id
+     HAVING count(i.id) FILTER (WHERE i.created_at > ${since}) > 0
+     ORDER BY activated DESC, invited DESC, rewards DESC, u.username
+     LIMIT $1`,
+    [limit],
+  );
+  return list.map((l, i) => ({
+    rank: i + 1, userId: Number(l.id), username: l.username, phone: l.phone_e164, country: l.country_code,
+    invited: Number(l.invited), activated: Number(l.activated), rewardsMinor: l.rewards, currency: l.currency_code,
+  }));
+}

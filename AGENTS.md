@@ -30,7 +30,7 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
 
 1. No payouts funded by other members' deposits. Membership fees are platform revenue. Member earnings come only from funded advertiser campaign budgets, the flat referral reward, and platform promotions budgeted in advance.
 2. No multi-level commissions. Referral rewards are single-level (direct referrer only), flat, and never a share of anyone's deposit.
-3. No rewards, contests or leaderboards ranked by recruiting. Leaderboards rank task activity only.
+3. No rewards or contests ranked by recruiting: ranking high never pays a prize or bonus. Leaderboards may rank referrals (owner changed this rule on 2026-10-26); the member leaderboard ranks activated direct invites and shows usernames and countries only, never phone numbers or earnings.
 4. No gambling or lending: no Fixed Bets, Aviator, cash-prize spin wheels, loans ("Request Loan"), Trixcoin or any coin or investment product. "Chat With Foreigners" is built only as the owner specified it on 2026-10-26 (free random-match chat, no money, see `docs/PLAN.md` section 12); its "CWF" earnings stay out of scope.
 5. No income promises. Show real task rates and real balances only. Keep Terms, Risk and Refund pages, and show what the membership fee buys.
 6. Solvency, per currency: member withdrawable balances plus pending withdrawals must never exceed funds actually held. A reconciliation job and admin alarm enforce it, and withdrawals pause automatically when it fails.
