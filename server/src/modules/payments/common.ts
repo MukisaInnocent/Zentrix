@@ -16,24 +16,29 @@ export interface Channel {
   merchantCode: string | null;
   depositsEnabled: boolean;
   payoutsEnabled: boolean;
+  removedAt: Date | null;
 }
 
 interface ChannelRow {
   id: string; code: string; name: string; country_code: string; currency_code: string; account_name: string; account_number: string;
   instructions: string | null; ussd_code: string | null; merchant_code: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
+  removed_at: Date | null;
 }
 
 const toChannel = (r: ChannelRow): Channel => ({
   id: Number(r.id), code: r.code, name: r.name, countryCode: r.country_code, currency: r.currency_code, accountName: r.account_name,
   accountNumber: r.account_number, instructions: r.instructions, ussdCode: r.ussd_code, merchantCode: r.merchant_code, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
+  removedAt: r.removed_at,
 });
 
-export async function listChannels(db: Db, filter: { currency?: string; country?: string } = {}): Promise<Channel[]> {
+// Removed (archived) methods are left out unless asked for; only the staff console lists them.
+export async function listChannels(db: Db, filter: { currency?: string; country?: string; includeRemoved?: boolean } = {}): Promise<Channel[]> {
   const list = await rows<ChannelRow>(
     db,
     `SELECT * FROM payment_channels WHERE ($1::char(3) IS NULL OR currency_code = $1) AND ($2::char(2) IS NULL OR country_code = $2)
+       AND ($3 OR removed_at IS NULL)
      ORDER BY country_code, id`,
-    [filter.currency ?? null, filter.country ?? null],
+    [filter.currency ?? null, filter.country ?? null, filter.includeRemoved ?? false],
   );
   return list.map(toChannel);
 }

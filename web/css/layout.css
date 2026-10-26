@@ -60,8 +60,8 @@ body.zx-drawer-open .zx-scrim { opacity: 1; pointer-events: auto; }
 .zx-wordmark__earn { background: linear-gradient(180deg, #05b171, #04a46c 50%, #039568); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .zx-wordmark__suffix { color: #012a6e; font-weight: 600; }
 /* On dark backgrounds the logo and name sit on a white plate, so the colours stay exactly as designed. */
-.zx-drawer .zx-brand, .zx-auth-art .zx-brand, :root[data-theme="dark"] .zx-brand { padding: 4px 14px 4px 4px; border-radius: 14px; background: #fff; }
-.zx-drawer .zx-brand img, .zx-auth-art .zx-brand img, :root[data-theme="dark"] .zx-brand img { box-shadow: none; }
+.zx-drawer .zx-brand, .zx-auth-art .zx-brand, .zx-footer .zx-brand, :root[data-theme="dark"] .zx-brand { padding: 4px 14px 4px 4px; border-radius: 14px; background: #fff; }
+.zx-drawer .zx-brand img, .zx-auth-art .zx-brand img, .zx-footer .zx-brand img, :root[data-theme="dark"] .zx-brand img { box-shadow: none; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .zx-brand { padding: 4px 14px 4px 4px; border-radius: 14px; background: #fff; }
   :root:not([data-theme="light"]) .zx-brand img { box-shadow: none; }

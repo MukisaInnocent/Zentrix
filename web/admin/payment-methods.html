@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Payment methods · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-payment-methods" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Payment methods</h1>
+      <p>The business numbers and accounts members pay their activation fee and deposits to, per country. Members see only the methods for their own country.</p>
+    </div>
+    <div class="zx-page-head__actions"><button id="add-btn" class="zx-btn" type="button">Add a payment method</button></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <select id="country-filter" class="zx-select" aria-label="Country"><option value="">All countries</option></select>
+      <label class="zx-check"><input id="show-removed" type="checkbox"> Show removed methods</label>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Country</th><th scope="col">Method</th><th scope="col">Account name</th><th scope="col">Number or account</th><th scope="col">USSD</th><th scope="col">Merchant code</th><th scope="col">Deposits</th><th scope="col">Payouts</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

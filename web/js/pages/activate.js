@@ -75,6 +75,14 @@ async function refresh() {
   $('#waiting').hidden = !pending;
   $('#pay-area').hidden = pending;
   $('#activate-submit').disabled = info.depositsPaused || !info.channels.some(c => c.depositsEnabled) || !info.activation.feeMinor;
+  // The methods are the ones set up for the member's country.
+  let country = info.country;
+  try {
+    country = new Intl.DisplayNames(['en'], { type: 'region' }).of(info.country) ?? info.country;
+  } catch {
+    // Older browsers: keep the country code.
+  }
+  $('#pay-title').textContent = `1. Pay with a method for ${country}`;
   renderChannels();
 }
 

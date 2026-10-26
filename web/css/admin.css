@@ -152,3 +152,6 @@ pre.zx-mono { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .zx-paybox__row { display: flex; align-items: center; gap: var(--zx-space-3); }
 .zx-paybox__row .zx-hint { flex: none; min-inline-size: 7.5em; }
 .zx-paybox__value { flex: 1; min-inline-size: 0; font-family: var(--zx-font-mono); font-size: 1.15rem; overflow-wrap: anywhere; }
+
+/* Staff email outbox: message bodies keep their line breaks and wrap. */
+.zx-outbox-body { margin: var(--zx-space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }

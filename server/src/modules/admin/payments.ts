@@ -42,7 +42,8 @@ const FlagBody = z.strictObject({ key: z.enum(['deposits_paused', 'withdrawals_p
 const AlertBody = z.strictObject({ note: Note.optional() });
 const SnapshotBody = z.strictObject({ channel: z.string().trim().max(40), balance: AmountInput, note: z.string().trim().max(300).optional() });
 const ChannelBody = z.strictObject({
-  code: z.string().trim().regex(/^[a-z0-9_]{2,40}$/, { error: 'Use lower-case letters, digits and underscores.' }),
+  // Optional: made from the name and country when left out.
+  code: z.string().trim().regex(/^[a-z0-9_]{2,40}$/, { error: 'Use lower-case letters, digits and underscores.' }).optional(),
   name: z.string().trim().min(2).max(60),
   country: z.string().trim().length(2),
   accountName: z.string().trim().min(2).max(80),
@@ -54,6 +55,17 @@ const ChannelBody = z.strictObject({
   payoutsEnabled: z.boolean().default(true),
 });
 const ChannelPatch = ChannelBody.omit({ code: true, country: true }).partial().strict();
+const ChannelsQuery = z.object({ country: z.string().trim().toUpperCase().length(2).optional(), removed: z.enum(['0', '1']).default('0') });
+const RemoveBody = z.strictObject({ reason: z.string().trim().min(5, { error: 'Say why the method is removed.' }).max(300) });
+
+// A readable unique code for a new payment method, e.g. "mtn_mobile_money_ug" or "mtn_mobile_money_ug_2".
+async function newChannelCode(db: Parameters<typeof maybeOne>[0], name: string, country: string): Promise<string> {
+  const base = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'method'}_${country.toLowerCase()}`;
+  for (let n = 1; ; n++) {
+    const code = n === 1 ? base : `${base}_${n}`;
+    if (!(await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [code]))) return code;
+  }
+}
 const TreasuryBody = z.strictObject({
   kind: z.enum(TREASURY_KINDS),
   currency: z.string().length(3),
@@ -443,8 +455,9 @@ export function paymentsAdminRouter(services: Services): Router {
   });
 
   // ---- Payment channels ----
-  router.get('/channels', requireStaff(...VIEW), async (_req, res) => {
-    res.json({ channels: await listChannels(pool) });
+  router.get('/channels', requireStaff(...VIEW), async (req, res) => {
+    const q = parse(ChannelsQuery, req.query);
+    res.json({ channels: await listChannels(pool, { country: q.country, includeRemoved: q.removed === '1' }) });
   });
 
   router.post('/channels', requireStaff('admin'), async (req, res) => {
@@ -452,23 +465,25 @@ export function paymentsAdminRouter(services: Services): Router {
     await withTransaction(pool, async db => {
       const country = await maybeOne<{ currency_code: string }>(db, 'SELECT currency_code FROM countries WHERE code = $1', [body.country.toUpperCase()]);
       if (!country) throw badRequest('validation_failed', 'Unknown country.', { country: ['Unknown country.'] });
-      if (await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [body.code])) throw conflict('channel.exists', 'A channel with this code already exists.');
+      const code = body.code ?? (await newChannelCode(db, body.name, body.country));
+      if (await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [code])) throw conflict('channel.exists', 'A channel with this code already exists.');
       await db.query(
         `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [body.code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled],
+        [code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled],
       );
-      await audit(db, req, { action: 'channel.created', targetType: 'payment_channel', targetId: body.code, after: body });
-    });
-    res.status(201).json({ ok: true });
+      await audit(db, req, { action: 'channel.created', targetType: 'payment_channel', targetId: code, after: { ...body, code } });
+      return code;
+    }).then(code => res.status(201).json({ ok: true, code }));
   });
 
   router.patch('/channels/:code', requireStaff('admin'), async (req, res) => {
     const body = parse(ChannelPatch, req.body);
     const code = String(req.params.code);
     await withTransaction(pool, async db => {
-      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled, removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
       if (!before) throw notFound();
+      if (before.removed_at && (body.depositsEnabled || body.payoutsEnabled)) throw conflict('channel.removed', 'Restore this method before switching it on.');
       await db.query(
         `UPDATE payment_channels SET name = coalesce($2, name), account_name = coalesce($3, account_name), account_number = coalesce($4, account_number),
            ussd_code = coalesce($8, ussd_code), merchant_code = coalesce($9, merchant_code),
@@ -477,6 +492,44 @@ export function paymentsAdminRouter(services: Services): Router {
         [code, body.name ?? null, body.accountName ?? null, body.accountNumber ?? null, body.instructions ?? null, body.depositsEnabled ?? null, body.payoutsEnabled ?? null, body.ussdCode ?? null, body.merchantCode ?? null],
       );
       await audit(db, req, { action: 'channel.updated', targetType: 'payment_channel', targetId: code, before, after: body });
+    });
+    res.json({ ok: true });
+  });
+
+  // Removing a method archives it (deposits and the ledger keep pointing at it). It must hold no money in the
+  // ledger and have nothing waiting, so no member's payment is left on a method nobody sees.
+  router.post('/channels/:code/remove', requireStaff('admin'), async (req, res) => {
+    const { reason } = parse(RemoveBody, req.body);
+    const code = String(req.params.code);
+    await withTransaction(pool, async db => {
+      const channel = await maybeOne<{ id: string; currency_code: string; removed_at: Date | null }>(db, 'SELECT id, currency_code, removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      if (!channel) throw notFound();
+      if (channel.removed_at) throw conflict('channel.removed', 'This method is already removed.');
+      const held = await maybeOne<{ balance_minor: string }>(db, `SELECT balance_minor FROM accounts WHERE kind = 'payment_clearing' AND channel_id = $1`, [channel.id]);
+      if (held && held.balance_minor !== '0') {
+        throw conflict('channel.holds_money', 'The ledger says this method still holds money. Move the float to another method (Balance check, Treasury) before removing it.');
+      }
+      const open = await one<{ n: string }>(
+        db,
+        `SELECT (SELECT count(*) FROM deposits WHERE channel_id = $1 AND status = 'pending') + (SELECT count(*) FROM withdrawals WHERE channel_id = $1 AND status IN ('requested', 'approved', 'processing')) AS n`,
+        [channel.id],
+      );
+      if (Number(open.n) > 0) throw conflict('channel.in_use', 'Deposits or withdrawals on this method are still waiting. Finish them first.');
+      await db.query('UPDATE payment_channels SET removed_at = now(), deposits_enabled = false, payouts_enabled = false WHERE id = $1', [channel.id]);
+      await audit(db, req, { action: 'channel.removed', targetType: 'payment_channel', targetId: code, reason });
+    });
+    res.json({ ok: true });
+  });
+
+  router.post('/channels/:code/restore', requireStaff('admin'), async (req, res) => {
+    const code = String(req.params.code);
+    await withTransaction(pool, async db => {
+      const channel = await maybeOne<{ removed_at: Date | null }>(db, 'SELECT removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      if (!channel) throw notFound();
+      if (!channel.removed_at) throw conflict('channel.not_removed', 'This method is not removed.');
+      // Restored switched off; an admin switches deposits and payouts on again when ready.
+      await db.query('UPDATE payment_channels SET removed_at = NULL WHERE code = $1', [code]);
+      await audit(db, req, { action: 'channel.restored', targetType: 'payment_channel', targetId: code });
     });
     res.json({ ok: true });
   });

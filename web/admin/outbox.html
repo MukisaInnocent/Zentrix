@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Email outbox · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-outbox" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Email outbox (test mode)</h1>
+      <p>When no email service is set up, emails and text messages the site sends (sign-in codes, password reset links, payment notices) are kept here instead. It exists only in test mode. Set RESEND_API_KEY on the server to deliver them for real.</p>
+    </div>
+  </div>
+  <div class="zx-card">
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Sent</th><th scope="col">Channel</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Message</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

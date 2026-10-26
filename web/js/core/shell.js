@@ -104,6 +104,7 @@ const ADMIN_NAV = [
       { id: 'admin-withdrawals', href: '/admin/withdrawals.html', icon: 'withdraw', label: 'admin.nav.withdrawals', bottom: true },
       { id: 'admin-issues', href: '/admin/issues.html', icon: 'headphones', label: 'admin.nav.issues' },
       { id: 'admin-vouchers', href: '/admin/vouchers.html', icon: 'ticket', label: 'admin.nav.vouchers' },
+      { id: 'admin-payment-methods', href: '/admin/payment-methods.html', icon: 'card', label: 'admin.nav.paymentMethods' },
       { id: 'admin-balances', href: '/admin/balances.html', icon: 'shield', label: 'admin.nav.balances' },
       { id: 'admin-ledger', href: '/admin/ledger.html', icon: 'layers', label: 'admin.nav.ledger' },
     ],
@@ -125,7 +126,10 @@ const ADMIN_NAV = [
   },
   {
     group: 'admin.nav.group.records',
-    items: [{ id: 'admin-audit', href: '/admin/audit.html', icon: 'history', label: 'admin.nav.audit' }],
+    items: [
+      { id: 'admin-audit', href: '/admin/audit.html', icon: 'history', label: 'admin.nav.audit' },
+      { id: 'admin-outbox', href: '/admin/outbox.html', icon: 'mail', label: 'admin.nav.outbox' },
+    ],
   },
   { group: 'admin.nav.group.exit', items: [{ id: 'back', href: '/dashboard.html', icon: 'home', label: 'admin.nav.back' }] },
 ];

@@ -197,3 +197,22 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 /* Member chat: your own messages sit on the right; the thread scrolls on its own. */
 .zx-msg--mine { justify-self: end; background: var(--zx-brand-soft); border-color: transparent; }
 .zx-chat-thread { max-block-size: 55dvh; overflow-y: auto; padding: var(--zx-space-2); border-radius: var(--zx-radius); background: var(--zx-surface-2); }
+
+/* Landing: pricing plan, guides, contact line and footer columns. */
+.zx-plan { display: grid; gap: var(--zx-space-3); justify-items: center; max-inline-size: 440px; margin-inline: auto; padding: var(--zx-space-8) var(--zx-space-6); text-align: center; border: 2px solid var(--zx-brand); }
+.zx-plan__name { font-size: .78rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--zx-brand); }
+.zx-plan__price { font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.4rem); font-weight: 800; font-variant-numeric: tabular-nums; }
+.zx-plan__list { display: grid; gap: var(--zx-space-2); margin: var(--zx-space-2) 0; padding: 0; list-style: none; justify-self: stretch; text-align: start; }
+.zx-plan__list li { display: flex; align-items: center; gap: var(--zx-space-2); }
+.zx-plan__list .zx-icon { color: var(--zx-success); flex: none; }
+.zx-guide { display: grid; gap: var(--zx-space-2); align-content: start; color: inherit; text-decoration: none; }
+.zx-guide h3 { margin: 0; }
+.zx-guide p { margin: 0; color: var(--zx-text-muted); }
+.zx-guide__more { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--zx-brand); }
+.zx-contact-line { font-weight: 700; }
+.zx-contact-line a { color: #fff; }
+.zx-row--center { justify-content: center; }
+.zx-footer__inner--cols { display: grid; gap: var(--zx-space-6); align-items: start; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.zx-footer__inner--cols nav { display: grid; gap: var(--zx-space-2); }
+.zx-footer__brand { display: grid; gap: var(--zx-space-3); }
+.zx-footer__heading { margin: 0 0 var(--zx-space-1); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--zx-side-muted); }
