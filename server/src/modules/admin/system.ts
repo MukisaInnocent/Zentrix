@@ -76,16 +76,19 @@ export function systemRouter(services: Services): Router {
     res.json(result);
   });
 
-  router.get('/countries', requireStaff('compliance'), async (_req, res) => {
+  router.get('/countries', requireStaff('compliance', 'finance'), async (_req, res) => {
     const list = await rows(
       pool,
-      `SELECT c.code, c.name, c.currency_code, c.blocked, c.block_reason, c.live_enabled, cfg.version AS config_version, cfg.is_placeholder
+      `SELECT c.code, c.name, c.currency_code, c.blocked, c.block_reason, c.live_enabled, cfg.version AS config_version, cfg.is_placeholder,
+              cfg.membership_fee_minor::text, cfg.withdrawal_min_minor::text, cfg.withdrawal_max_minor::text, cfg.withdrawal_daily_max_minor::text,
+              cfg.withdrawal_fee_bp, cfg.withdrawal_approval_threshold_minor::text,
+              (SELECT count(*) FROM users u WHERE u.country_code = c.code)::int AS members
        FROM countries c LEFT JOIN current_country_configs cfg ON cfg.country_code = c.code ORDER BY c.name`,
     );
     res.json({ countries: list });
   });
 
-  router.get('/countries/:code', requireStaff('compliance'), async (req, res) => {
+  router.get('/countries/:code', requireStaff('compliance', 'finance'), async (req, res) => {
     const country = await getCountry(pool, String(req.params.code).toUpperCase());
     if (!country) throw notFound();
     res.json({ country, configHistory: await countryConfigHistory(pool, country.code) });

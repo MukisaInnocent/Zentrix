@@ -99,7 +99,7 @@
       "overview": "Overview",
       "members": "Members",
       "fraud": "Fraud flags",
-      "countries": "Countries",
+      "countries": "Countries and fees",
       "settings": "Settings",
       "audit": "Audit log",
       "outbox": "Dev outbox",
@@ -108,6 +108,7 @@
       "withdrawals": "Withdrawals",
       "issues": "Payment issues",
       "chats": "Chat reports",
+      "vouchers": "Vouchers",
       "balances": "Balance check",
       "ledger": "Ledger"
     },

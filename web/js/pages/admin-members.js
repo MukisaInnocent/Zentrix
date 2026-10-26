@@ -45,7 +45,8 @@ async function openMember(id) {
         m.withdrawalsLockedUntil ? ['Withdrawals locked until', when(m.withdrawalsLockedUntil)] : null,
       ])),
       panel('Balances', kv([
-        ['Main balance', money(b.availableBalanceMinor, b.currency)],
+        ['Balance (referrals)', money(b.availableBalanceMinor, b.currency)],
+        ['Deposit', money(b.depositBalanceMinor, b.currency)],
         ...Object.entries(b.taskBalancesMinor).map(([k, v]) => [`${k} earnings`, money(v, b.currency)]),
         ['On hold for withdrawals', money(b.reservedBalanceMinor, b.currency)],
         ['Deposits waiting review', money(b.pendingDepositsMinor, b.currency)],
@@ -114,6 +115,12 @@ export async function init({ me: current }) {
       void openMember(tr.dataset.open);
     }
   });
+  // Other staff pages link here with ?q=username to find a member.
+  const q = queryParam('q');
+  if (q) {
+    state.q = q;
+    $('#search').value = q;
+  }
   await load();
   const id = queryParam('id');
   if (id) await act(() => openMember(id));

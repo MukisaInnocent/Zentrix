@@ -13,14 +13,14 @@ import { notifyVoucherActivation } from '../notifications/notify.js';
 import { exponentOf } from '../payments/common.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { distributeReferralRewards } from '../referrals/service.js';
+import { getSetting } from '../settings/registry.js';
 import { memberInfo, newReference, requireActive, requireConfig, spendLegs } from '../wallet/service.js';
 
 // Vouchers are bought from the member's own money (deposit balance first, then balance -> voucher_liability) and
 // used to activate another member's account. A voucher is worth at least the activation fee. On use the fee goes
 // voucher_liability -> platform revenue, any value above the fee goes to the activated member's deposit balance,
 // and referral rewards are paid as for a confirmed activation payment. Full Phase 4 vouchers (expiry, encrypted
-// codes) are still to come.
-const VALUE_MULTIPLES = [1n, 2n, 3n, 5n];
+// codes) are still to come. The value choices are multiples of the fee set by an admin (`voucher.value_multiples`).
 
 async function activationFee(db: Db, countryCode: string): Promise<bigint> {
   return BigInt((await requireConfig(db, countryCode)).membershipFeeMinor);
@@ -44,7 +44,7 @@ export function vouchersRouter(services: Services): Router {
     res.json({
       currency: member.currency,
       activationFeeMinor: fee.toString(),
-      valueOptions: VALUE_MULTIPLES.map(m => ({ amount: toDecimalString(fee * m, exponent), amountMinor: (fee * m).toString() })),
+      valueOptions: (await getSetting(pool, 'voucher.value_multiples')).map(BigInt).map(m => ({ amount: toDecimalString(fee * m, exponent), amountMinor: (fee * m).toString() })),
       vouchers: list.map(v => ({
         code: v.code, amountMinor: v.amount_minor, currency: v.currency_code, status: v.status === 'redeemed' ? 'used' : v.status,
         createdAt: v.created_at, usedBy: v.used_by, usedAt: v.used_at,

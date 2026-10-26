@@ -8,7 +8,7 @@ import { act, ago, askForm, copyable, debounce, emptyRow, kv, live, money, money
 const state = { status: 'open', q: '', page: 1 };
 let poll;
 
-const SOURCE = { main: 'Main balance', youtube: 'YouTube earnings', tiktok: 'TikTok earnings', ads: 'Ads earnings', trivia: 'Trivia earnings', fixtap: 'Fix Tap earnings', music: 'Music earnings' };
+const SOURCE = { main: 'Balance (referrals)', youtube: 'YouTube earnings', tiktok: 'TikTok earnings', ads: 'Ads earnings', trivia: 'Trivia earnings', fixtap: 'Fix Tap earnings', music: 'Music earnings' };
 
 async function loadList() {
   const params = new URLSearchParams({ page: String(state.page) });
@@ -72,7 +72,8 @@ async function openWithdrawal(id) {
         ['Username', `@${m.username}`],
         ['Verified phone', m.phone ?? ''],
         ['Status', m.status],
-        ['Main balance now', money(m.balances.availableBalanceMinor, m.balances.currency)],
+        ['Balance now (referrals)', money(m.balances.availableBalanceMinor, m.balances.currency)],
+        ['Deposit', money(m.balances.depositBalanceMinor, m.balances.currency)],
         ['On hold', money(m.balances.reservedBalanceMinor, m.balances.currency)],
         ['Deposited, all time', money(m.lifetime.depositedMinor, m.balances.currency)],
         ['Withdrawn, all time', money(m.lifetime.withdrawnMinor, m.balances.currency)],

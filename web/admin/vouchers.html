@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vouchers · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-vouchers" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Vouchers</h1>
+      <p>Every voucher members bought, and the account each one activated. The value choices are under <a href="/admin/settings.html">Settings</a>.</p>
+    </div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <div id="status-filter" class="zx-seg" role="group" aria-label="Filter by status"></div>
+      <input id="search" class="zx-input" type="search" placeholder="Search code or username" aria-label="Search vouchers">
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Voucher code</th><th scope="col">Value</th><th scope="col">Bought by</th><th scope="col">Bought</th><th scope="col">Status</th><th scope="col">Activated username</th><th scope="col">Activated</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

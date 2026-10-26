@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Countries and fees · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-countries" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Countries and fees</h1>
+      <p>Each country's activation fee, withdrawal limits, tax and charge table. Open a country to change them. Every change is a new version and is recorded in the audit log.</p>
+    </div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <div id="status-filter" class="zx-seg" role="group" aria-label="Filter countries"></div>
+      <input id="search" class="zx-input" type="search" placeholder="Search country, code or currency" aria-label="Search countries">
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Country</th><th scope="col">Currency</th><th scope="col">Activation fee</th><th scope="col">Minimum</th><th scope="col">Maximum</th><th scope="col">Daily maximum</th><th scope="col">Tax</th><th scope="col">Approval from</th><th scope="col">Members</th><th scope="col">Status</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="10" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

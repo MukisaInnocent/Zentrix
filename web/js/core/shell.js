@@ -103,6 +103,7 @@ const ADMIN_NAV = [
       { id: 'admin-deposits', href: '/admin/deposits.html', icon: 'deposit', label: 'admin.nav.deposits', bottom: true },
       { id: 'admin-withdrawals', href: '/admin/withdrawals.html', icon: 'withdraw', label: 'admin.nav.withdrawals', bottom: true },
       { id: 'admin-issues', href: '/admin/issues.html', icon: 'headphones', label: 'admin.nav.issues' },
+      { id: 'admin-vouchers', href: '/admin/vouchers.html', icon: 'ticket', label: 'admin.nav.vouchers' },
       { id: 'admin-balances', href: '/admin/balances.html', icon: 'shield', label: 'admin.nav.balances' },
       { id: 'admin-ledger', href: '/admin/ledger.html', icon: 'layers', label: 'admin.nav.ledger' },
     ],
@@ -118,8 +119,8 @@ const ADMIN_NAV = [
   {
     group: 'admin.nav.group.config',
     items: [
-      { id: 'admin-countries', icon: 'globe', label: 'admin.nav.countries', soon: true },
-      { id: 'admin-settings', icon: 'settings', label: 'admin.nav.settings', soon: true },
+      { id: 'admin-countries', href: '/admin/countries.html', icon: 'globe', label: 'admin.nav.countries' },
+      { id: 'admin-settings', href: '/admin/settings.html', icon: 'settings', label: 'admin.nav.settings' },
     ],
   },
   {

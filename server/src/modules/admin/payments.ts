@@ -99,6 +99,7 @@ export function paymentsAdminRouter(services: Services): Router {
            (SELECT count(*) FROM withdrawals WHERE status = 'paid' AND paid_at > date_trunc('day', now())) AS withdrawals_paid_today,
            (SELECT coalesce(sum(amount_minor), 0) FROM withdrawals WHERE status = 'paid' AND paid_at > date_trunc('day', now()) AND currency_code = 'UGX') AS withdrawals_paid_today_ugx,
            (SELECT count(*) FROM payment_issues WHERE status <> 'resolved') AS issues_open,
+           (SELECT count(*) FROM chat_reports WHERE status = 'open') AS chat_reports_open,
            (SELECT count(*) FROM alerts WHERE status = 'open') AS alerts_open,
            (SELECT count(*) FROM treasury_requests WHERE status = 'pending') AS treasury_pending,
            (SELECT count(*) FROM users WHERE created_at > date_trunc('day', now())) AS members_today,

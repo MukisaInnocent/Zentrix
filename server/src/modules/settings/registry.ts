@@ -21,6 +21,25 @@ export const SETTING_DEFS = {
     fallback: { email: 'support@pexerearn.test', phone: '+256 700 000 000', hours: 'Mon to Fri, 09:00 to 17:00 EAT' },
     description: 'Support contact shown on the Contact page. TODO(owner): real details.',
   },
+  // Referral rewards for levels 1 to 3 (owner's amounts as the fallback), in Uganda shillings. Other countries get
+  // the same share of their own activation fee. Together they stay within the UGX 19,000 fee, so a reward can
+  // never cost more than the activation it pays for.
+  'referral.tier_amounts_ugx': {
+    schema: z.strictObject({
+      level1: z.int().min(0).max(19_000),
+      level2: z.int().min(0).max(19_000),
+      level3: z.int().min(0).max(19_000),
+    }).refine(t => t.level1 + t.level2 + t.level3 <= 19_000, { error: 'The three rewards together must not exceed the UGX 19,000 activation fee.' }),
+    fallback: { level1: 10_000, level2: 5_000, level3: 2_000 },
+    description: 'Referral rewards in UGX for levels 1, 2 and 3, paid when the invited member activates. Other countries get the same share of their fee.',
+  },
+  // Voucher value choices, as multiples of the buyer's activation fee (never below the fee).
+  'voucher.value_multiples': {
+    schema: z.array(z.int().min(1).max(20)).min(1).max(8)
+      .refine(list => list.every((v, i) => i === 0 || v > list[i - 1]!), { error: 'List the multiples from smallest to largest, without repeats.' }),
+    fallback: [1, 2, 3, 5],
+    description: 'Voucher values members can buy, as multiples of the activation fee (1 = exactly the fee).',
+  },
   'community.url': {
     schema: z.url({ protocol: /^https$/ }).nullable(),
     fallback: null,
