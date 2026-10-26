@@ -28,6 +28,7 @@ async function systemUser(db: PoolClient, services: Services, who: { username: s
 }
 
 const enabled = (services: Services) => services.config.appMode === 'test' && services.config.testAutoApprove;
+export const autopilotEnabled = enabled;
 
 // Every country gets a test payment method, so a member anywhere can try activation.
 export async function ensureTestChannel(services: Services, member: { countryCode: string; currency: string }): Promise<void> {

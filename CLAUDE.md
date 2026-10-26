@@ -90,7 +90,7 @@ The reference screenshots from another platform are visual inspiration only. Nev
 
 ## Test-mode switches (refused in live mode)
 
-- `TEST_AUTO_APPROVE=true`: activation payments, deposits and withdrawals pass by themselves, through the same ledger steps, done by the system accounts `zx_autopilot_a` (approves) and `zx_autopilot_b` (pays).
+- `TEST_AUTO_APPROVE=true`: activation payments, deposits and withdrawals pass by themselves, through the same ledger steps, done by the system accounts `zx_autopilot_a` (approves) and `zx_autopilot_b` (pays). A withdrawal then also skips the phone verification check, so one click pays a demo withdrawal to the registered phone (owner, 2026-10-26).
 - `TEST_SUPERADMIN_PASSWORD`: creates the `superadmin` account with every staff role; it signs in with the password alone (no second step). Set it in `.env` locally and in the Render dashboard, never in git.
 
 ## Commands

@@ -14,7 +14,7 @@ import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messa
 import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
 import { rows } from '../../db/sql.js';
 import { notifyPayment } from '../notifications/notify.js';
-import { autoConfirmDeposit, autoPayWithdrawal, ensureTestChannel } from './autopilot.js';
+import { autoConfirmDeposit, autoPayWithdrawal, autopilotEnabled, ensureTestChannel } from './autopilot.js';
 
 const HOUR = 3_600_000;
 
@@ -81,7 +81,8 @@ export function paymentsRouter(services: Services): Router {
       currency: member.currency,
       country: member.countryCode,
       phone: member.phone,
-      payoutPhone: member.phoneVerified ? member.phone : null,
+      // The test autopilot pays demo withdrawals to the registered phone without verifying it first.
+      payoutPhone: member.phoneVerified || autopilotEnabled(services) ? member.phone : null,
       depositsPaused: deposits.active,
       withdrawalsPaused: withdrawals.active,
       // Test mode with TEST_AUTO_APPROVE: payments pass by themselves, and the page says so.
@@ -158,7 +159,7 @@ export function paymentsRouter(services: Services): Router {
     const result = await idempotent(pool, req, 'withdrawal.request', async db => {
       const member = await memberInfo(db, req.auth!.userId);
       const amountMinor = await amountToMinor(db, member.currency, input.amount);
-      const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor });
+      const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor }, { skipPhoneCheck: autopilotEnabled(services) });
       return { status: 201, body: { withdrawal, quote } };
     });
     if (!result.replayed) {

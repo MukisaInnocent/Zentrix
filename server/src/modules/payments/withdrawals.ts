@@ -119,11 +119,15 @@ export const withdrawalView = (w: WithdrawalRow): WithdrawalView => ({
   processingAt: w.processing_at, paidAt: w.paid_at, closedAt: w.closed_at,
 });
 
-export async function requestWithdrawal(db: PoolClient, userId: number, input: { source: BalanceSource; amountMinor: bigint }): Promise<{ withdrawal: WithdrawalView; quote: Quote }> {
+// `skipPhoneCheck` is for the test autopilot only (TEST_AUTO_APPROVE, refused in live mode): the demo payout goes to
+// the member's registered phone without verifying it first.
+export async function requestWithdrawal(
+  db: PoolClient, userId: number, input: { source: BalanceSource; amountMinor: bigint }, opts: { skipPhoneCheck?: boolean } = {},
+): Promise<{ withdrawal: WithdrawalView; quote: Quote }> {
   await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
   const member = await memberInfo(db, userId);
   requireActive(member);
-  if (!member.phone || !member.phoneVerified) throw forbidden('withdrawal.phone_unverified', 'Verify your phone number before withdrawing. Payouts go only to your verified number.');
+  if (!member.phone || (!member.phoneVerified && !opts.skipPhoneCheck)) throw forbidden('withdrawal.phone_unverified', 'Verify your phone number before withdrawing. Payouts go only to your verified number.');
   if (member.withdrawalsLockedUntil && member.withdrawalsLockedUntil > new Date()) {
     throw forbidden('withdrawal.locked', 'Withdrawals are locked for 48 hours after a phone number change.');
   }

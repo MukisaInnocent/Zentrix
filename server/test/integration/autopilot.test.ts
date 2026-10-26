@@ -32,7 +32,7 @@ describe('test autopilot', () => {
     const referrer = await registerMember(app);
     const member = await registerMember(app, { referralCode: referrer.input.username });
     const second = await registerMember(app, { referralCode: referrer.input.username });
-    await app.owner.query('UPDATE users SET phone_verified_at = now() WHERE public_id = $1', [referrer.user.id]);
+    // The referrer never verifies their phone: in test autopilot mode a demo withdrawal works with one click.
 
     await activate(referrer);
     await activate(member);
