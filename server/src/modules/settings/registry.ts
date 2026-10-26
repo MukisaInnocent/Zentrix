@@ -18,7 +18,7 @@ export const SETTING_DEFS = {
   },
   'support.contact': {
     schema: z.strictObject({ email: z.email(), phone: z.string().min(5).max(30), hours: z.string().min(1).max(80) }),
-    fallback: { email: 'support@zentrix.test', phone: '+256 700 000 000', hours: 'Mon to Fri, 09:00 to 17:00 EAT' },
+    fallback: { email: 'support@pexerearn.test', phone: '+256 700 000 000', hours: 'Mon to Fri, 09:00 to 17:00 EAT' },
     description: 'Support contact shown on the Contact page. TODO(owner): real details.',
   },
   'community.url': {

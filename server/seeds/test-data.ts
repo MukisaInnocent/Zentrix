@@ -98,7 +98,7 @@ export async function seedTestData(services: Services): Promise<SeedReport | nul
   });
 
   const lines = [
-    'Zentrix TEST MODE seed credentials (fake accounts, no real money).',
+    'Pexerearn TEST MODE seed credentials (fake accounts, no real money).',
     `Staff password: ${report.staffPassword}`,
     `Member password: ${report.memberPassword} (users ${report.members[0]} to ${report.members.at(-1)})`,
     ...report.staff.map(s => `${s.username} [${s.roles.join(', ')}] TOTP secret ${s.totpSecret}`),
@@ -132,7 +132,7 @@ async function seedPayments(db: PoolClient, staffIds: Record<string, number>, me
   ]) {
     await db.query(
       `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions)
-       SELECT $1, $2, c.code, c.currency_code, 'ZENTRIX TEST', $5, $3, $4, $6 FROM countries c WHERE c.code = $7`,
+       SELECT $1, $2, c.code, c.currency_code, 'PEXEREARN TEST', $5, $3, $4, $6 FROM countries c WHERE c.code = $7`,
       [c.code, c.name, c.ussd, c.merchant, c.merchant, c.instructions, c.country],
     );
   }

@@ -33,7 +33,7 @@ beforeAll(async () => {
     { code: CHANNEL, name: 'MTN Mobile Money', ussdCode: '*165*3#', merchantCode: '123456', accountNumber: '123456' },
     { code: 'airtel_test', name: 'Airtel Money', ussdCode: '*185*9#', merchantCode: '654321', accountNumber: '654321' },
   ]) {
-    const created = await adminClient.post('/api/admin/payments/channels', { ...channel, country: 'UG', accountName: 'ZENTRIX TEST' });
+    const created = await adminClient.post('/api/admin/payments/channels', { ...channel, country: 'UG', accountName: 'PEXEREARN TEST' });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
   }
 });
@@ -156,9 +156,9 @@ describe('activation payment', () => {
 
     await new Promise(r => setTimeout(r, 300));
     const mails = (await app.outbox(member.input.email)).map(m => m.subject);
-    expect(mails).toContain('Zentrix: Account activated');
-    expect(mails).toContain(`Zentrix: Activation payment ${res.body.deposit.reference} received`);
-    expect(mails.filter(m => m === 'Zentrix: Account activated')).toHaveLength(1); // the replay sends nothing
+    expect(mails).toContain('Pexerearn: Account activated');
+    expect(mails).toContain(`Pexerearn: Activation payment ${res.body.deposit.reference} received`);
+    expect(mails.filter(m => m === 'Pexerearn: Account activated')).toHaveLength(1); // the replay sends nothing
     expect((await app.owner.query(`SELECT 1 FROM audit_log WHERE action = 'deposit.confirmed' AND target_id = $1`, [res.body.deposit.reference])).rowCount).toBe(1);
     expect((await claim(member)).body.error?.code).toBe('deposit.already_active');
   });
@@ -228,7 +228,7 @@ describe('wallet deposits', () => {
     const s = await summary(member);
     expect([s.availableBalanceMinor, s.totalDepositedMinor, s.expensesMinor]).toEqual(['19500', '19500', FEE]);
     await new Promise(r => setTimeout(r, 300));
-    expect((await app.outbox(member.input.email)).some(m => m.subject === `Zentrix: Deposit ${res.body.deposit.reference} credited`)).toBe(true);
+    expect((await app.outbox(member.input.email)).some(m => m.subject === `Pexerearn: Deposit ${res.body.deposit.reference} credited`)).toBe(true);
     // An activation payment cannot carry an amount of its own.
     const other = await verifiedMember();
     expect((await claim(other, { amount: '100' })).body.error?.fields?.amount).toBeDefined();
@@ -273,7 +273,7 @@ describe('referral rewards', () => {
     const ugandan = await verifiedMember();
     const kenyan = await verifiedMember({ country: 'KE', phone: kenyanPhone(), referralCode: ugandan.input.username });
     await app.owner.query(
-      `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number) VALUES ('mpesa_test', 'M-Pesa', 'KE', 'KES', 'ZENTRIX TEST', '000111') ON CONFLICT DO NOTHING`,
+      `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number) VALUES ('mpesa_test', 'M-Pesa', 'KE', 'KES', 'PEXEREARN TEST', '000111') ON CONFLICT DO NOTHING`,
     );
     const d = await kenyan.client.post<Body>('/api/payments/deposits', { channel: 'mpesa_test', senderPhone: kenyan.input.phone, providerTxnId: txnId() }, key());
     expect(d.status, JSON.stringify(d.body)).toBe(201);
@@ -438,14 +438,14 @@ describe('payment issues', () => {
     expect(queue.body.issues.find((i: Body) => i.id === id).awaitingStaff).toBe(true);
     await supportClient.post(`/api/admin/payments/issues/${id}/messages`, { body: 'We are checking the statement now.' });
     await new Promise(r => setTimeout(r, 300));
-    const reply = (await app.outbox(member.input.email)).find(m => m.subject === 'Zentrix: reply to your payment report');
+    const reply = (await app.outbox(member.input.email)).find(m => m.subject === 'Pexerearn: reply to your payment report');
     expect(reply?.body).toContain('We are checking the statement now.');
     expect((await supportClient.post<Body>(`/api/admin/payments/issues/${id}/status`, { status: 'resolved' })).body.error?.fields?.resolution).toBeDefined();
     await supportClient.post(`/api/admin/payments/issues/${id}/status`, { status: 'resolved', resolution: 'Payment confirmed by finance.' });
 
     const thread = await member.client.get<Body>(`/api/payments/issues/${id}`);
     expect(thread.body.issue.status).toBe('resolved');
-    expect(thread.body.messages.map((m: Body) => m.author)).toEqual([member.input.username, 'Zentrix support', 'Zentrix support']);
+    expect(thread.body.messages.map((m: Body) => m.author)).toEqual([member.input.username, 'Pexerearn support', 'Pexerearn support']);
     expect((await other.client.get<Body>(`/api/payments/issues/${id}`)).status).toBe(404);
   });
 });
@@ -459,5 +459,70 @@ describe('ledger explorer', () => {
       expect(sum).toBe(0n);
     }
     expect((await supportClient.get<Body>('/api/admin/payments/ledger')).status).toBe(403);
+  });
+});
+
+describe('vouchers', () => {
+  it('offers only values of at least the activation fee and refuses a cheaper voucher', async () => {
+    const buyer = await verifiedMember();
+    await fund(buyer, '100000');
+    const list = await buyer.client.get<Body>('/api/vouchers');
+    expect(list.body.activationFeeMinor).toBe(FEE);
+    expect(list.body.valueOptions.map((o: Body) => o.amountMinor)).toEqual(['19000', '38000', '57000', '95000']);
+    const cheap = await buyer.client.post<Body>('/api/vouchers/buy', { amount: '18999', quantity: 1 }, key());
+    expect([cheap.status, cheap.body.error?.fields?.amount]).toEqual([400, ['Must be at least the activation fee.']]);
+    expect((await summary(buyer)).availableBalanceMinor).toBe('100000');
+    // Vouchers no longer go into a wallet: they only activate accounts.
+    expect((await buyer.client.post<Body>('/api/vouchers/redeem', { code: 'ZX-AAAA-BBBB-CCCC' }, key())).status).toBe(404);
+  });
+
+  it('activates another member once, pays the referral rewards and credits any value above the fee', async () => {
+    const buyer = await verifiedMember();
+    await fund(buyer, '38000');
+    const referrer = await verifiedMember();
+    await activate(referrer);
+    const target = await verifiedMember({ referralCode: referrer.input.username });
+    const bought = await buyer.client.post<Body>('/api/vouchers/buy', { amount: '38000', quantity: 1 }, key());
+    expect(bought.status, JSON.stringify(bought.body)).toBe(201);
+    const code = bought.body.vouchers[0].code as string;
+    expect((await summary(buyer)).availableBalanceMinor).toBe('0');
+
+    const headers = key();
+    const res = await buyer.client.post<Body>('/api/vouchers/activate', { code, username: `@${target.input.username.toUpperCase()}` }, headers);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.username).toBe(target.input.username);
+    const replay = await buyer.client.post<Body>('/api/vouchers/activate', { code, username: `@${target.input.username.toUpperCase()}` }, headers);
+    expect(replay.body).toEqual(res.body);
+
+    expect(((await target.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
+    expect((await summary(target)).availableBalanceMinor).toBe('19000');
+    expect((await summary(referrer)).referralEarningsMinor).toBe('10000');
+    const fees = await app.owner.query<{ n: string }>(
+      `SELECT count(*) AS n FROM memberships m JOIN users u ON u.id = m.user_id WHERE u.public_id = $1 AND m.fee_minor = 19000`, [target.user.id],
+    );
+    expect(fees.rows[0]!.n).toBe('1');
+    const mine = (await buyer.client.get<Body>('/api/vouchers')).body.vouchers[0];
+    expect(mine).toMatchObject({ code, status: 'used', usedBy: target.input.username });
+
+    // A used voucher cannot be used again, even for another account.
+    const other = await verifiedMember();
+    expect((await buyer.client.post<Body>('/api/vouchers/activate', { code, username: other.input.username }, key())).body.error?.code).toBe('voucher.already_used');
+  });
+
+  it('refuses an activated account, an unknown username and another member\'s voucher', async () => {
+    const buyer = await verifiedMember();
+    await fund(buyer, '19000');
+    const code = (await buyer.client.post<Body>('/api/vouchers/buy', { amount: FEE, quantity: 1 }, key())).body.vouchers[0].code as string;
+    const active = await verifiedMember();
+    await activate(active);
+    const already = await buyer.client.post<Body>('/api/vouchers/activate', { code, username: active.input.username }, key());
+    expect(already.body.error?.fields?.username).toEqual(['That account is already activated.']);
+    const unknown = await buyer.client.post<Body>('/api/vouchers/activate', { code, username: 'no_such_member_x' }, key());
+    expect(unknown.body.error?.fields?.username).toEqual(['No member has that username.']);
+    // Someone else cannot spend the buyer's voucher.
+    const target = await verifiedMember();
+    expect((await active.client.post<Body>('/api/vouchers/activate', { code, username: target.input.username }, key())).status).toBe(404);
+    expect(((await target.client.get<Body>('/api/me')).body.user as Body).activated).toBe(false);
+    expect((await buyer.client.get<Body>('/api/vouchers')).body.vouchers[0].status).toBe('active');
   });
 });

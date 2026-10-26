@@ -146,8 +146,8 @@ export async function login(services: Services, raw: unknown, meta: RequestMeta)
       try {
         await services.mailer.send({
           to: user.email,
-          subject: 'Your Zentrix sign-in code',
-          text: `Your Zentrix sign-in code is ${emailCode}.
+          subject: 'Your Pexerearn sign-in code',
+          text: `Your Pexerearn sign-in code is ${emailCode}.
 
 It expires in 5 minutes and works once. If you did not just sign in, change your password now.`,
         });

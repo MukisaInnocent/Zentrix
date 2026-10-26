@@ -34,7 +34,7 @@ export async function ensureTestChannel(services: Services, member: { countryCod
   if (!enabled(services)) return;
   await services.pool.query(
     `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, merchant_code, instructions)
-     VALUES ($1, 'Test payment', $2, $3, 'ZENTRIX TEST', 'TEST', 'TEST', 'TEST MODE: payments pass automatically. Do not send real money.')
+     VALUES ($1, 'Test payment', $2, $3, 'PEXEREARN TEST', 'TEST', 'TEST', 'TEST MODE: payments pass automatically. Do not send real money.')
      ON CONFLICT (code) DO NOTHING`,
     [`test_auto_${member.countryCode.toLowerCase()}`, member.countryCode, member.currency],
   );

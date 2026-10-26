@@ -136,7 +136,7 @@ export async function init() {
               inputEl.style.borderColor = 'var(--zx-danger)';
               inputEl.setAttribute('aria-invalid', 'true');
             }
-            const fieldLabel = field === 'referralCode' ? 'Referred by' : field.charAt(0).toUpperCase() + field.slice(1);
+            const fieldLabel = field === 'referralCode' ? 'Invited by' : field.charAt(0).toUpperCase() + field.slice(1);
             const msgList = Array.isArray(msgs) ? msgs.join(', ') : String(msgs);
             errorMessages.push(`<strong>${fieldLabel}:</strong> ${msgList}`);
           }

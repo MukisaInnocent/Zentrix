@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Vouchers · Zentrix</title>
-<meta name="description" content="Purchase and redeem wallet vouchers.">
+<title>Vouchers · Pexerearn</title>
+<meta name="description" content="Buy vouchers and use them to activate other members' accounts.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -17,7 +17,7 @@
   <div class="zx-page-head">
     <div>
       <h1>Vouchers</h1>
-      <p>Create gift vouchers for downlines or redeem a voucher code into your wallet.</p>
+      <p>Buy vouchers from your balance and use them to activate accounts that have not paid the activation fee yet.</p>
     </div>
   </div>
   <div class="zx-stat-grid zx-stat-grid--2">
@@ -30,24 +30,20 @@
     <div class="zx-stat zx-stat--mint">
       <div class="zx-stat__badge"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#ticket"></use></svg></div>
       <div id="active-vouchers-count" class="zx-stat__value">0</div>
-      <div class="zx-stat__label">My Active Vouchers</div>
-      <div class="zx-stat__note">Available to share or redeem</div>
+      <div class="zx-stat__label">My Unused Vouchers</div>
+      <div class="zx-stat__note">Each one can activate one account</div>
     </div>
   </div>
   <div class="zx-split">
     <div class="zx-card">
       <h2>Buy a Voucher</h2>
-      <p class="zx-hint">Purchased vouchers are generated with a unique code you can share.</p>
+      <p id="buy-hint" class="zx-hint">Each voucher is worth at least the activation fee.</p>
       <form id="buy-voucher-form" class="zx-form">
         <div id="buy-alert" class="zx-error zx-error--slot" role="alert"></div>
         <div class="zx-field">
-          <label for="voucher-value">Voucher Value (UGX)</label>
+          <label id="voucher-value-label" for="voucher-value">Voucher Value (UGX)</label>
           <select id="voucher-value" class="zx-select" name="amount">
-            <option value="5000">UGX 5,000</option>
-            <option value="10000">UGX 10,000</option>
-            <option value="19000" selected>UGX 19,000</option>
-            <option value="20000">UGX 20,000</option>
-            <option value="50000">UGX 50,000</option>
+            <option value="">Loading...</option>
           </select>
         </div>
         <div class="zx-field">
@@ -58,15 +54,21 @@
       </form>
     </div>
     <div class="zx-card">
-      <h2>Redeem a Voucher</h2>
-      <p class="zx-hint">Enter your voucher code to credit the amount directly to your wallet.</p>
-      <form id="redeem-voucher-form" class="zx-form">
-        <div id="redeem-alert" class="zx-error zx-error--slot" role="alert"></div>
+      <h2>Activate a User</h2>
+      <p class="zx-hint">Enter the username of an account that is not activated yet. One of your unused vouchers pays its activation fee. Any value above the fee goes to that member's main balance.</p>
+      <form id="activate-user-form" class="zx-form">
+        <div id="activate-alert" class="zx-error zx-error--slot" role="alert"></div>
         <div class="zx-field">
-          <label for="redeem-code">Voucher Code</label>
-          <input id="redeem-code" class="zx-input zx-input--code" name="code" required placeholder="ZX-XXXX-XXXX">
+          <label for="activate-username">Username</label>
+          <input id="activate-username" class="zx-input" name="username" required minlength="3" maxlength="40" autocomplete="off" placeholder="e.g. alex256">
         </div>
-        <button id="redeem-submit" class="zx-btn zx-btn--block zx-btn--secondary" type="submit">Redeem Code</button>
+        <div class="zx-field">
+          <label for="activate-code">Voucher</label>
+          <select id="activate-code" class="zx-select" name="code" required>
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        <button id="activate-submit" class="zx-btn zx-btn--block zx-btn--secondary" type="submit">Activate User</button>
       </form>
     </div>
   </div>
@@ -76,9 +78,9 @@
     </div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Voucher Code</th><th scope="col">Value</th><th scope="col">Created Date</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+        <thead><tr><th scope="col">Voucher Code</th><th scope="col">Value</th><th scope="col">Created Date</th><th scope="col">Status</th><th scope="col">Activated Username</th><th scope="col">Activated Date</th></tr></thead>
         <tbody id="vouchers-body">
-          <tr><td colspan="5" class="zx-td-empty">Loading vouchers...</td></tr>
+          <tr><td colspan="6" class="zx-td-empty">Loading vouchers...</td></tr>
         </tbody>
       </table>
     </div>

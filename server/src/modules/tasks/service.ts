@@ -34,11 +34,11 @@ export async function ensureDefaultTasks(db: Db): Promise<void> {
   const defaults = [
     // YouTube
     { module: 'youtube', title: 'Watch Tech Trends 2026', description: 'Watch the full 3-minute video on emerging mobile technologies.', reward: 1500, url: 'https://youtube.com', duration: 180 },
-    { module: 'youtube', title: 'Subscribe to Zentrix Official', description: 'Subscribe to our official YouTube channel and hit the notification bell.', reward: 1000, url: 'https://youtube.com', duration: 60 },
+    { module: 'youtube', title: 'Subscribe to Pexerearn Official', description: 'Subscribe to our official YouTube channel and hit the notification bell.', reward: 1000, url: 'https://youtube.com', duration: 60 },
     { module: 'youtube', title: 'Review Mobile Wallet Security', description: 'Learn key security practices for safeguarding your digital wallet credentials.', reward: 2000, url: 'https://youtube.com', duration: 240 },
 
     // TikTok
-    { module: 'tiktok', title: 'Watch Zentrix Life Highlights', description: 'Watch and like the featured member story highlight on TikTok.', reward: 1200, url: 'https://tiktok.com', duration: 45 },
+    { module: 'tiktok', title: 'Watch Pexerearn Life Highlights', description: 'Watch and like the featured member story highlight on TikTok.', reward: 1200, url: 'https://tiktok.com', duration: 45 },
     { module: 'tiktok', title: 'Follow Creator of the Week', description: 'Follow our partner creator specializing in personal finance education.', reward: 800, url: 'https://tiktok.com', duration: 30 },
     { module: 'tiktok', title: 'Share TikTok Educational Reel', description: 'Share the short clip about budgeting in local currencies to your profile.', reward: 1500, url: 'https://tiktok.com', duration: 60 },
 

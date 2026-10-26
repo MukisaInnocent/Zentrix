@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Activate account · Zentrix</title>
-<meta name="description" content="Pay the one-time activation fee to open your Zentrix account.">
+<title>Activate account · Pexerearn</title>
+<meta name="description" content="Pay the one-time activation fee to open your Pexerearn account.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -49,10 +49,6 @@
         <input id="activate-phone" class="zx-input" name="senderPhone" type="tel" inputmode="tel" autocomplete="tel" required>
         <span id="activate-phone-error" class="zx-error" hidden></span>
       </div>
-      <div class="zx-field">
-        <label for="activate-note">Note <span class="zx-hint">(optional)</span></label>
-        <input id="activate-note" class="zx-input" name="note" maxlength="300" data-optional>
-      </div>
       <button id="activate-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit payment</button>
     </form>
   </section>
@@ -62,15 +58,6 @@
     <p class="zx-hint">Your account opens as soon as our team finds it on the statement. This page updates by itself.</p>
   </section>
 
-  <section class="zx-card">
-    <div class="zx-section-title"><h2>Your payments</h2></div>
-    <div class="zx-table-wrap">
-      <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Transaction ID</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
-        <tbody id="payments-body"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
-      </table>
-    </div>
-  </section>
 </div>
 </main>
 </body>

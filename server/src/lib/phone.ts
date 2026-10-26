@@ -1,6 +1,6 @@
 import { parsePhoneNumberFromString, type PhoneNumber } from 'libphonenumber-js/max';
 
-// Phone numbers everywhere in Zentrix start with the country code (owner, 2026-10-25): "+256700000001" or
+// Phone numbers everywhere in Pexerearn start with the country code (owner, 2026-10-25): "+256700000001" or
 // "256700000001". Local formats such as "0700000001" are refused, never guessed. The number is stored as E.164.
 export function parseInternational(input: string): PhoneNumber | null {
   let digits = input.replace(/[\s\-().]/g, '');

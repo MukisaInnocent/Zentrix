@@ -1,4 +1,4 @@
-# Zentrix delivery plan
+# Pexerearn delivery plan
 
 | | |
 |---|---|
@@ -6,7 +6,7 @@
 | Date | Drafted and updated 2026-10-21 |
 | Next step | Phase 1. The owner still needs to choose a single-level referral reward (section 12). |
 
-This plan explains how the Zentrix master prompt (sections 0 to 17) will be delivered. The master prompt is the requirement. Where this plan and the master prompt disagree, the master prompt wins, and its section 3 rules always win. Questions the owner leaves unanswered use the defaults in section 10 and are marked `TODO(owner)` in code and settings.
+This plan explains how the Pexerearn master prompt (sections 0 to 17) will be delivered. The master prompt is the requirement. Where this plan and the master prompt disagree, the master prompt wins, and its section 3 rules always win. Questions the owner leaves unanswered use the defaults in section 10 and are marked `TODO(owner)` in code and settings.
 
 The plan was written before any application code. The owner's answers of 2026-10-21, and how they change this plan, are recorded in section 12.
 
@@ -29,7 +29,7 @@ The plan was written before any application code. The owner's answers of 2026-10
 
 ## 1. Repository and machine today
 
-**Repository** (branch `main`, remote `github.com/MukisaInnocent/Zentrix`):
+**Repository** (branch `main`, remote `github.com/MukisaInnocent/Pexerearn`):
 
 - The static demo sits at the repository root, not in a `zentrix-site/` folder. It has 25 HTML pages (24 committed, plus the uncommitted `payment.html`), `css/style.css`, `css/landing.css`, `js/app.js` (drawer navigation, inline SVG icons) and `js/landing.js`.
 - An uncommitted backend prototype exists: `server.js`, `db/schema.sql`, `js/backend.js`, `payment.html`, `scripts/migrate.js`, `test/server.test.js`, `render.yaml` and `.env.example`. It changes balances with direct `UPDATE` statements, has no ledger, and its tests run on `pg-mem`. It will be replaced, not extended. Phase 1 first commits it unchanged so it stays in history.
@@ -55,11 +55,11 @@ The plan was written before any application code. The owner's answers of 2026-10
 
 ## 2. The reference screenshots
 
-The screenshots show another earning platform. Section 1 of the master prompt allows its look to inspire ours ("similar in spirit") but forbids copying its logo, text or assets. Zentrix gets its own name, logo, copy and illustrations.
+The screenshots show another earning platform. Section 1 of the master prompt allows its look to inspire ours ("similar in spirit") but forbids copying its logo, text or assets. Pexerearn gets its own name, logo, copy and illustrations.
 
 **Adopted as visual patterns**
 
-| Pattern in the screenshots | How it appears in Zentrix |
+| Pattern in the screenshots | How it appears in Pexerearn |
 |---|---|
 | Dark teal headers and cards on a light grey page | Our own teal palette (around `#0E5C63`) on `#F4F7F9`, plus a dark theme |
 | Pastel stat cards with a white round icon badge and a round "notch" action button in the corner | Available balance, total earned, total withdrawn, pending withdrawals and referral rewards cards |
@@ -314,7 +314,7 @@ The tree after Phase 1. Modules fill in phase by phase.
       core/                   api.js, i18n.js, money.js, dom.js, toast.js, forms.js, icons.js, svg-chart.js
       pages/                  one module per page
     locales/en.json
-    img/                      Zentrix logo and illustrations (SVG, our own)
+    img/                      Pexerearn logo and illustrations (SVG, our own)
 ```
 
 ---
@@ -349,7 +349,7 @@ Each phase ends only when its tests pass. Money phases (2, 3 and 4) are written 
 3. The ledger service: the only module that writes ledger rows, through one `post()` function that handles lock order, retries and idempotency.
 4. System accounts per currency, created when a currency is enabled.
 5. Wallet API and pages: the main balance and every task-module balance, a filtered and paginated statement, and per-module earnings.
-6. Deposits through the provider API: "Deposit now" (amount, paying phone number, method) sends a collection request that the member approves on their own phone, so their PIN never touches Zentrix. The provider's signed webhook, or a status lookup, confirms the payment, and the credit happens in one transaction. "Claim deposit" by transaction ID covers payments made outside a request. States: pending, confirmed, failed, expired and unmatched.
+6. Deposits through the provider API: "Deposit now" (amount, paying phone number, method) sends a collection request that the member approves on their own phone, so their PIN never touches Pexerearn. The provider's signed webhook, or a status lookup, confirms the payment, and the credit happens in one transaction. "Claim deposit" by transaction ID covers payments made outside a request. States: pending, confirmed, failed, expired and unmatched.
 7. Webhook receiver `POST /api/payments/webhooks/:provider`: signature verification per provider, a replay window, dedupe by provider event id, the raw payload stored but never logged, and checks of amount, currency and reference against the pending request before any credit. Unmatched payments are held in suspense.
 8. Payment provider interface (`collect`, `payout`, `verifyWebhook`, `getStatus`) with a simulated mobile-money provider whose webhooks pass through the same verification path as real ones.
 9. Test-mode payment simulator: an admin page and a CLI that approve or fail simulated collections, and send duplicate, tampered or unmatched webhooks.
@@ -426,7 +426,7 @@ CI runs lint, typecheck, migrations from scratch, all tests, `npm audit` and the
 | # | Risk | Impact | Mitigation |
 |---|---|---|---|
 | R1 | Regulation. Membership fees plus paid tasks plus referral rewards resemble schemes that regulators have warned about. Holding customer money may need a payment or e-money licence (in Uganda, under the National Payment Systems Act 2020, supervised by the Bank of Uganda). Data-protection registration and tax obligations also apply. | Live launch blocked, personal liability | The owner removed the legal sign-off gate (section 12), so the owner carries this risk. The design still excludes multi-level, gambling and lending features, and LEGAL_CHECKLIST.md stays as advice. |
-| R2 | Platform terms. Paying people to like, follow, subscribe or view on YouTube, TikTok or Meta breaks those platforms' fake-engagement policies. | Banned advertiser and member accounts, reputational and legal exposure | Decision D26. Prefer task types that don't inflate metrics: watch-and-answer quizzes, surveys, app and website testing, and ads shown inside Zentrix. |
+| R2 | Platform terms. Paying people to like, follow, subscribe or view on YouTube, TikTok or Meta breaks those platforms' fake-engagement policies. | Banned advertiser and member accounts, reputational and legal exposure | Decision D26. Prefer task types that don't inflate metrics: watch-and-answer quizzes, surveys, app and website testing, and ads shown inside Pexerearn. |
 | R3 | Forged or replayed payment webhooks | False credits | Signature checks, a replay window, event-id dedupe, amount and reference checks against the pending request, status lookups before large credits, and daily reconciliation against provider statements |
 | R4 | Provider outages or late webhooks | Deposits and payouts stuck pending | Status polling, expiry, clear member messages and a runbook entry |
 | R5 | No payment provider chosen yet (Q6) | The real integration cannot be built or tested | The provider interface and simulator now, and an adapter once you choose |
@@ -494,5 +494,6 @@ Answers received on 2026-10-21, and what they change. Questions not listed here 
 | Admin dashboard (2026-10-24) | Audit all deposits and withdrawals, handle deposit and withdrawal issues, view data in real time, handle system issues, mobile responsive | Staff console under `/admin`: live overview (polls every 5 s), deposit and withdrawal queues with detail sheets, payment issues, balance check with channel statements, pause switches and treasury, ledger explorer, members and audit log. Responsive from 360 px; tables stack as cards on phones. |
 
 | Member side (2026-10-25) | Activation fee paid first; balance only from referrals; dashboard with expenses, profit, balance, total and net earnings, pending withdrawals, details and refer-and-earn; Referrals menu (Level 1 overview, active, inactive; Level 2; Level 3) in tables; no date of birth; referral by username; country codes on every phone; every country supported with country-based currency and payment methods; users change password, email and phone only after contacting the admin | Built in Phase 2 (migrations 0009 to 0011). Dashboard figures: balance = main balance (referral money); total earnings = referral rewards + task rewards; expenses = activation fee paid; net earnings = total earnings - expenses. Open for the owner: the "30 referrals earns 4000" bonus (one-time or repeating, on top of the per-referral rewards, and whether it conflicts with rule 3.3), and whether net earnings should be defined differently. |
+| Rename and vouchers (2026-10-26) | The site is renamed Pexerearn; register shows "Invited by" (locked, filled from the invite link); vouchers activate other members instead of going into a wallet; vouchers are worth at least the activation fee; tables stay tables on every screen size; an internal chat | Built: visible name changed everywhere (internal identifiers such as database, package and service names stay `zentrix`). Voucher activation: fee voucher_liability -> platform_revenue, any value above the fee to the activated member's main balance, referral rewards as for a paid activation. Redeem-to-wallet removed. Open for the owner: what "internal chat" means (member to support, staff only, or member to member, which touches rule 3.4). |
 
 Unanswered questions use their defaults: Q3, Q10, Q12 and Q13. Q9 no longer applies. Referral rewards (owner, 2026-10-24): keep the existing multi-level logic, levels 1 to 3 at UGX 10,000 / 5,000 / 2,000, paid at sign-up and at membership activation. Rewards now move through the ledger from platform revenue.

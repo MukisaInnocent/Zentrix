@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Join · Zentrix</title>
-<meta name="description" content="Create your Zentrix account.">
+<title>Join · Pexerearn</title>
+<meta name="description" content="Create your Pexerearn account.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -14,7 +14,7 @@
 <body data-page="register" data-shell="plain">
 <div class="zx-auth-layout">
   <aside class="zx-auth-art" aria-hidden="true">
-    <a class="zx-brand" href="/" tabindex="-1"><img src="/img/mark.svg" alt=""><span>Zentrix</span></a>
+    <a class="zx-brand" href="/" tabindex="-1"><img src="/img/mark.svg" alt=""><span>Pexerearn</span></a>
     <h2>Start with a wallet that shows its working.</h2>
     <p>Create an account, pay the activation fee and pick up funded tasks. Every fee is shown before you confirm.</p>
     <ul class="zx-auth-points">
@@ -26,10 +26,10 @@
 
   <div class="zx-auth-panel">
     <div class="zx-auth-card zx-auth-card--wide">
-      <a href="/" class="zx-brand"><img src="/img/mark.svg" alt=""><span>Zentrix</span></a>
+      <a href="/" class="zx-brand"><img src="/img/mark.svg" alt=""><span>Pexerearn</span></a>
 
-      <h1>Join Zentrix</h1>
-      <p class="zx-lead">Do funded tasks, learn new skills and keep your earnings in one place. Zentrix does not promise any income.</p>
+      <h1>Join Pexerearn</h1>
+      <p class="zx-lead">Do funded tasks, learn new skills and keep your earnings in one place. Pexerearn does not promise any income.</p>
 
       <form id="register-form" class="zx-form">
         <div id="register-alert" class="zx-error zx-error--slot" role="alert"></div>
@@ -68,8 +68,8 @@
             <div class="zx-hint">Min. 10 chars. Avoid your name or common words.</div>
           </div>
           <div class="zx-field">
-            <label for="referralCode">Referred by <span class="zx-hint">(optional)</span></label>
-            <input id="referralCode" class="zx-input" name="referralCode" maxlength="30" autocomplete="off" placeholder="Username of who invited you">
+            <label for="referralCode">Invited by</label>
+            <input id="referralCode" class="zx-input" name="referralCode" maxlength="30" autocomplete="off" readonly aria-readonly="true" placeholder="Filled in from your invite link">
           </div>
         </div>
 

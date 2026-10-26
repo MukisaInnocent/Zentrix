@@ -81,7 +81,7 @@ describe('email', () => {
     expect((await member.client.post('/api/me/email', { newEmail, password: PASSWORD })).status).toBe(200);
     expect(((await member.client.get<Body>('/api/me')).body.user as Body).email).toBe(newEmail);
     await new Promise(r => setTimeout(r, 300));
-    expect((await app.outbox(member.input.email)).some(m => m.subject === 'Your Zentrix email address was changed')).toBe(true);
+    expect((await app.outbox(member.input.email)).some(m => m.subject === 'Your Pexerearn email address was changed')).toBe(true);
     expect((await member.client.post<Body>('/api/me/email', { newEmail: `again_${newEmail}`, password: PASSWORD })).body.error?.code).toBe('change.locked');
   });
 });

@@ -27,8 +27,8 @@
     "notVerified": "Not verified",
     "showPassword": "Show password",
     "optional": "optional",
-    "draftNotice": "Draft for the test stage. The owner will replace this text before Zentrix takes real money.",
-    "noIncomeGuarantee": "What you earn depends on the funded tasks available. Zentrix does not guarantee any income."
+    "draftNotice": "Draft for the test stage. The owner will replace this text before Pexerearn takes real money.",
+    "noIncomeGuarantee": "What you earn depends on the funded tasks available. Pexerearn does not guarantee any income."
   },
   "nav": {
     "group": {
@@ -153,7 +153,7 @@
     "lead": "Complete tasks that advertisers have paid for, learn new skills with courses and e-books, and manage your money in your own currency.",
     "ctaJoin": "Create an account",
     "ctaSignIn": "Member sign in",
-    "featuresTitle": "What you can do on Zentrix",
+    "featuresTitle": "What you can do on Pexerearn",
     "featuresLead": "Every task shows its reward before you start, and every balance comes straight from our ledger.",
     "featureTasksTitle": "Funded tasks",
     "featureTasksText": "YouTube, TikTok, ad viewing, trivia, Fix Tap micro-tasks and music streaming. Rewards come from the advertiser's prepaid budget.",
@@ -177,7 +177,7 @@
     "step3Text": "Rewards are credited after each task is checked. Withdraw to your verified mobile number.",
     "faqTitle": "Questions people ask",
     "faq1Q": "Is income guaranteed?",
-    "faq1A": "No. What you earn depends on the funded tasks available and how many you complete. Zentrix never promises a fixed or typical income.",
+    "faq1A": "No. What you earn depends on the funded tasks available and how many you complete. Pexerearn never promises a fixed or typical income.",
     "faq2Q": "What does the activation fee buy?",
     "faq2A": "Access to task modules, the learning library and member support. It is a service fee, not an investment, and it is not paid to other members.",
     "faq3Q": "Where do task rewards come from?",
@@ -185,7 +185,7 @@
     "faq4Q": "Can I change my phone number?",
     "faq4A": "Payouts only go to your verified number, so only support can change it after checking your identity. Withdrawals then pause for 48 hours.",
     "ctaTitle": "Ready to look around?",
-    "ctaText": "Zentrix is in its test stage. Accounts work, but no real money moves yet."
+    "ctaText": "Pexerearn is in its test stage. Accounts work, but no real money moves yet."
   },
   "login": {
     "artTitle": "Welcome back.",
@@ -197,7 +197,7 @@
     "forgot": "Forgot password?",
     "submit": "Sign in",
     "expired": "Please sign in to continue where you left off.",
-    "noAccount": "New to Zentrix?",
+    "noAccount": "New to Pexerearn?",
     "createAccount": "Create an account",
     "mfaTitle": "Two-step verification",
     "mfaLead": "Enter the 6-digit code from your authenticator app, or one of your recovery codes.",
@@ -207,7 +207,7 @@
     "staffEnrol": "Staff accounts need two-step verification. Set it up now to use staff tools."
   },
   "register": {
-    "artTitle": "Join Zentrix.",
+    "artTitle": "Join Pexerearn.",
     "artText": "Tasks funded by real advertisers, a learning library, and a wallet in your own currency.",
     "title": "Create your account",
     "lead": "It takes about two minutes.",
@@ -230,7 +230,7 @@
     "acceptTermsLink": "Terms",
     "acceptPrivacyBefore": "I have read the",
     "acceptPrivacyLink": "Privacy notice",
-    "pinNote": "Zentrix will never ask for your mobile-money PIN.",
+    "pinNote": "Pexerearn will never ask for your mobile-money PIN.",
     "submit": "Create account",
     "haveAccount": "Already have an account?"
   },

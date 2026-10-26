@@ -1,30 +1,54 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { maybeOne, one, rows } from '../../db/sql.js';
+import { maybeOne, one, rows, type Db } from '../../db/sql.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { parse } from '../../http/validate.js';
 import { randomCode } from '../../lib/crypto.js';
+import { toDecimalString } from '../../lib/money.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent } from '../ledger/idempotency.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
+import { notifyVoucherActivation } from '../notifications/notify.js';
+import { exponentOf } from '../payments/common.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
-import { memberInfo, newReference, requireActive } from '../wallet/service.js';
+import { distributeReferralRewards } from '../referrals/service.js';
+import { memberInfo, newReference, requireActive, requireConfig } from '../wallet/service.js';
 
-// Vouchers: the buyer's main balance moves to voucher_liability; redeeming moves it to the redeemer's main
-// balance. Full Phase 4 vouchers (expiry, encrypted codes) are still to come.
+// Vouchers are bought from the main balance (main -> voucher_liability) and used to activate another member's
+// account. A voucher is worth at least the activation fee. On use the fee goes voucher_liability -> platform
+// revenue, any value above the fee goes to the activated member's main balance, and referral rewards are paid as
+// for a confirmed activation payment. Full Phase 4 vouchers (expiry, encrypted codes) are still to come.
+const VALUE_MULTIPLES = [1n, 2n, 3n, 5n];
+
+async function activationFee(db: Db, countryCode: string): Promise<bigint> {
+  return BigInt((await requireConfig(db, countryCode)).membershipFeeMinor);
+}
+
 export function vouchersRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
   router.use(requireAuth, requireActivated(services));
 
   router.get('/', async (req, res) => {
-    const list = await rows<{ id: string; code: string; amount_minor: string; currency_code: string; status: string; created_at: Date }>(
+    const member = await memberInfo(pool, req.auth!.userId);
+    const fee = await activationFee(pool, member.countryCode);
+    const exponent = await exponentOf(pool, member.currency);
+    const list = await rows<{ code: string; amount_minor: string; currency_code: string; status: string; created_at: Date; used_by: string | null; used_at: Date | null }>(
       pool,
-      'SELECT id, code, amount_minor, currency_code, status, created_at FROM vouchers WHERE creator_user_id = $1 ORDER BY created_at DESC',
+      `SELECT v.code, v.amount_minor, v.currency_code, v.status, v.created_at, r.username AS used_by, v.redeemed_at AS used_at
+       FROM vouchers v LEFT JOIN users r ON r.id = v.redeemed_by_user_id WHERE v.creator_user_id = $1 ORDER BY v.created_at DESC`,
       [req.auth!.userId],
     );
-    res.json({ vouchers: list.map(v => ({ id: v.id, code: v.code, amountMinor: v.amount_minor, currency: v.currency_code, status: v.status, createdAt: v.created_at })) });
+    res.json({
+      currency: member.currency,
+      activationFeeMinor: fee.toString(),
+      valueOptions: VALUE_MULTIPLES.map(m => ({ amount: toDecimalString(fee * m, exponent), amountMinor: (fee * m).toString() })),
+      vouchers: list.map(v => ({
+        code: v.code, amountMinor: v.amount_minor, currency: v.currency_code, status: v.status === 'redeemed' ? 'used' : v.status,
+        createdAt: v.created_at, usedBy: v.used_by, usedAt: v.used_at,
+      })),
+    });
   });
 
   router.post('/buy', async (req, res) => {
@@ -34,6 +58,9 @@ export function vouchersRouter(services: Services): Router {
       const member = await memberInfo(db, userId);
       requireActive(member);
       const each = await amountToMinor(db, member.currency, input.amount);
+      if (each < (await activationFee(db, member.countryCode))) {
+        throw badRequest('validation_failed', 'A voucher must be worth at least the activation fee.', { amount: ['Must be at least the activation fee.'] });
+      }
       const main = await accountId(db, { kind: 'member_main', userId, currency: member.currency });
       const liability = await accountId(db, { kind: 'voucher_liability', currency: member.currency });
       let txn: number;
@@ -57,24 +84,56 @@ export function vouchersRouter(services: Services): Router {
     res.status(result.status).json(result.body);
   });
 
-  router.post('/redeem', async (req, res) => {
-    const input = parse(z.strictObject({ code: z.string().trim().toUpperCase().max(25) }), req.body);
-    const result = await idempotent(pool, req, 'voucher.redeem', async db => {
+  // Activates a member who has not paid yet, using one of the buyer's own unused vouchers.
+  router.post('/activate', async (req, res) => {
+    const input = parse(
+      z.strictObject({
+        code: z.string().trim().toUpperCase().min(1, { error: 'Choose a voucher.' }).max(25),
+        username: z.string().trim().min(3, { error: 'Enter the username of the account to activate.' }).max(40),
+      }),
+      req.body,
+    );
+    const result = await idempotent(pool, req, 'voucher.activate', async db => {
       const userId = req.auth!.userId;
-      const member = await memberInfo(db, userId);
-      requireActive(member);
-      const voucher = await maybeOne<{ id: string; code: string; amount_minor: string; currency_code: string; status: string }>(
-        db, 'SELECT id, code, amount_minor, currency_code, status FROM vouchers WHERE code = $1 FOR UPDATE', [input.code],
+      requireActive(await memberInfo(db, userId));
+      const voucher = await maybeOne<{ id: string; code: string; creator_user_id: string; amount_minor: string; currency_code: string; status: string }>(
+        db, 'SELECT id, code, creator_user_id, amount_minor, currency_code, status FROM vouchers WHERE code = $1 FOR UPDATE', [input.code],
       );
-      if (!voucher) throw notFound('voucher.not_found', 'Voucher code not found.');
-      if (voucher.status !== 'active') throw badRequest('voucher.already_used', 'This voucher has already been redeemed or cancelled.');
-      if (voucher.currency_code !== member.currency) throw badRequest('voucher.currency', 'This voucher is in another currency.');
-      const liability = await accountId(db, { kind: 'voucher_liability', currency: member.currency });
-      const main = await accountId(db, { kind: 'member_main', userId, currency: member.currency });
-      await post(db, { kind: 'voucher_redeem', memo: `Redeemed voucher ${voucher.code}`, refType: 'voucher', refId: voucher.code, actorUserId: userId, legs: move(liability, main, BigInt(voucher.amount_minor)) });
-      await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [userId, voucher.id]);
-      return { status: 200, body: { ok: true, amount: voucher.amount_minor, currency: voucher.currency_code, balance: (await balanceOf(db, main)).toString() } };
+      if (!voucher || Number(voucher.creator_user_id) !== userId) throw notFound('voucher.not_found', 'You have no voucher with that code.');
+      if (voucher.status !== 'active') throw badRequest('voucher.already_used', 'This voucher has already been used or cancelled.');
+      const handle = input.username.toLowerCase().replace(/^@/, '');
+      const target = await maybeOne<{ id: string; username: string; status: string; currency_code: string; country_code: string }>(
+        db, 'SELECT id, username, status, currency_code, country_code FROM users WHERE anonymized_at IS NULL AND username = $1 FOR UPDATE', [handle],
+      );
+      if (!target) throw badRequest('validation_failed', 'No member has that username.', { username: ['No member has that username.'] });
+      const targetId = Number(target.id);
+      if (await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [targetId])) {
+        throw badRequest('validation_failed', 'That account is already activated.', { username: ['That account is already activated.'] });
+      }
+      if (target.status !== 'active') throw conflict('voucher.member_not_active', 'That account is on hold, so it cannot be activated now.');
+      if (target.currency_code !== voucher.currency_code) throw conflict('voucher.currency', 'That member uses another currency, so this voucher cannot activate their account.');
+      const fee = await activationFee(db, target.country_code);
+      const value = BigInt(voucher.amount_minor);
+      if (value < fee) throw badRequest('voucher.too_small', 'This voucher is worth less than the activation fee for that account.');
+
+      const liability = await accountId(db, { kind: 'voucher_liability', currency: voucher.currency_code });
+      const revenue = await accountId(db, { kind: 'platform_revenue', currency: voucher.currency_code });
+      const legs = move(liability, revenue, fee);
+      if (value > fee) legs.push(...move(liability, await accountId(db, { kind: 'member_main', userId: targetId, currency: voucher.currency_code }), value - fee));
+      const receiptNo = newReference('MB');
+      const txn = await post(db, {
+        kind: 'voucher_activation', memo: `Activation of @${target.username} with voucher ${voucher.code}`, refType: 'membership', refId: receiptNo, actorUserId: userId, legs,
+      });
+      await db.query(
+        'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5)',
+        [targetId, receiptNo, fee.toString(), voucher.currency_code, txn],
+      );
+      await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [targetId, voucher.id]);
+      // Referral rewards for the people who invited the activated member, exactly as for a confirmed payment.
+      await distributeReferralRewards(db, targetId);
+      return { status: 200, body: { ok: true, username: target.username, code: voucher.code, receiptNo } };
     });
+    if (!result.replayed) void notifyVoucherActivation(services, String(result.body.username), String(result.body.code));
     res.status(result.status).json(result.body);
   });
 

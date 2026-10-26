@@ -45,7 +45,7 @@ export async function messagesOf(db: Db, issueId: string) {
      WHERE m.issue_id = $1 ORDER BY m.id`,
     [issueId],
   );
-  // Members see "Zentrix support" rather than which staff member wrote.
+  // Members see "Pexerearn support" rather than which staff member wrote.
   return list.map(m => ({ id: m.id, body: m.body, fromStaff: m.from_staff, createdAt: m.created_at, author: m.author }));
 }
 

@@ -33,7 +33,7 @@ function renderPaybox() {
     row(c.ussdCode ? 'Merchant code' : 'Account', code, true),
     row('Account name', c.accountName),
     c.instructions ? h('p', { class: 'zx-hint' }, c.instructions) : null,
-    h('p', { class: 'zx-hint' }, 'Never share your PIN. Zentrix staff will never ask for it.'));
+    h('p', { class: 'zx-hint' }, 'Never share your PIN. Pexerearn staff will never ask for it.'));
 }
 
 function renderChannels() {

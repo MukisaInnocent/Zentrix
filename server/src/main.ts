@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 
   const app = createApp(services);
   const server = app.listen(config.port, config.host, () => {
-    logger.info({ port: config.port, mode: config.appMode }, config.appMode === 'test' ? 'Zentrix API listening (TEST MODE: no real money)' : 'Zentrix API listening');
+    logger.info({ port: config.port, mode: config.appMode }, config.appMode === 'test' ? 'Pexerearn API listening (TEST MODE: no real money)' : 'Pexerearn API listening');
   });
   const stopJobs = config.runJobsInWeb ? startJobs(services) : undefined;
 
@@ -45,6 +45,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`Zentrix API failed to start: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(`Pexerearn API failed to start: ${err instanceof Error ? err.message : String(err)}\n`);
   process.exit(1);
 });

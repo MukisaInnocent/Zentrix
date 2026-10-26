@@ -3,7 +3,6 @@ import { $ } from './core/dom.js';
 import { loadCurrencies } from './core/format.js';
 import { applyI18n, initI18n } from './core/i18n.js';
 import { initMotion } from './core/motion.js';
-import { initTableLabels } from './core/tables.js';
 import { renderPublicChrome, renderShell } from './core/shell.js';
 import { initTheme } from './core/theme.js';
 import { errorState } from './core/ui.js';
@@ -54,8 +53,7 @@ async function boot() {
 
   applyI18n(document);
   try {
-    initMotion();
-    initTableLabels();
+    initMotion();
   } catch (err) {
     console.error(err);
   }

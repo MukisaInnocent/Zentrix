@@ -1,7 +1,7 @@
 import { Secret, TOTP } from 'otpauth';
 import { decryptSecret, encryptSecret, hmacSha256 } from '../../lib/crypto.js';
 
-const ISSUER = 'Zentrix';
+const ISSUER = 'Pexerearn';
 const PERIOD = 30;
 
 export function newTotpSecret(): string {

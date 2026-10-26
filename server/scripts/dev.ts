@@ -73,7 +73,7 @@ if (dbOnly) {
   const { startJobs } = await import('../src/jobs/runner.js');
   const http = createApp(services).listen(config.port, '0.0.0.0', () => {
     console.log(`\n========================================`);
-    console.log(` Zentrix Ready for Testing (TEST MODE)`);
+    console.log(` Pexerearn Ready for Testing (TEST MODE)`);
     console.log(`========================================`);
     console.log(` > Local:   http://localhost:${config.port}`);
     console.log(` > LAN:     http://${lanIp}:${config.port}`);

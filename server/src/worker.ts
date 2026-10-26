@@ -21,6 +21,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`Zentrix worker failed to start: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(`Pexerearn worker failed to start: ${err instanceof Error ? err.message : String(err)}\n`);
   process.exit(1);
 });

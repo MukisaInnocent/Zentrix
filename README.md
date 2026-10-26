@@ -1,6 +1,6 @@
-# Zentrix
+# Pexerearn
 
-Zentrix is a Node.js/Express web app backed by PostgreSQL. The existing HTML/CSS pages are served by the same-origin API server.
+Pexerearn is a Node.js/Express web app backed by PostgreSQL. The existing HTML/CSS pages are served by the same-origin API server.
 
 ## Features in this backend release
 

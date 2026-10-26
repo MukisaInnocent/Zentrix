@@ -1,8 +1,7 @@
 import { api, newIdempotencyKey } from '../core/api.js';
 import { $, h, icon } from '../core/dom.js';
-import { formatDate, formatMoney } from '../core/format.js';
+import { formatMoney } from '../core/format.js';
 import { bindForm } from '../core/forms.js';
-import { paymentBadge, reportProblem } from '../core/payments.js';
 import { toast } from '../core/toast.js';
 
 // The activation payment page. The member pays the fee to a business channel (USSD and merchant code shown),
@@ -44,7 +43,7 @@ function renderPaybox() {
     h('div', { class: 'zx-paybox__row' }, h('span', { class: 'zx-hint' }, 'Amount'), h('strong', { class: 'zx-paybox__value' }, fee)),
     h('ol', { class: 'zx-steps-list' }, steps.map(x => h('li', {}, x))),
     c.instructions ? h('p', { class: 'zx-hint' }, c.instructions) : null,
-    h('p', { class: 'zx-hint' }, 'Never share your PIN. Zentrix staff will never ask for it.'));
+    h('p', { class: 'zx-hint' }, 'Never share your PIN. Pexerearn staff will never ask for it.'));
 }
 
 function renderChannels() {
@@ -77,40 +76,6 @@ async function refresh() {
   $('#pay-area').hidden = pending;
   $('#activate-submit').disabled = info.depositsPaused || !info.channels.some(c => c.depositsEnabled) || !info.activation.feeMinor;
   renderChannels();
-
-  const body = $('#payments-body');
-  if (!list.deposits.length) {
-    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, 'No payments yet.')));
-    return;
-  }
-  body.replaceChildren(...list.deposits.map(d => {
-    const actions = [];
-    if (d.status === 'pending') {
-      const cancel = h('button', { type: 'button', class: 'zx-btn zx-btn--ghost zx-btn--sm' }, 'Cancel');
-      cancel.addEventListener('click', async () => {
-        try {
-          await api.post(`/api/payments/deposits/${d.id}/cancel`, {});
-          toast.success('Payment cancelled');
-          await refresh();
-        } catch (err) {
-          toast.error(err.message);
-        }
-      });
-      actions.push(cancel);
-    }
-    if (d.status !== 'cancelled') {
-      const report = h('button', { type: 'button', class: 'zx-btn zx-btn--ghost zx-btn--sm' }, 'Report a problem');
-      report.addEventListener('click', () => void reportProblem('deposit', d.reference));
-      actions.push(report);
-    }
-    return h('tr', {},
-      h('td', { class: 'zx-td-muted' }, formatDate(d.createdAt, { withTime: true })),
-      h('td', {}, d.channel.name),
-      h('td', { class: 'zx-td-mono' }, d.providerTxnId),
-      h('td', { class: 'zx-amount' }, formatMoney(d.claimedAmountMinor, d.currency)),
-      h('td', {}, paymentBadge(d.status), d.reviewNote ? h('div', { class: 'zx-hint' }, d.reviewNote) : null),
-      h('td', {}, h('span', { class: 'zx-row-actions' }, actions)));
-  }));
 }
 
 export async function init({ me }) {

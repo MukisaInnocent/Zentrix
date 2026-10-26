@@ -1,4 +1,4 @@
-# Render Blueprint for Zentrix (test stage: APP_MODE=test, simulators only, no real money).
+# Render Blueprint for Pexerearn (test stage: APP_MODE=test, simulators only, no real money).
 # Create it with: Render dashboard > New > Blueprint > pick this repository.
 # Render prompts once for every variable marked `sync: false` (see PUBLIC_ORIGIN below).
 #
@@ -73,7 +73,7 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: MAIL_FROM
-        value: Zentrix <onboarding@resend.dev>
+        value: Pexerearn <onboarding@resend.dev>
       # Email address given to the seeded zx_admin account, so its sign-in codes reach a real inbox.
       - key: SEED_ADMIN_EMAIL
         sync: false

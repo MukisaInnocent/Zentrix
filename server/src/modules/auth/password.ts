@@ -34,8 +34,8 @@ export async function requestPasswordReset(services: Services, raw: unknown, ip:
   try {
     await services.mailer.send({
       to: email,
-      subject: 'Reset your Zentrix password',
-      text: `Someone asked to reset the password for this Zentrix account. To choose a new password, open this link within 30 minutes:\n\n${services.config.publicOrigin}/reset-password.html#token=${token}\n\nIf you did not ask for this, ignore this email; your password stays the same.${testNote(services)}`,
+      subject: 'Reset your Pexerearn password',
+      text: `Someone asked to reset the password for this Pexerearn account. To choose a new password, open this link within 30 minutes:\n\n${services.config.publicOrigin}/reset-password.html#token=${token}\n\nIf you did not ask for this, ignore this email; your password stays the same.${testNote(services)}`,
     });
   } catch (err) {
     services.logger.error({ err }, 'password reset email failed');
@@ -92,8 +92,8 @@ async function notifyPasswordChanged(services: Services, email: string): Promise
   try {
     await services.mailer.send({
       to: email,
-      subject: 'Your Zentrix password was changed',
-      text: `The password for your Zentrix account was just changed and other devices were signed out.\n\nIf this was not you, reset your password now and contact support.${testNote(services)}`,
+      subject: 'Your Pexerearn password was changed',
+      text: `The password for your Pexerearn account was just changed and other devices were signed out.\n\nIf this was not you, reset your password now and contact support.${testNote(services)}`,
     });
   } catch (err) {
     services.logger.error({ err }, 'password change notice failed');

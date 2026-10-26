@@ -28,8 +28,8 @@ export async function sendEmailVerification(services: Services, email: string, t
   try {
     await services.mailer.send({
       to: email,
-      subject: 'Confirm your Zentrix email address',
-      text: `Confirm your email address by opening this link within 48 hours:\n\n${link}\n\nIf you did not create a Zentrix account, ignore this email.${testNote(services)}`,
+      subject: 'Confirm your Pexerearn email address',
+      text: `Confirm your email address by opening this link within 48 hours:\n\n${link}\n\nIf you did not create a Pexerearn account, ignore this email.${testNote(services)}`,
     });
   } catch (err) {
     services.logger.error({ err }, 'email verification send failed');
@@ -47,7 +47,7 @@ export async function issuePhoneCode(db: Db, key: Buffer, userId: number, phone:
 
 export async function sendPhoneCode(services: Services, phone: string, code: string): Promise<void> {
   try {
-    await services.sms.send(phone, `Your Zentrix code is ${code}. It expires in 10 minutes. Never share it.`);
+    await services.sms.send(phone, `Your Pexerearn code is ${code}. It expires in 10 minutes. Never share it.`);
   } catch (err) {
     services.logger.error({ err }, 'phone code send failed');
   }

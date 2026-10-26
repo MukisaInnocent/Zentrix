@@ -24,7 +24,7 @@ export const serviceUnavailable = (code: string, message: string) => new AppErro
 export const tooManyRequests = (message = 'Too many attempts. Please wait and try again.') =>
   new AppError(429, 'rate_limited', message);
 
-// SQLSTATE codes raised by Zentrix triggers (see server/migrations).
+// SQLSTATE codes raised by Pexerearn triggers (see server/migrations).
 export const DB_ERRORS = {
   appendOnly: 'ZX001',
   immutableColumn: 'ZX002',

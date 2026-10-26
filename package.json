@@ -2,7 +2,7 @@
   "name": "zentrix",
   "version": "0.1.0",
   "private": true,
-  "description": "Zentrix member platform: funded tasks, learning and a multi-currency wallet. Test stage.",
+  "description": "Pexerearn member platform: funded tasks, learning and a multi-currency wallet. Test stage.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {

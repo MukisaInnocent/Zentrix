@@ -170,7 +170,7 @@ export function paymentsRouter(services: Services): Router {
 
   router.get('/issues/:id', async (req, res) => {
     const issue = await findIssue(pool, publicId(req.params.id), req.auth!.userId);
-    const messages = (await messagesOf(pool, issue.id)).map(m => ({ ...m, author: m.fromStaff ? 'Zentrix support' : m.author }));
+    const messages = (await messagesOf(pool, issue.id)).map(m => ({ ...m, author: m.fromStaff ? 'Pexerearn support' : m.author }));
     const { assignedTo: _a, member: _m, ...view } = issueView(issue);
     res.json({ issue: view, messages });
   });

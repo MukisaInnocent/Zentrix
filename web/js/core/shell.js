@@ -216,7 +216,7 @@ export function renderShell({ me, meta, page, admin = false }) {
   const closeBtn = h('button', { type: 'button', class: 'zx-icon-btn zx-icon-btn--square zx-drawer__close', 'aria-label': t('common.closeMenu') }, icon('close'));
   const drawer = h(
     'nav', { class: 'zx-drawer', id: drawerId, 'aria-label': t('common.mainMenu') },
-    h('div', { class: 'zx-drawer__head' }, h('a', { class: 'zx-brand', href: admin ? '/admin/index.html' : '/dashboard.html' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, admin ? 'Zentrix Staff' : 'Zentrix')), closeBtn),
+    h('div', { class: 'zx-drawer__head' }, h('a', { class: 'zx-brand', href: admin ? '/admin/index.html' : '/dashboard.html' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, admin ? 'Pexerearn Staff' : 'Pexerearn')), closeBtn),
     h('div', { class: 'zx-drawer__body' }, buildNav(config, page)),
   );
   const scrim = h('div', { class: 'zx-scrim', 'aria-hidden': 'true' });
@@ -225,7 +225,7 @@ export function renderShell({ me, meta, page, admin = false }) {
   themeBtn.addEventListener('click', () => themeBtn.querySelector('use').setAttribute('href', `/img/icons.svg#${toggleTheme() === 'dark' ? 'sun' : 'moon'}`));
   const bell = h('button', { type: 'button', class: 'zx-icon-btn', 'aria-label': t('common.notifications') }, icon('bell'));
   bell.addEventListener('click', () => toast.info(t('common.notificationsSoon')));
-  const title = document.title.split('·')[0]?.trim() ?? 'Zentrix';
+  const title = document.title.split('·')[0]?.trim() ?? 'Pexerearn';
   const topbar = h(
     'header', { class: 'zx-topbar' }, menuBtn, h('div', { class: 'zx-topbar__title' }, title),
     h('div', { class: 'zx-topbar__actions' },
@@ -252,7 +252,7 @@ export function renderShell({ me, meta, page, admin = false }) {
   });
 
   main.append(h('footer', { class: 'zx-app-footer' },
-    `© ${new Date().getFullYear()} Zentrix · `, h('a', { href: '/terms.html' }, t('nav.terms')), ' · ',
+    `© ${new Date().getFullYear()} Pexerearn · `, h('a', { href: '/terms.html' }, t('nav.terms')), ' · ',
     h('a', { href: '/privacy.html' }, t('nav.privacy')), ' · ', h('a', { href: '/risk.html' }, t('nav.risk'))));
   setupBackToTop();
 }
@@ -265,7 +265,7 @@ export function renderPublicChrome() {
   main.tabIndex = -1;
   const header = h('header', { class: 'zx-public-header' },
     h('div', { class: 'zx-public-header__inner' },
-      h('a', { class: 'zx-brand', href: '/' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, 'Zentrix')),
+      h('a', { class: 'zx-brand', href: '/' }, h('img', { src: '/img/mark.svg', alt: '' }), h('span', {}, 'Pexerearn')),
       h('nav', { class: 'zx-public-nav', 'aria-label': t('common.mainMenu') },
         h('a', { href: '/#how' }, t('nav.howItWorks')), h('a', { href: '/contact.html' }, t('nav.contact'))),
       h('div', { class: 'zx-public-header__cta' },
@@ -276,7 +276,7 @@ export function renderPublicChrome() {
   document.body.append(
     h('footer', { class: 'zx-footer' },
       h('div', { class: 'zx-footer__inner' },
-        h('span', {}, `© ${year} Zentrix`),
+        h('span', {}, `© ${year} Pexerearn`),
         h('nav', { 'aria-label': t('nav.policies') },
           ['terms', 'privacy', 'risk', 'refund', 'contact'].map(id =>
             h('a', { href: `/${id}.html` }, t(`nav.${id}`)),

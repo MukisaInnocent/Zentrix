@@ -33,7 +33,7 @@ function message(event: PaymentEvent, money: string, ref: string, note: string |
     case 'deposit_submitted':
       return { subject: `Activation payment ${ref} received`, text: `We received your activation payment of ${money} (reference ${ref}). Our team is checking it against our statement and will activate your account as soon as it is found.` };
     case 'deposit_confirmed':
-      return { subject: `Account activated`, text: `Your activation payment of ${money} (reference ${ref}) is confirmed and your account is now active. You can use every part of Zentrix.` };
+      return { subject: `Account activated`, text: `Your activation payment of ${money} (reference ${ref}) is confirmed and your account is now active. You can use every part of Pexerearn.` };
     case 'deposit_rejected':
       return { subject: `Activation payment ${ref} not confirmed`, text: `We could not confirm your activation payment ${ref}.${why}\n\nOpen the Activate page to submit it again, or contact support if you think this is a mistake.` };
     case 'withdrawal_requested':
@@ -63,11 +63,11 @@ export async function notifyPayment(services: Services, event: PaymentEvent, ref
     if (!row?.email) return;
     const money = await amount(services, { reference, currency: row.currency_code, amountMinor: row.amount });
     const { subject, text } = message(event, money, reference, note, row.purpose);
-    await services.mailer.send({ to: row.email, subject: `Zentrix: ${subject}`, text: `Hello @${row.username},
+    await services.mailer.send({ to: row.email, subject: `Pexerearn: ${subject}`, text: `Hello @${row.username},
 
 ${text}
 
-Zentrix` });
+Pexerearn` });
   } catch (err) {
     services.logger.error({ err, event, reference }, 'payment email failed');
   }
@@ -80,10 +80,25 @@ export async function notifyIssueReply(services: Services, userId: number, reply
     if (!user?.email) return;
     await services.mailer.send({
       to: user.email,
-      subject: 'Zentrix: reply to your payment report',
-      text: `Hello @${user.username},\n\nOur payments team replied to your report:\n\n${reply}\n\nTo answer, use Report a problem again or contact support.\n\nZentrix`,
+      subject: 'Pexerearn: reply to your payment report',
+      text: `Hello @${user.username},\n\nOur payments team replied to your report:\n\n${reply}\n\nTo answer, use Report a problem again or contact support.\n\nPexerearn`,
     });
   } catch (err) {
     services.logger.error({ err, userId }, 'issue reply email failed');
+  }
+}
+
+// Tells a member that another member activated their account with a voucher.
+export async function notifyVoucherActivation(services: Services, username: string, code: string): Promise<void> {
+  try {
+    const user = await maybeOne<{ email: string | null }>(services.pool, 'SELECT email FROM users WHERE username = $1', [username]);
+    if (!user?.email) return;
+    await services.mailer.send({
+      to: user.email,
+      subject: 'Pexerearn: Account activated',
+      text: `Hello @${username},\n\nYour account was activated with voucher ${code}. You can now use every part of Pexerearn.\n\nPexerearn`,
+    });
+  } catch (err) {
+    services.logger.error({ err, username }, 'voucher activation email failed');
   }
 }

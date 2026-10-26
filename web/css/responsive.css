@@ -82,18 +82,8 @@ img, svg, video { max-inline-size: 100%; }
   .zx-cta .zx-btn { inline-size: 100%; }
   .zx-footer nav { gap: var(--zx-space-3) var(--zx-space-4); }
 
-  /* Tables become stacked cards. tables.js copies each column heading onto its cells as data-label. */
-  .zx-table-wrap { overflow: visible; border: 0; border-radius: 0; }
-  .zx-table, .zx-table tbody, .zx-table tr, .zx-table td { display: block; inline-size: 100%; }
-  .zx-table thead { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
-  .zx-table tr { margin-block-end: var(--zx-space-3); padding: var(--zx-space-2) var(--zx-space-4); border: 1px solid var(--zx-border); border-radius: var(--zx-radius); background: var(--zx-surface); }
-  .zx-table tbody tr:hover { background: var(--zx-surface); }
-  .zx-table tr:last-child { margin-block-end: 0; }
-  .zx-table th, .zx-table td { padding: 8px 0; }
-  .zx-table td { display: flex; align-items: center; justify-content: space-between; gap: var(--zx-space-4); border: 0; border-block-end: 1px dashed var(--zx-border); text-align: end; overflow-wrap: anywhere; }
-  .zx-table td:last-child { border-block-end: 0; }
-  .zx-table td[data-label]::before { content: attr(data-label); flex: none; color: var(--zx-text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; text-align: start; }
-  .zx-table td.zx-td-empty { display: block; text-align: center !important; border: 0; padding: var(--zx-space-5) 0 !important; }
+  /* Tables stay tables on phones: the frame scrolls sideways and cells keep to one line. */
+  .zx-table th, .zx-table td { padding: 10px 12px; white-space: nowrap; }
 }
 
 /* Very small phones (320 to 359 px) */

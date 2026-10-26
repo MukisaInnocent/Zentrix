@@ -55,7 +55,7 @@ async function openIssue(id) {
       ])),
       panel('Conversation', h('div', { class: 'zx-thread' }, messages.map(msg =>
         h('div', { class: `zx-msg${msg.fromStaff ? ' zx-msg--staff' : ''}` }, h('span', { class: 'zx-msg__meta' }, `${msg.fromStaff ? `@${msg.author} (staff)` : `@${msg.author}`} · ${when(msg.createdAt)}`), msg.body)))),
-      panel('Reply', reply, h('span', { class: 'zx-hint' }, 'The member sees replies as "Zentrix support".'), send),
+      panel('Reply', reply, h('span', { class: 'zx-hint' }, 'The member sees replies as "Pexerearn support".'), send),
     );
     const resolve = h('button', { type: 'button', class: 'zx-btn zx-btn--success' }, i.status === 'resolved' ? 'Reopen' : 'Resolve');
     resolve.addEventListener('click', async () => {

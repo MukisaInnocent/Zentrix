@@ -16,7 +16,7 @@ function findRoot(start: string): string {
       }
     }
     const parent = path.dirname(dir);
-    if (parent === dir) throw new Error('Cannot find the Zentrix project root (package.json named "zentrix").');
+    if (parent === dir) throw new Error('Cannot find the Pexerearn project root (package.json named "zentrix").');
     dir = parent;
   }
 }

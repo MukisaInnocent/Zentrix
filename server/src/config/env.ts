@@ -28,7 +28,7 @@ const EnvSchema = z.object({
   SMTP_URL: z.string().optional(),
   // Resend (https://resend.com) email API key. When set, email goes through its HTTP API instead of SMTP.
   RESEND_API_KEY: z.string().optional(),
-  MAIL_FROM: z.string().min(3).default('Zentrix <no-reply@zentrix.test>'),
+  MAIL_FROM: z.string().min(3).default('Pexerearn <no-reply@pexerearn.test>'),
   GEOIP_PROVIDER: z.enum(['none', 'test-header']).default('none'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MIGRATE_ON_START: z.stringbool().default(false),

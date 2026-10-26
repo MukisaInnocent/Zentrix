@@ -1,6 +1,6 @@
-# CLAUDE.md: Zentrix
+# CLAUDE.md: Pexerearn
 
-Loaded at the start of every session. Requirements come from the owner's Zentrix master prompt. The delivery plan, decisions (D1 to D28), risks and open questions live in `docs/PLAN.md`. If anything here conflicts with the master prompt, the master prompt wins, and its section 3 rules (below) always win.
+Loaded at the start of every session. Requirements come from the owner's Pexerearn master prompt. The delivery plan, decisions (D1 to D28), risks and open questions live in `docs/PLAN.md`. If anything here conflicts with the master prompt, the master prompt wins, and its section 3 rules (below) always win.
 
 ## Current status
 
@@ -8,6 +8,7 @@ Loaded at the start of every session. Requirements come from the owner's Zentrix
 - Owner decisions are logged in `docs/PLAN.md` section 12. Unanswered items use the defaults in section 10, marked `TODO(owner)` in code and settings.
 - Referrals: multi-level, levels 1 to 3 (UGX 10,000 / 5,000 / 2,000), paid at sign-up and at membership activation. On 2026-10-24 the owner told us to leave this logic as it is and change only the membership fee. Since Phase 2 the rewards are paid through the ledger from `platform_revenue`. It conflicts with rules 3.1 and 3.2 as written; do not change it without the owner.
 - 2026-10-25: the owner reshaped the member side. The membership fee is now the activation fee (UGX 19,000 in Uganda), paid by manual deposit before a member can use the site; there are no wallet deposits, so a member's balance holds referral money only. No date of birth at sign-up. The referral code is the referrer's username. Phone numbers start with the country code everywhere. Every country can register and activate (placeholder fees in migration 0011, `TODO(owner)`). Referral rewards (levels 1 to 3, UGX 10,000 / 5,000 / 2,000, scaled by each country's fee) are paid when the invited member's activation payment is confirmed, not at sign-up. Password, email and phone change only after an admin unlocks them for 24 hours. A 30-referrals-earns-4000 bonus was asked for and is NOT built: it needs the owner's answers (see the open questions in the Phase 2 report).
+- 2026-10-26: the site is renamed Pexerearn (visible text only; internal identifiers stay `zentrix`). Vouchers (worth at least the activation fee) now activate other members' accounts; redeeming into a wallet is removed. Tables stay tables on phones. The "internal chat" request waits for the owner to say who chats with whom.
 - 2026-10-24: the owner made deposits and withdrawals manual, confirmed the UGX 19,000 membership fee and asked for an admin dashboard. Phase 2 (ledger, manual payments, staff console) is on branch `rebuild/phase-2-ledger-manual-payments`.
 
 ## How to operate

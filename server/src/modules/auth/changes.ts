@@ -98,8 +98,8 @@ export async function changeEmail(services: Services, req: Request, auth: AuthCo
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) throw conflict('change.email_taken', 'That email address belongs to another account.');
     throw err;
   }
-  await notify(services, user.email, 'Your Zentrix email address was changed', `The email address on your Zentrix account (@${user.username}) was changed to ${input.newEmail}. If this was not you, contact support now.`);
-  await notify(services, input.newEmail, 'Your Zentrix email address was updated', `This address is now the email for the Zentrix account @${user.username}.`);
+  await notify(services, user.email, 'Your Pexerearn email address was changed', `The email address on your Pexerearn account (@${user.username}) was changed to ${input.newEmail}. If this was not you, contact support now.`);
+  await notify(services, input.newEmail, 'Your Pexerearn email address was updated', `This address is now the email for the Pexerearn account @${user.username}.`);
 }
 
 export async function changePhone(services: Services, req: Request, auth: AuthContext, raw: unknown): Promise<{ withdrawalsLockedUntil: Date }> {
@@ -128,6 +128,6 @@ export async function changePhone(services: Services, req: Request, auth: AuthCo
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) throw conflict('change.phone_taken', 'That number belongs to another account.');
     throw err;
   }
-  await notify(services, user.email, 'Your Zentrix phone number was changed', `The phone number on your Zentrix account (@${user.username}) was changed. Withdrawals are locked for 48 hours. If this was not you, contact support now.`);
+  await notify(services, user.email, 'Your Pexerearn phone number was changed', `The phone number on your Pexerearn account (@${user.username}) was changed. Withdrawals are locked for 48 hours. If this was not you, contact support now.`);
   return { withdrawalsLockedUntil: lockUntil };
 }

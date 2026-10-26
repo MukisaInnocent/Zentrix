@@ -19,7 +19,7 @@ const step = (n: number) => new Date((Math.floor(Date.now() / 30_000) + n) * 30_
 async function enrol(client: TestClient, at: Date): Promise<{ secret: string; recoveryCodes: string[] }> {
   const setup = await client.post<{ secret: string; otpauthUrl: string; qrSvg: string }>('/api/auth/totp/setup');
   expect(setup.status).toBe(200);
-  expect(setup.body.otpauthUrl).toMatch(/^otpauth:\/\/totp\/Zentrix:/);
+  expect(setup.body.otpauthUrl).toMatch(/^otpauth:\/\/totp\/Pexerearn:/);
   expect(setup.body.qrSvg).toContain('<svg');
   app.setNow(at);
   expect((await client.post('/api/auth/totp/enable', { code: '000000' === totpCodeAt(setup.body.secret, at) ? '111111' : '000000' })).status).toBe(400);
@@ -153,7 +153,7 @@ describe('emailed sign-in codes', () => {
     const client = app.client();
     const first = await client.post<{ challengeToken: string; emailSent: boolean }>('/api/auth/login', { identifier: staff.username, password: staff.password });
     expect(first.body.emailSent).toBe(true);
-    const mail = (await app.outbox(email)).find(m => m.subject === 'Your Zentrix sign-in code');
+    const mail = (await app.outbox(email)).find(m => m.subject === 'Your Pexerearn sign-in code');
     const code = /code is ([0-9]{6})/.exec(mail?.body ?? '')?.[1];
     expect(code).toBeDefined();
     const wrong = code === '000000' ? '111111' : '000000';

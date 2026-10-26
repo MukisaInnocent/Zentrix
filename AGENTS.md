@@ -1,6 +1,6 @@
-# AGENTS.md: Zentrix
+# AGENTS.md: Pexerearn
 
-Loaded at the start of every session. Requirements come from the owner's Zentrix master prompt. The delivery plan, decisions (D1 to D28), risks and open questions live in `docs/PLAN.md`. If anything here conflicts with the master prompt, the master prompt wins, and its section 3 rules (below) always win.
+Loaded at the start of every session. Requirements come from the owner's Pexerearn master prompt. The delivery plan, decisions (D1 to D28), risks and open questions live in `docs/PLAN.md`. If anything here conflicts with the master prompt, the master prompt wins, and its section 3 rules (below) always win.
 
 ## Current status
 
