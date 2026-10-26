@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Services } from '../../services.js';
+import { chatsAdminRouter } from './chats.js';
 import { membersRouter } from './members.js';
 import { paymentsAdminRouter } from './payments.js';
 import { systemRouter } from './system.js';
@@ -10,6 +11,7 @@ export function adminRouter(services: Services): Router {
   const router = Router();
   router.use('/members', membersRouter(services));
   router.use('/payments', paymentsAdminRouter(services));
+  router.use('/chats', chatsAdminRouter(services));
   router.use('/', systemRouter(services));
   return router;
 }

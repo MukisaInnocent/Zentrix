@@ -23,18 +23,18 @@ export interface Quote {
   totalMinor: string;
   currency: string;
   needsAdminApproval: boolean;
-  limits: { minMinor: string; maxMinor: string; dailyMaxMinor: string; monthlyMaxMinor: string; usedTodayMinor: string; usedThisMonthMinor: string };
+  limits: { minMinor: string; maxMinor: string; dailyMaxMinor: string; usedTodayMinor: string };
 }
 
-async function windowTotals(db: Db, userId: number): Promise<{ day: bigint; month: bigint }> {
-  const row = await one<{ day: string; month: string }>(
+// What the member has withdrawn in the last 24 hours (there is no monthly limit: owner, 2026-10-26).
+async function usedToday(db: Db, userId: number): Promise<bigint> {
+  const row = await one<{ day: string }>(
     db,
-    `SELECT coalesce(sum(amount_minor) FILTER (WHERE created_at > now() - interval '1 day'), 0)::text AS day,
-            coalesce(sum(amount_minor), 0)::text AS month
-     FROM withdrawals WHERE user_id = $1 AND status NOT IN ('failed', 'cancelled') AND created_at > now() - interval '30 days'`,
+    `SELECT coalesce(sum(amount_minor), 0)::text AS day
+     FROM withdrawals WHERE user_id = $1 AND status NOT IN ('failed', 'cancelled') AND created_at > now() - interval '1 day'`,
     [userId],
   );
-  return { day: BigInt(row.day), month: BigInt(row.month) };
+  return BigInt(row.day);
 }
 
 export interface ChargeBand {
@@ -63,7 +63,7 @@ export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigin
   const charge = chargeFor(await chargeBands(db, member.currency), BigInt(config.withdrawalFeeMinMinor), amountMinor);
   const tax = basisPointsOf(amountMinor, config.withdrawalFeeBp);
   const fee = charge + tax;
-  const used = await windowTotals(db, userId);
+  const used = await usedToday(db, userId);
   const ageDays = (Date.now() - member.createdAt.getTime()) / 86_400_000;
   return {
     amountMinor: amountMinor.toString(),
@@ -75,7 +75,7 @@ export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigin
     needsAdminApproval: amountMinor >= BigInt(config.withdrawalApprovalThresholdMinor) || ageDays < config.newAccountReviewDays,
     limits: {
       minMinor: config.withdrawalMinMinor, maxMinor: config.withdrawalMaxMinor, dailyMaxMinor: config.withdrawalDailyMaxMinor,
-      monthlyMaxMinor: config.withdrawalMonthlyMaxMinor, usedTodayMinor: used.day.toString(), usedThisMonthMinor: used.month.toString(),
+      usedTodayMinor: used.toString(),
     },
   };
 }
@@ -138,7 +138,6 @@ export async function requestWithdrawal(db: PoolClient, userId: number, input: {
   if (amount < BigInt(quote.limits.minMinor)) throw field('This is below the minimum withdrawal.');
   if (amount > BigInt(quote.limits.maxMinor)) throw field('This is above the maximum for one withdrawal.');
   if (BigInt(quote.limits.usedTodayMinor) + amount > BigInt(quote.limits.dailyMaxMinor)) throw field('This would pass your daily withdrawal limit.');
-  if (BigInt(quote.limits.usedThisMonthMinor) + amount > BigInt(quote.limits.monthlyMaxMinor)) throw field('This would pass your monthly withdrawal limit.');
 
   const source = await sourceAccount(db, userId, member.currency, input.source);
   const hold = await accountId(db, { kind: 'member_withdrawal_hold', userId, currency: member.currency });

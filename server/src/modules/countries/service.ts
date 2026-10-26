@@ -48,7 +48,6 @@ export interface CountryConfig {
   withdrawalMinMinor: string;
   withdrawalMaxMinor: string;
   withdrawalDailyMaxMinor: string;
-  withdrawalMonthlyMaxMinor: string;
   withdrawalFeeBp: number;
   withdrawalFeeMinMinor: string;
   withdrawalApprovalThresholdMinor: string;
@@ -64,7 +63,7 @@ export interface CountryConfig {
 
 interface ConfigRow {
   country_code: string; version: number; currency_code: string; membership_fee_minor: string; withdrawal_min_minor: string;
-  withdrawal_max_minor: string; withdrawal_daily_max_minor: string; withdrawal_monthly_max_minor: string;
+  withdrawal_max_minor: string; withdrawal_daily_max_minor: string;
   withdrawal_fee_bp: number; withdrawal_fee_min_minor: string; withdrawal_approval_threshold_minor: string;
   new_account_review_days: number; vat_bp: number; kyc_level_for_withdrawal: number; engagement_tasks_enabled: boolean;
   terms_version: string; privacy_version: string; is_placeholder: boolean; created_at: Date;
@@ -73,7 +72,7 @@ interface ConfigRow {
 export const toConfig = (r: ConfigRow): CountryConfig => ({
   countryCode: r.country_code, version: r.version, currencyCode: r.currency_code, membershipFeeMinor: r.membership_fee_minor,
   withdrawalMinMinor: r.withdrawal_min_minor, withdrawalMaxMinor: r.withdrawal_max_minor,
-  withdrawalDailyMaxMinor: r.withdrawal_daily_max_minor, withdrawalMonthlyMaxMinor: r.withdrawal_monthly_max_minor,
+  withdrawalDailyMaxMinor: r.withdrawal_daily_max_minor,
   withdrawalFeeBp: r.withdrawal_fee_bp, withdrawalFeeMinMinor: r.withdrawal_fee_min_minor,
   withdrawalApprovalThresholdMinor: r.withdrawal_approval_threshold_minor, newAccountReviewDays: r.new_account_review_days,
   vatBp: r.vat_bp, kycLevelForWithdrawal: r.kyc_level_for_withdrawal, engagementTasksEnabled: r.engagement_tasks_enabled,

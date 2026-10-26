@@ -80,7 +80,7 @@ describe('settings and country configuration', () => {
   });
 
   const config = {
-    membershipFee: '1.500', withdrawalMin: '0.300', withdrawalMax: '150.000', withdrawalDailyMax: '300.000', withdrawalMonthlyMax: '1500.000',
+    membershipFee: '1.500', withdrawalMin: '0.300', withdrawalMax: '150.000', withdrawalDailyMax: '300.000',
     withdrawalFeeBp: 50, withdrawalFeeMin: '0', withdrawalApprovalThreshold: '30.000', newAccountReviewDays: 14, vatBp: 0,
     kycLevelForWithdrawal: 0, engagementTasksEnabled: false, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true,
   };

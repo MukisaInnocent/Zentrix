@@ -9,6 +9,7 @@ import { WEB_DIR } from './lib/paths.js';
 import { adminRouter } from './modules/admin/routes.js';
 import { csrfProtection, loadSession } from './modules/auth/middleware.js';
 import { authRouter } from './modules/auth/routes.js';
+import { chatRouter } from './modules/chat/routes.js';
 import { metaRouter, referenceRouter } from './modules/countries/routes.js';
 import { paymentsRouter } from './modules/payments/routes.js';
 import { referralsRouter } from './modules/referrals/routes.js';
@@ -59,6 +60,7 @@ export function createApp(services: Services): express.Express {
   api.use('/tasks', tasksRouter(services));
   api.use('/vouchers', vouchersRouter(services));
   api.use('/client-payments', clientPaymentsRouter(services));
+  api.use('/chat', chatRouter(services));
   api.use((_req: Request, _res: Response, next: NextFunction) => next(notFound('api.not_found', 'API endpoint not found.')));
   app.use('/api', api);
 

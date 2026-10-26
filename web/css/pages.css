@@ -193,3 +193,7 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 .zx-dashx__task--music { background: #0c9a7a; }
 .zx-dashx__task--fixtap { background: #4a5bd9; }
 @media (max-width: 380px) { .zx-dashx__pair { grid-template-columns: 1fr; } .zx-dashx__card-icon { inline-size: 44px; block-size: 44px; } }
+
+/* Member chat: your own messages sit on the right; the thread scrolls on its own. */
+.zx-msg--mine { justify-self: end; background: var(--zx-brand-soft); border-color: transparent; }
+.zx-chat-thread { max-block-size: 55dvh; overflow-y: auto; padding: var(--zx-space-2); border-radius: var(--zx-radius); background: var(--zx-surface-2); }

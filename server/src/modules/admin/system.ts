@@ -23,7 +23,6 @@ const ConfigBody = z.strictObject({
   withdrawalMin: Amount,
   withdrawalMax: Amount,
   withdrawalDailyMax: Amount,
-  withdrawalMonthlyMax: Amount,
   withdrawalFeeBp: z.int().min(0).max(2000),
   withdrawalFeeMin: Amount,
   withdrawalApprovalThreshold: Amount,
@@ -99,8 +98,8 @@ export function systemRouter(services: Services): Router {
     if (!country) throw notFound();
     const body = parse(ConfigBody, req.body);
     const { exponent } = await one<{ exponent: number }>(pool, 'SELECT exponent FROM currencies WHERE code = $1', [country.currencyCode]);
-    const amounts = {} as Record<'membershipFee' | 'withdrawalMin' | 'withdrawalMax' | 'withdrawalDailyMax' | 'withdrawalMonthlyMax' | 'withdrawalFeeMin' | 'withdrawalApprovalThreshold', bigint>;
-    for (const key of ['membershipFee', 'withdrawalMin', 'withdrawalMax', 'withdrawalDailyMax', 'withdrawalMonthlyMax', 'withdrawalFeeMin', 'withdrawalApprovalThreshold'] as const) {
+    const amounts = {} as Record<'membershipFee' | 'withdrawalMin' | 'withdrawalMax' | 'withdrawalDailyMax' | 'withdrawalFeeMin' | 'withdrawalApprovalThreshold', bigint>;
+    for (const key of ['membershipFee', 'withdrawalMin', 'withdrawalMax', 'withdrawalDailyMax', 'withdrawalFeeMin', 'withdrawalApprovalThreshold'] as const) {
       try {
         amounts[key] = toMinor(body[key], exponent);
       } catch (err) {
@@ -108,8 +107,8 @@ export function systemRouter(services: Services): Router {
         throw err;
       }
     }
-    if (!(amounts.withdrawalMin <= amounts.withdrawalMax && amounts.withdrawalMax <= amounts.withdrawalDailyMax && amounts.withdrawalDailyMax <= amounts.withdrawalMonthlyMax)) {
-      const message = 'Limits must rise: minimum, then per-request maximum, then daily, then monthly.';
+    if (!(amounts.withdrawalMin <= amounts.withdrawalMax && amounts.withdrawalMax <= amounts.withdrawalDailyMax)) {
+      const message = 'Limits must rise: minimum, then per-request maximum, then daily.';
       throw badRequest('validation_failed', message, { withdrawalMax: [message] });
     }
     if (amounts.membershipFee <= 0n || amounts.withdrawalMin <= 0n || amounts.withdrawalApprovalThreshold <= 0n) {
@@ -120,13 +119,13 @@ export function systemRouter(services: Services): Router {
       const row = await one<{ version: number }>(
         db,
         `INSERT INTO country_configs (country_code, version, currency_code, membership_fee_minor, withdrawal_min_minor, withdrawal_max_minor,
-           withdrawal_daily_max_minor, withdrawal_monthly_max_minor, withdrawal_fee_bp, withdrawal_fee_min_minor,
+           withdrawal_daily_max_minor, withdrawal_fee_bp, withdrawal_fee_min_minor,
            withdrawal_approval_threshold_minor, new_account_review_days, vat_bp, kyc_level_for_withdrawal, engagement_tasks_enabled,
            terms_version, privacy_version, is_placeholder, note, created_by)
-         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
          FROM country_configs WHERE country_code = $1 RETURNING version`,
         [country.code, country.currencyCode, amounts.membershipFee, amounts.withdrawalMin, amounts.withdrawalMax,
-          amounts.withdrawalDailyMax, amounts.withdrawalMonthlyMax, body.withdrawalFeeBp, amounts.withdrawalFeeMin,
+          amounts.withdrawalDailyMax, body.withdrawalFeeBp, amounts.withdrawalFeeMin,
           amounts.withdrawalApprovalThreshold, body.newAccountReviewDays, body.vatBp, body.kycLevelForWithdrawal,
           body.engagementTasksEnabled, body.termsVersion, body.privacyVersion, body.isPlaceholder, body.note ?? null, req.auth!.userId],
       );

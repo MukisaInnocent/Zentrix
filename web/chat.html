@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat · Pexerearn</title>
+<meta name="description" content="Chat with the people you invited, the person who invited you, and members in other countries.">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="chat" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1 id="chat-title">Chat</h1>
+      <p id="chat-lead"></p>
+    </div>
+  </div>
+  <div class="zx-banner zx-banner--warning"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#shield"></use></svg><span class="zx-banner__text">Chat is free. Never share your PIN, password or sign-in codes, and never send money to someone because of a chat. Staff never ask for these. Report anyone who does.</span></div>
+
+  <section id="contacts-card" class="zx-card" hidden>
+    <div class="zx-section-title"><h2>Your invite contacts</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Username</th><th scope="col">Connection</th><th scope="col">Country</th><th scope="col">Action</th></tr></thead>
+        <tbody id="contacts-body"><tr><td colspan="4" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="match-card" class="zx-card zx-stack-3" hidden>
+    <h2>Random match</h2>
+    <p class="zx-hint">Meet an activated member from another country. You only see each other's username and country.</p>
+    <div id="match-alert" class="zx-error zx-error--slot" role="alert"></div>
+    <button id="match-btn" class="zx-btn zx-btn--fit" type="button">Find someone to chat with</button>
+  </section>
+
+  <section class="zx-card">
+    <div class="zx-section-title"><h2 id="conversations-title">Conversations</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Username</th><th scope="col">Country</th><th scope="col">Last message</th><th scope="col">Unread</th><th scope="col">Updated</th><th scope="col">Action</th></tr></thead>
+        <tbody id="conversations-body"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="thread-card" class="zx-card zx-stack-3" hidden>
+    <div class="zx-card__title">
+      <h2 id="thread-title">Chat</h2>
+      <span class="zx-row-actions">
+        <button id="block-btn" class="zx-btn zx-btn--ghost zx-btn--sm" type="button">Block</button>
+        <button id="report-btn" class="zx-btn zx-btn--ghost zx-btn--sm" type="button">Report</button>
+        <button id="close-btn" class="zx-btn zx-btn--secondary zx-btn--sm" type="button">Close</button>
+      </span>
+    </div>
+    <div id="thread" class="zx-thread zx-chat-thread" aria-live="polite"></div>
+    <form id="message-form" class="zx-form">
+      <div id="message-alert" class="zx-error zx-error--slot" role="alert"></div>
+      <div class="zx-field">
+        <label for="message-body">Message</label>
+        <textarea id="message-body" class="zx-textarea" name="body" required maxlength="1000" rows="2"></textarea>
+      </div>
+      <button id="send-btn" class="zx-btn zx-btn--fit" type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="zx-card">
+    <div class="zx-section-title"><h2>Blocked usernames</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Username</th><th scope="col">Blocked on</th><th scope="col">Action</th></tr></thead>
+        <tbody id="blocked-body"><tr><td colspan="3" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</main>
+</body>
+</html>

@@ -58,7 +58,6 @@ export function referenceRouter(services: Services): Router {
           minimum: { amountMinor: c.withdrawalMinMinor, currency: c.currencyCode },
           maximum: { amountMinor: c.withdrawalMaxMinor, currency: c.currencyCode },
           dailyMaximum: { amountMinor: c.withdrawalDailyMaxMinor, currency: c.currencyCode },
-          monthlyMaximum: { amountMinor: c.withdrawalMonthlyMaxMinor, currency: c.currencyCode },
           approvalThreshold: { amountMinor: c.withdrawalApprovalThresholdMinor, currency: c.currencyCode },
         },
         termsVersion: c.termsVersion,

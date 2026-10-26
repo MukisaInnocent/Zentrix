@@ -42,9 +42,9 @@ async function insertUser(username: string, referrer: number | null = null): Pro
 }
 
 const configInsert = `INSERT INTO country_configs (country_code, version, currency_code, membership_fee_minor,
-    withdrawal_min_minor, withdrawal_max_minor, withdrawal_daily_max_minor, withdrawal_monthly_max_minor,
+    withdrawal_min_minor, withdrawal_max_minor, withdrawal_daily_max_minor,
     withdrawal_fee_bp, withdrawal_approval_threshold_minor, terms_version, privacy_version)
-  VALUES ($1, $2, $3, 19000, $4, 1000000, 2000000, 10000000, 50, 200000, '2026-10', '2026-10')`;
+  VALUES ($1, $2, $3, 19000, $4, 1000000, 2000000, 50, 200000, '2026-10', '2026-10')`;
 
 describe('migrations', () => {
   it('applies every migration file', async () => {

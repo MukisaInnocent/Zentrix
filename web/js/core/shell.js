@@ -35,6 +35,14 @@ const MEMBER_NAV = [
           ],
         })),
       },
+      // Member chat (owner, 2026-10-26): invite contacts, and random matches with members in other countries.
+      {
+        id: 'chat', icon: 'message', label: 'nav.chat',
+        children: [
+          { id: 'chat-invite', href: '/chat.html?tab=invite', label: 'nav.inviteChat' },
+          { id: 'chat-foreign', href: '/chat.html?tab=foreign', label: 'nav.foreignChat' },
+        ],
+      },
     ],
   },
   {
@@ -103,6 +111,7 @@ const ADMIN_NAV = [
     group: 'admin.nav.group.people',
     items: [
       { id: 'admin-members', href: '/admin/members.html', icon: 'users', label: 'admin.nav.members' },
+      { id: 'admin-chats', href: '/admin/chats.html', icon: 'message', label: 'admin.nav.chats' },
       { id: 'admin-fraud', icon: 'flag', label: 'admin.nav.fraud', soon: true },
     ],
   },

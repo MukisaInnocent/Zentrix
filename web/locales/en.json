@@ -46,6 +46,9 @@
     "withdraw": "Withdraw",
     "vouchers": "Vouchers",
     "payForClient": "Pay For Client",
+    "chat": "Chat",
+    "inviteChat": "Invite chat",
+    "foreignChat": "Chat with foreigners",
     "tasks": "Task timetable",
     "youtube": "YouTube tasks",
     "tiktok": "TikTok tasks",
@@ -104,6 +107,7 @@
       "deposits": "Deposits",
       "withdrawals": "Withdrawals",
       "issues": "Payment issues",
+      "chats": "Chat reports",
       "balances": "Balance check",
       "ledger": "Ledger"
     },
