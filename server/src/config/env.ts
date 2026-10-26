@@ -33,7 +33,8 @@ const EnvSchema = z.object({
   MAIL_FROM: z.string().min(3).default('Pexerearn <no-reply@pexerearn.test>'),
   // AWS: the API runs in a VPC without internet access, so it hands each email to this S3 bucket and a mailer
   // function outside the VPC sends it (docs/DEPLOYMENT.md).
-  MAIL_S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
+  // Empty means off (Terraform passes an empty value when no email service is set up).
+  MAIL_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
   GEOIP_PROVIDER: z.enum(['none', 'test-header']).default('none'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MIGRATE_ON_START: z.stringbool().default(false),

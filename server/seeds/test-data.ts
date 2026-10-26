@@ -158,7 +158,8 @@ async function seedPayments(db: PoolClient, staffIds: Record<string, number>, me
   // Members 1 to 4 are a chain (each invited by the one before), so activating them in order pays level 1, 2 and 3.
   for (const [i, id] of memberIds.slice(0, 4).entries()) await activate(id, i % 2 === 0 ? 'mtn_ug_test' : 'airtel_ug_test', `SEED-ACT-000${i + 1}`);
   const [m1, , , , m5, m6, , , , , , , m13] = memberIds;
-  if (m1 !== undefined) await requestWithdrawal(db, m1, { source: 'main', amountMinor: 5_000n });
+  // Member 1 earned 17,000 from the chain: a 15,000 withdrawal (the minimum) plus its 1,575 fee fits.
+  if (m1 !== undefined) await requestWithdrawal(db, m1, { source: 'main', amountMinor: 15_000n });
   if (m5 !== undefined) await claim(m5, 'mtn_ug_test', 'SEED-ACT-0005');
   if (m6 !== undefined) await claim(m6, 'airtel_ug_test', 'SEED-ACT-0006');
   if (m13 !== undefined) await claim(m13, 'mpesa_ke_test', 'SEED-ACT-0013');

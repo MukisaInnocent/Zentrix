@@ -64,3 +64,12 @@ describe('configuration', () => {
     })).toThrow(/TEST_SUPERADMIN_PASSWORD must not be set/);
   });
 });
+
+describe('AWS settings', () => {
+  it('treats an empty MAIL_S3_BUCKET as off, accepts a bucket name and refuses a bad one', () => {
+    expect(loadConfig({ ...base, MAIL_S3_BUCKET: '' }).mailS3Bucket).toBeNull();
+    expect(loadConfig({ ...base, MAIL_S3_BUCKET: 'pexa-staging-mail-outbox-1' }).mailS3Bucket).toBe('pexa-staging-mail-outbox-1');
+    expect(() => loadConfig({ ...base, MAIL_S3_BUCKET: 'Bad_Bucket' })).toThrow(/MAIL_S3_BUCKET/);
+    expect(loadConfig({ ...base, DATABASE_CONNECT_TIMEOUT_MS: '25000' }).databaseConnectTimeoutMs).toBe(25000);
+  });
+});
