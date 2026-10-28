@@ -68,8 +68,15 @@ resource "aws_secretsmanager_secret_version" "app" {
   }
 }
 
+# The current version: the resource above keeps pointing at the version Terraform first wrote, so values added
+# later with put-secret-value (RESEND_API_KEY, rotated passwords) are read from here.
+data "aws_secretsmanager_secret_version" "app" {
+  secret_id  = aws_secretsmanager_secret.app.id
+  depends_on = [aws_secretsmanager_secret_version.app]
+}
+
 locals {
-  app_secret = jsondecode(aws_secretsmanager_secret_version.app.secret_string)
+  app_secret = jsondecode(data.aws_secretsmanager_secret_version.app.secret_string)
   # Email goes through S3 and the mailer function only when a Resend key is stored; otherwise the test-mode
   # Email outbox staff page shows every message.
   # Only the yes/no answer is used to decide which resources exist, so it is safe to reveal.
