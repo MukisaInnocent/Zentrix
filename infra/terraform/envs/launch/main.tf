@@ -35,8 +35,8 @@ locals {
   }
   names     = ["pexerearn.com", "www.pexerearn.com"]
   page_dir  = "${path.module}/../../../launch"
-  mime      = { html = "text/html; charset=utf-8", css = "text/css; charset=utf-8", js = "text/javascript; charset=utf-8", svg = "image/svg+xml" }
-  page_file = fileset(local.page_dir, "*.{html,css,js,svg}")
+  mime      = { html = "text/html; charset=utf-8", css = "text/css; charset=utf-8", js = "text/javascript; charset=utf-8", svg = "image/svg+xml", ics = "text/calendar; charset=utf-8" }
+  page_file = fileset(local.page_dir, "*.{html,css,js,svg,ics}")
 }
 
 provider "aws" {
