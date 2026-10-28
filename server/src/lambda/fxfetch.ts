@@ -29,7 +29,8 @@ export async function handler(): Promise<{ rateAt: string; currencies: number; w
     return { rateAt: previous.rateAt.toISOString(), currencies: currencies(previous), written: false };
   }
   const snapshot = await source.latest();
-  const written = previous?.rateAt.getTime() !== snapshot.rateAt.getTime();
+  // A new next-update time is written too, so the following checks wait for it instead of asking again.
+  const written = previous?.rateAt.getTime() !== snapshot.rateAt.getTime() || previous.nextUpdateAt?.getTime() !== snapshot.nextUpdateAt?.getTime();
   if (written) {
     await s3.send(new PutObjectCommand({ Bucket: bucket, Key: FX_S3_KEY, Body: JSON.stringify(snapshot), ContentType: 'application/json' }));
     logger.info({ source: snapshot.source, rateAt: snapshot.rateAt, currencies: currencies(snapshot) }, 'new exchange rates fetched');
