@@ -126,3 +126,15 @@ account's own address.
 Sending does not create a mailbox. For member replies to reach you, set up receiving for info@pexerearn.com, for
 example Cloudflare **Email > Email Routing** forwarding it to your own inbox (it adds its own MX records at the root
 domain, which do not conflict with Resend's records at `send`).
+
+## Delivery tracking (Resend webhook)
+
+Resend reports what happened to each email (sent, delivered, delayed, bounced, marked as spam) to
+`https://api-staging.pexerearn.com/api/webhooks/resend`. The staff console's **Emails** page shows it, and an address
+that bounces for good or reports spam is blocked until an admin removes it. The webhook is signed: its signing secret
+(`whsec_...`) is stored as `RESEND_WEBHOOK_SECRET` in the `pexa-<env>/app` secret, read at deploy time like
+`RESEND_API_KEY`. Without it the endpoint answers 404 and emails stay "Waiting" on the Emails page.
+
+To set it up for an environment: in Resend open **Webhooks > Add endpoint**, use the API address above, tick the
+`email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed` and
+`email.suppressed` events, copy the signing secret into the app secret, and redeploy.

@@ -5,6 +5,7 @@ import { parse } from '../../http/validate.js';
 import { randomToken, sha256 } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
+import { sendEmail } from '../email/send.js';
 import { consumeGrant } from './changes.js';
 import { hashPassword, passwordProblems, verifyPassword } from './passwords.js';
 import { revokeUserSessions, TOKEN_PATTERN } from './sessions.js';
@@ -14,8 +15,6 @@ const RESET_TTL_MS = 30 * 60_000;
 export const ForgotSchema = z.strictObject({ email: z.string().trim().toLowerCase().max(254).pipe(z.email()) });
 export const ResetSchema = z.strictObject({ token: z.string().regex(TOKEN_PATTERN), password: z.string().max(256) });
 export const ChangeSchema = z.strictObject({ currentPassword: z.string().min(1).max(256), newPassword: z.string().max(256) });
-
-const testNote = (services: Services) => (services.config.appMode === 'test' ? '\n\nTEST MODE: no real money.' : '');
 
 // Always answers the same way, whether or not the email belongs to an account.
 export async function requestPasswordReset(services: Services, raw: unknown, ip: string | undefined): Promise<void> {
@@ -31,15 +30,13 @@ export async function requestPasswordReset(services: Services, raw: unknown, ip:
   await services.pool.query('INSERT INTO password_resets (token_hash, user_id, expires_at, ip) VALUES ($1, $2, $3, $4)', [
     sha256(token), user.id, new Date(now.getTime() + RESET_TTL_MS), ip ?? null,
   ]);
-  try {
-    await services.mailer.send({
-      to: email,
-      subject: 'Reset your Pexerearn password',
-      text: `Someone asked to reset the password for this Pexerearn account. To choose a new password, open this link within 30 minutes:\n\n${services.config.publicOrigin}/reset-password.html#token=${token}\n\nIf you did not ask for this, ignore this email; your password stays the same.${testNote(services)}`,
-    });
-  } catch (err) {
-    services.logger.error({ err }, 'password reset email failed');
-  }
+  await sendEmail(services, {
+    to: email, userId: Number(user.id), kind: 'password_reset', category: 'security', subject: 'Reset your Pexerearn password',
+    heading: 'Reset your password',
+    paragraphs: ['Someone asked to reset the password for this Pexerearn account. To choose a new password, use the button below.'],
+    button: { label: 'Choose a new password', url: `${services.config.publicOrigin}/reset-password.html#token=${token}` },
+    note: 'The link works for 30 minutes. If you did not ask for this, ignore this email; your password stays the same.',
+  });
 }
 
 export async function resetPassword(services: Services, raw: unknown): Promise<void> {
@@ -89,13 +86,10 @@ export async function changePassword(services: Services, userId: number, session
 }
 
 async function notifyPasswordChanged(services: Services, email: string): Promise<void> {
-  try {
-    await services.mailer.send({
-      to: email,
-      subject: 'Your Pexerearn password was changed',
-      text: `The password for your Pexerearn account was just changed and other devices were signed out.\n\nIf this was not you, reset your password now and contact support.${testNote(services)}`,
-    });
-  } catch (err) {
-    services.logger.error({ err }, 'password change notice failed');
-  }
+  await sendEmail(services, {
+    to: email, kind: 'password_changed', category: 'security', subject: 'Your Pexerearn password was changed',
+    heading: 'Your password was changed',
+    paragraphs: ['The password for your Pexerearn account was just changed and other devices were signed out.', 'If this was not you, reset your password now and contact support.'],
+    button: { label: 'Reset your password', url: `${services.config.publicOrigin}/forgot-password.html` },
+  });
 }

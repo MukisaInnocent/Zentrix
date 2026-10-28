@@ -4,13 +4,12 @@ import { withTransaction } from '../../db/tx.js';
 import { randomDigits, randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
 import { badRequest } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
+import { sendEmail } from '../email/send.js';
 import { codeHash } from './totp.js';
 
 const EMAIL_TTL_MS = 48 * 3_600_000;
 const PHONE_TTL_MS = 10 * 60_000;
 const PHONE_MAX_ATTEMPTS = 5;
-
-const testNote = (services: Services) => (services.config.appMode === 'test' ? '\n\nTEST MODE: no real money.' : '');
 
 export async function issueEmailVerification(db: Db, userId: number, email: string, now: Date): Promise<string> {
   const token = randomToken(32);
@@ -24,16 +23,13 @@ export async function issueEmailVerification(db: Db, userId: number, email: stri
 // Messages go out after the transaction commits. A failed send is logged, not fatal: the member can
 // ask for another message.
 export async function sendEmailVerification(services: Services, email: string, token: string): Promise<void> {
-  const link = `${services.config.publicOrigin}/verify.html#email=${token}`;
-  try {
-    await services.mailer.send({
-      to: email,
-      subject: 'Confirm your Pexerearn email address',
-      text: `Confirm your email address by opening this link within 48 hours:\n\n${link}\n\nIf you did not create a Pexerearn account, ignore this email.${testNote(services)}`,
-    });
-  } catch (err) {
-    services.logger.error({ err }, 'email verification send failed');
-  }
+  await sendEmail(services, {
+    to: email, kind: 'email_verification', category: 'security', subject: 'Confirm your Pexerearn email address',
+    heading: 'Confirm your email address',
+    paragraphs: ['Welcome to Pexerearn. Confirm this is your email address so we can reach you about your account.'],
+    button: { label: 'Confirm email address', url: `${services.config.publicOrigin}/verify.html#email=${token}` },
+    note: 'The link works for 48 hours. If you did not create a Pexerearn account, ignore this email.',
+  });
 }
 
 export async function issuePhoneCode(db: Db, key: Buffer, userId: number, phone: string, now: Date): Promise<string> {

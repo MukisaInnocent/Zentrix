@@ -10,6 +10,7 @@ import { adminRouter } from './modules/admin/routes.js';
 import { csrfProtection, loadSession } from './modules/auth/middleware.js';
 import { authRouter } from './modules/auth/routes.js';
 import { chatRouter } from './modules/chat/routes.js';
+import { resendWebhook } from './modules/email/webhook.js';
 import { metaRouter, referenceRouter } from './modules/countries/routes.js';
 import { paymentsRouter } from './modules/payments/routes.js';
 import { referralsRouter } from './modules/referrals/routes.js';
@@ -40,6 +41,10 @@ export function createApp(services: Services): express.Express {
       res.status(503).json({ status: 'unavailable' });
     }
   });
+
+  // Server to server: Resend reports email delivery. Outside the session, CSRF and Origin checks; the signature on
+  // the raw body is checked instead (modules/email/webhook.ts).
+  app.post('/api/webhooks/resend', express.raw({ type: () => true, limit: '256kb' }), resendWebhook(services));
 
   const api = Router();
   api.use(noStore);

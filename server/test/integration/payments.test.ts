@@ -158,9 +158,9 @@ describe('activation payment', () => {
 
     await new Promise(r => setTimeout(r, 300));
     const mails = (await app.outbox(member.input.email)).map(m => m.subject);
-    expect(mails).toContain('Pexerearn: Account activated');
+    expect(mails).toContain('Pexerearn: Welcome! Your account is active');
     expect(mails).toContain(`Pexerearn: Activation payment ${res.body.deposit.reference} received`);
-    expect(mails.filter(m => m === 'Pexerearn: Account activated')).toHaveLength(1); // the replay sends nothing
+    expect(mails.filter(m => m === 'Pexerearn: Welcome! Your account is active')).toHaveLength(1); // the replay sends nothing
     expect((await app.owner.query(`SELECT 1 FROM audit_log WHERE action = 'deposit.confirmed' AND target_id = $1`, [res.body.deposit.reference])).rowCount).toBe(1);
     expect((await claim(member)).body.error?.code).toBe('deposit.already_active');
   });

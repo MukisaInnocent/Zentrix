@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Emails · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-emails" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Emails</h1>
+      <p>Every email the site sends, from info@pexerearn.com, with what happened to it. An address that bounces for good or reports spam gets no more email until an admin removes it from the blocked list.</p>
+    </div>
+    <div class="zx-page-head__actions"><button id="send-test" type="button" class="zx-btn zx-btn--secondary">Send a test email</button></div>
+  </div>
+  <div id="summary" class="zx-kpis" aria-label="Last 7 days"></div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <input id="search" class="zx-input" type="search" placeholder="Search by address, username, subject or kind" aria-label="Search emails">
+      <select id="status" class="zx-select" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="queued">Waiting</option>
+        <option value="sent">Sent</option>
+        <option value="delayed">Delayed</option>
+        <option value="delivered">Delivered</option>
+        <option value="bounced">Bounced</option>
+        <option value="complained">Marked as spam</option>
+        <option value="failed">Failed</option>
+        <option value="suppressed">Blocked address</option>
+        <option value="skipped">Test address</option>
+      </select>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Sent</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Kind</th><th scope="col">Status</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-card__title"><h2>Blocked addresses</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Address</th><th scope="col">Why</th><th scope="col">Since</th><th scope="col"><span class="zx-visually-hidden">Action</span></th></tr></thead>
+        <tbody id="blocked"><tr><td colspan="4" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

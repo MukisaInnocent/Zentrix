@@ -31,6 +31,7 @@ locals {
     TEST_AUTO_APPROVE           = tostring(var.test_auto_approve)
     TEST_SUPERADMIN_PASSWORD    = local.app_secret.TEST_SUPERADMIN_PASSWORD
     MAIL_FROM                   = var.mail_from
+    RESEND_WEBHOOK_SECRET       = try(local.app_secret.RESEND_WEBHOOK_SECRET, "")
     MAIL_S3_BUCKET              = local.resend_enabled ? aws_s3_bucket.outbox.bucket : ""
     # Exchange rates: fxfetch leaves the latest snapshot in the outbox bucket under fx/.
     FX_PROVIDER  = "s3"

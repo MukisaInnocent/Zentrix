@@ -1,4 +1,5 @@
 import { storeRates } from '../modules/fx/service.js';
+import { notifyReferralRewards } from '../modules/notifications/notify.js';
 import { payPendingReferralRewards } from '../modules/referrals/service.js';
 import type { Job } from './runner.js';
 
@@ -16,6 +17,7 @@ export const fxRatesJob: Job = {
     const snapshot = await services.fx.latest();
     const stored = await storeRates(services.pool, snapshot);
     const paid = await payPendingReferralRewards(services.pool);
+    if (paid > 0) await notifyReferralRewards(services);
     services.logger.info({ source: snapshot.source, rateAt: snapshot.rateAt, stored, paid }, 'exchange rates refreshed');
   },
 };

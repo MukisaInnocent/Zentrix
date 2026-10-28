@@ -69,10 +69,32 @@ async function render(me, list) {
   }));
 }
 
+async function emailChoices(form) {
+  const { preferences } = await api.get('/api/me/email-preferences');
+  form.elements.namedItem('referralRewards').checked = preferences.referralRewards;
+  form.elements.namedItem('signInAlerts').checked = preferences.signInAlerts;
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const button = form.querySelector('button');
+    button.disabled = true;
+    try {
+      await api.put('/api/me/email-preferences', {
+        referralRewards: form.elements.namedItem('referralRewards').checked,
+        signInAlerts: form.elements.namedItem('signInAlerts').checked,
+      });
+      toast.success('Email choices saved.');
+    } catch {
+      toast.error('Could not save. Please try again.');
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 export async function init({ me }) {
   $('#prof-username').textContent = `@${me.username}`;
   $('#prof-country').textContent = `${me.country.name} (${me.currency})`;
   $('#prof-upline').textContent = me.referrer ? `@${me.referrer.username}` : 'None';
   $('#prof-status').textContent = me.activated ? 'Active' : 'Waiting for activation';
-  await render(me, $('#security-list'));
+  await Promise.all([render(me, $('#security-list')), emailChoices($('#email-prefs'))]);
 }

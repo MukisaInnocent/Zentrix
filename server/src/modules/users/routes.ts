@@ -7,10 +7,13 @@ import { hashKey, limiter } from '../../http/rate-limit.js';
 import { changeEmail, changePhone, openGrants } from '../auth/changes.js';
 import { requireAuth } from '../auth/middleware.js';
 import { validTimezone } from '../auth/register.js';
+import { emailPreferences } from '../email/send.js';
 import { loadProfile } from './profile.js';
 
 // Members change presentation preferences freely. Username and country are locked. Password, email and phone change
 // only after an admin unlocks them (see auth/changes.ts).
+const EmailPreferencesSchema = z.strictObject({ referralRewards: z.boolean(), signInAlerts: z.boolean() });
+
 const PatchMeSchema = z.strictObject({
   timezone: z.string().trim().max(64).refine(validTimezone, { error: 'Choose a valid time zone.' }).optional(),
   locale: z.string().trim().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, { error: 'Choose a valid language.' }).optional(),
@@ -42,6 +45,22 @@ export function meRouter(services: Services): Router {
   router.post('/phone', changeLimit, async (req, res) => {
     const result = await changePhone(services, req, req.auth!, req.body);
     res.json({ ok: true, ...result });
+  });
+
+  // Optional emails (owner, 2026-10-28). Security and payment emails always go.
+  router.get('/email-preferences', async (req, res) => {
+    const p = await emailPreferences(services, req.auth!.userId);
+    res.json({ preferences: { referralRewards: p.referral_rewards, signInAlerts: p.sign_in_alerts } });
+  });
+
+  router.put('/email-preferences', async (req, res) => {
+    const input = parse(EmailPreferencesSchema, req.body);
+    await services.pool.query(
+      `INSERT INTO email_preferences (user_id, referral_rewards, sign_in_alerts) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET referral_rewards = $2, sign_in_alerts = $3, updated_at = now()`,
+      [req.auth!.userId, input.referralRewards, input.signInAlerts],
+    );
+    res.json({ preferences: input });
   });
 
   router.patch('/', async (req, res) => {

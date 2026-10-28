@@ -72,6 +72,9 @@ services:
       # Mail goes out from info@pexerearn.com, so pexerearn.com must be verified in Resend (docs/DOMAIN.md).
       - key: RESEND_API_KEY
         sync: false
+      # Signing secret of the Resend webhook that reports delivery (whsec_...); see docs/DOMAIN.md.
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
       - key: MAIL_FROM
         value: Pexerearn <info@pexerearn.com>
       # Email address given to the seeded zx_admin account, so its sign-in codes reach a real inbox.

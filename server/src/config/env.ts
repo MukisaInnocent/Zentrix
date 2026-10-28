@@ -34,6 +34,8 @@ const EnvSchema = z.object({
   SMTP_URL: z.string().optional(),
   // Resend (https://resend.com) email API key. When set, email goes through its HTTP API instead of SMTP.
   RESEND_API_KEY: z.string().optional(),
+  // Signing secret of the Resend webhook that reports delivery (whsec_...). Without it the webhook answers 404.
+  RESEND_WEBHOOK_SECRET: z.string().regex(/^$|^whsec_[A-Za-z0-9+/=]{16,}$/).optional(),
   MAIL_FROM: z.string().min(3).default('Pexerearn <info@pexerearn.com>'),
   // AWS: the API runs in a VPC without internet access, so it hands each email to this S3 bucket and a mailer
   // function outside the VPC sends it (docs/DEPLOYMENT.md).
@@ -74,6 +76,7 @@ export interface Config {
   cookieSecure: boolean;
   smtpUrl: string | null;
   resendApiKey: string | null;
+  resendWebhookSecret: string | null;
   mailFrom: string;
   mailS3Bucket: string | null;
   fxProvider: 'open-er-api' | 's3' | 'none';
@@ -155,6 +158,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cookieSecure: e.COOKIE_SECURE ?? !isLocalOrigin(origin),
     smtpUrl: e.SMTP_URL && e.SMTP_URL.length > 0 ? e.SMTP_URL : null,
     resendApiKey: e.RESEND_API_KEY && e.RESEND_API_KEY.length > 0 ? e.RESEND_API_KEY : null,
+    resendWebhookSecret: e.RESEND_WEBHOOK_SECRET && e.RESEND_WEBHOOK_SECRET.length > 0 ? e.RESEND_WEBHOOK_SECRET : null,
     mailFrom: e.MAIL_FROM,
     mailS3Bucket: e.MAIL_S3_BUCKET && e.MAIL_S3_BUCKET.length > 0 ? e.MAIL_S3_BUCKET : null,
     fxProvider: e.FX_PROVIDER,

@@ -8,6 +8,9 @@ export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string;
+  // Our email_messages id. Resend returns it in delivery webhooks as the `message_id` tag.
+  id?: string;
 }
 
 export interface Mailer {
@@ -27,7 +30,7 @@ export class SmtpMailer implements Mailer {
   }
   async send(message: MailMessage): Promise<void> {
     if (isReservedAddress(message.to)) return;
-    await this.transport.sendMail({ from: this.from, to: message.to, subject: message.subject, text: message.text });
+    await this.transport.sendMail({ from: this.from, to: message.to, subject: message.subject, text: message.text, html: message.html });
   }
 }
 
@@ -40,7 +43,11 @@ export class ResendMailer implements Mailer {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: this.from, to: [message.to], subject: message.subject, text: message.text }),
+      body: JSON.stringify({
+        from: this.from, to: [message.to], subject: message.subject, text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.id ? { tags: [{ name: 'message_id', value: message.id }] } : {}),
+      }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`Resend rejected the email: HTTP ${res.status}`);

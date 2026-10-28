@@ -8,6 +8,7 @@ import { badRequest, conflict, DB_ERRORS, forbidden, pgErrorCode } from '../../l
 import { isMobileLike, parseInternational, PHONE_HELP } from '../../lib/phone.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
+import { sendEmail } from '../email/send.js';
 import type { Request } from 'express';
 import type { AuthContext } from './context.js';
 import { verifyPassword } from './passwords.js';
@@ -77,11 +78,7 @@ async function checkPassword(services: Services, userId: number, password: strin
 
 async function notify(services: Services, to: string | null, subject: string, text: string): Promise<void> {
   if (!to) return;
-  try {
-    await services.mailer.send({ to, subject, text });
-  } catch (err) {
-    services.logger.error({ err }, 'account change notice failed');
-  }
+  await sendEmail(services, { to, kind: 'account_change', category: 'security', subject, heading: subject.replace(/^Your Pexerearn /, 'Your '), paragraphs: [text] });
 }
 
 export async function changeEmail(services: Services, req: Request, auth: AuthContext, raw: unknown): Promise<void> {

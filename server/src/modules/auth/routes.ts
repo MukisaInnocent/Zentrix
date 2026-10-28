@@ -6,6 +6,7 @@ import { hashKey, limiter } from '../../http/rate-limit.js';
 import { parse } from '../../http/validate.js';
 import { notFound, unauthorized } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
+import { notifySignIn } from '../notifications/notify.js';
 import { loadProfile } from '../users/profile.js';
 import { login, loginWithMfa } from './login.js';
 import { requireAuth } from './middleware.js';
@@ -48,12 +49,14 @@ export function authRouter(services: Services): Router {
       const result = await login(services, req.body, meta(req));
       if (result.kind === 'mfa') return void res.json({ mfaRequired: true, challengeToken: result.challengeToken, emailSent: result.emailSent });
       await startSession(req, res, result.session, result.userId, { mfaEnrollmentRequired: result.mfaEnrollmentRequired });
+      void notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
     },
   );
 
   router.post('/login/mfa', limiter(pool, { name: 'login-mfa', windowMs: 15 * MINUTE, limit: 10 }), async (req, res) => {
     const result = await loginWithMfa(services, req.body, meta(req));
     await startSession(req, res, result.session, result.userId);
+    void notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
   });
 
   router.post('/logout', async (req, res) => {
