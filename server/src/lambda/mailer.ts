@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createLogger } from '../lib/logger.js';
-import { ResendMailer, type MailMessage } from '../providers/mail.js';
+import { isReservedAddress, ResendMailer, type MailMessage } from '../providers/mail.js';
 
 // AWS Lambda entry for outgoing email. Runs outside the VPC (it needs the internet, not the database). The API
 // writes each message to the outbox bucket (S3HandoffMailer); S3 notifies the SQS queue, which triggers this
@@ -26,9 +26,10 @@ export async function handler(event: SqsEvent): Promise<{ batchItemFailures: { i
         const object = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         const message = JSON.parse(await object.Body!.transformToString()) as MailMessage;
         if (!mailer) throw new Error('RESEND_API_KEY is not set; email cannot be delivered.');
-        await mailer.send(message);
+        const reserved = isReservedAddress(message.to);
+        if (!reserved) await mailer.send(message);
         await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-        logger.info({ key }, 'email sent');
+        logger.info({ key }, reserved ? 'email skipped: test address that cannot receive mail' : 'email sent');
       }
     } catch (err) {
       logger.error({ err: err instanceof Error ? err.message : String(err), messageId: record.messageId }, 'email not sent; will retry');

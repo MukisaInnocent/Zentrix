@@ -14,12 +14,19 @@ export interface Mailer {
   send(message: MailMessage): Promise<void>;
 }
 
+// Reserved top-level domains (RFC 2606, RFC 6761) used by fake seed and test accounts. Mail to them can never
+// be delivered, and bounces hurt the sending domain's reputation, so real mailers skip them.
+export function isReservedAddress(to: string): boolean {
+  return /[.@](test|example|invalid|localhost)$/i.test(to.trim());
+}
+
 export class SmtpMailer implements Mailer {
   private readonly transport: Transporter;
   constructor(url: string, private readonly from: string) {
     this.transport = createTransport(url);
   }
   async send(message: MailMessage): Promise<void> {
+    if (isReservedAddress(message.to)) return;
     await this.transport.sendMail({ from: this.from, to: message.to, subject: message.subject, text: message.text });
   }
 }
@@ -29,6 +36,7 @@ export class SmtpMailer implements Mailer {
 export class ResendMailer implements Mailer {
   constructor(private readonly apiKey: string, private readonly from: string) {}
   async send(message: MailMessage): Promise<void> {
+    if (isReservedAddress(message.to)) return;
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
@@ -46,6 +54,7 @@ export class S3HandoffMailer implements Mailer {
   private readonly s3 = new S3Client({});
   constructor(private readonly bucket: string) {}
   async send(message: MailMessage): Promise<void> {
+    if (isReservedAddress(message.to)) return;
     await this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: `outbox/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.json`,
