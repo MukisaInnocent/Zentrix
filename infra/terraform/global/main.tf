@@ -30,6 +30,12 @@ variable "github_repository" {
   default     = "MukisaInnocent/Zentrix"
 }
 
+variable "github_repository_with_ids" {
+  description = "The same repository as GitHub names it in OpenID Connect tokens: owner@ownerId/name@repoId."
+  type        = string
+  default     = "MukisaInnocent@174857358/Zentrix@1424697357"
+}
+
 variable "state_bucket" {
   type    = string
   default = "pexerearn-tfstate-48213"
@@ -76,7 +82,12 @@ data "aws_iam_policy_document" "github_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:environment:${each.key}"]
+      # GitHub now sends the owner and repository with their numeric IDs (the second form); the first is the
+      # older form. Both name exactly this repository and environment.
+      values = [
+        "repo:${var.github_repository}:environment:${each.key}",
+        "repo:${var.github_repository_with_ids}:environment:${each.key}",
+      ]
     }
   }
 }
