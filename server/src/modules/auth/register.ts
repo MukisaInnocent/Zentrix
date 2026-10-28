@@ -11,6 +11,7 @@ import { raiseFlag } from '../fraud/flags.js';
 import { getSetting } from '../settings/registry.js';
 import { hashPassword, passwordProblems } from './passwords.js';
 import { createSession, type IssuedSession } from './sessions.js';
+import { notifyReferralSignup } from '../notifications/notify.js';
 import { issueEmailVerification, issuePhoneCode, sendEmailVerification, sendPhoneCode } from './verification.js';
 
 export const RegisterSchema = z.strictObject({
@@ -147,7 +148,8 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
     throw err;
   }
 
-  await sendEmailVerification(services, registration.email, registration.emailToken);
+  await sendEmailVerification(services, registration.email, registration.emailToken, registration.userId);
+  await notifyReferralSignup(services, registration.userId);
   await sendPhoneCode(services, registration.phoneE164, registration.phoneCode);
   return { userId: registration.userId, session: registration.session };
 }

@@ -58,7 +58,8 @@ function message(event: PaymentEvent, money: string, ref: string, note: string |
   }
 }
 
-// Looks the payment up by reference and emails its owner. Fire and forget: callers do not await it. A confirmed
+// Looks the payment up by reference and emails its owner. Never throws. Callers await it before replying: on AWS
+// Lambda the function freezes once the reply is sent, so an email started afterwards may never go out. A confirmed
 // activation also tells the people above the member about the referral rewards it paid.
 export async function notifyPayment(services: Services, event: PaymentEvent, reference: string, note: string | null = null): Promise<void> {
   try {
@@ -117,6 +118,32 @@ export async function notifyActivatedBy(services: Services, username: string, ho
     await notifyReferralRewards(services);
   } catch (err) {
     services.logger.error({ err, username }, 'activation email failed');
+  }
+}
+
+// Tells the direct inviter, right away, that someone signed up with their link (owner, 2026-10-28). The reward
+// itself comes with the activation and has its own email.
+export async function notifyReferralSignup(services: Services, userId: number): Promise<void> {
+  try {
+    const r = await maybeOne<{ id: string; email: string | null; username: string; member: string; country: string }>(
+      services.pool,
+      `SELECT i.id, i.email, i.username, m.username AS member, c.name AS country
+       FROM users m JOIN users i ON i.id = m.referred_by_user_id JOIN countries c ON c.code = m.country_code WHERE m.id = $1`,
+      [userId],
+    );
+    if (!r?.email) return;
+    await sendEmail(services, {
+      to: r.email, userId: Number(r.id), kind: 'referral_signup', category: 'referral', ref: `signup:${userId}`,
+      subject: `Pexerearn: @${r.member} joined with your link`, heading: 'Someone joined with your link',
+      paragraphs: [
+        `Hello @${r.username},`,
+        `@${r.member} (${r.country}) just created a Pexerearn account with your username as the referral code.`,
+        'Your referral reward is paid when they activate their account, and we will email you then.',
+      ],
+      button: { label: 'See your referrals', url: `${services.config.publicOrigin}/referrals.html?level=1&view=inactive` },
+    });
+  } catch (err) {
+    services.logger.error({ err, userId }, 'referral sign-up email failed');
   }
 }
 

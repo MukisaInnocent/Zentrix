@@ -149,7 +149,7 @@ export function vouchersRouter(services: Services): Router {
       await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [target.id, voucher.id]);
       return { status: 200, body: { ok: true, username: target.username, code: voucher.code, receiptNo } };
     });
-    if (!result.replayed) void notifyActivatedBy(services, String(result.body.username), `voucher ${String(result.body.code)}`);
+    if (!result.replayed) await notifyActivatedBy(services, String(result.body.username), `voucher ${String(result.body.code)}`);
     res.status(result.status).json(result.body);
   });
 
@@ -263,7 +263,7 @@ export function clientPaymentsRouter(services: Services): Router {
       }
       return { status: 201, body: { ok: true, username: target.username, receiptNo, feeMinor: fee.toString(), currency: payer.currency, payer: payer.username } };
     });
-    if (!result.replayed) void notifyActivatedBy(services, String(result.body.username), `a payment from @${String(result.body.payer)}`);
+    if (!result.replayed) await notifyActivatedBy(services, String(result.body.username), `a payment from @${String(result.body.payer)}`);
     res.status(result.status).json(result.body);
   });
 

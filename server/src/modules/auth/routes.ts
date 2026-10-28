@@ -48,15 +48,15 @@ export function authRouter(services: Services): Router {
     async (req, res) => {
       const result = await login(services, req.body, meta(req));
       if (result.kind === 'mfa') return void res.json({ mfaRequired: true, challengeToken: result.challengeToken, emailSent: result.emailSent });
+      await notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
       await startSession(req, res, result.session, result.userId, { mfaEnrollmentRequired: result.mfaEnrollmentRequired });
-      void notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
     },
   );
 
   router.post('/login/mfa', limiter(pool, { name: 'login-mfa', windowMs: 15 * MINUTE, limit: 10 }), async (req, res) => {
     const result = await loginWithMfa(services, req.body, meta(req));
+    await notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
     await startSession(req, res, result.session, result.userId);
-    void notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
   });
 
   router.post('/logout', async (req, res) => {

@@ -112,8 +112,8 @@ export function paymentsRouter(services: Services): Router {
     });
     if (!result.replayed) {
       const deposit = result.body.deposit as { id: string; reference: string };
-      void notifyPayment(services, 'deposit_submitted', deposit.reference);
-      if (await autoConfirmDeposit(services, deposit.id)) void notifyPayment(services, 'deposit_confirmed', deposit.reference);
+      await notifyPayment(services, 'deposit_submitted', deposit.reference);
+      if (await autoConfirmDeposit(services, deposit.id)) await notifyPayment(services, 'deposit_confirmed', deposit.reference);
     }
     res.status(result.status).json(result.body);
   });
@@ -164,8 +164,8 @@ export function paymentsRouter(services: Services): Router {
     });
     if (!result.replayed) {
       const withdrawal = result.body.withdrawal as { id: string; reference: string; currency: string };
-      void notifyPayment(services, 'withdrawal_requested', withdrawal.reference);
-      if (await autoPayWithdrawal(services, withdrawal.id, withdrawal.currency)) void notifyPayment(services, 'withdrawal_paid', withdrawal.reference, 'test mode');
+      await notifyPayment(services, 'withdrawal_requested', withdrawal.reference);
+      if (await autoPayWithdrawal(services, withdrawal.id, withdrawal.currency)) await notifyPayment(services, 'withdrawal_paid', withdrawal.reference, 'test mode');
     }
     res.status(result.status).json(result.body);
   });
@@ -173,7 +173,7 @@ export function paymentsRouter(services: Services): Router {
   router.post('/withdrawals/:id/cancel', async (req, res) => {
     const id = publicId(req.params.id);
     const result = await idempotent(pool, req, `withdrawal.cancel.${id}`, async db => ({ status: 200, body: { withdrawal: await memberCancelWithdrawal(db, req.auth!.userId, id) } }));
-    if (!result.replayed) void notifyPayment(services, 'withdrawal_cancelled', (result.body.withdrawal as { reference: string }).reference, 'Cancelled at your request.');
+    if (!result.replayed) await notifyPayment(services, 'withdrawal_cancelled', (result.body.withdrawal as { reference: string }).reference, 'Cancelled at your request.');
     res.status(result.status).json(result.body);
   });
 

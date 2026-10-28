@@ -204,7 +204,7 @@ export function paymentsAdminRouter(services: Services): Router {
       await audit(db, req, { action: 'deposit.confirmed', targetType: 'deposit', targetId: after.reference, before, after, reason: body.note });
       return { status: 200, body: { deposit: after } };
     });
-    if (!result.replayed) void notifyPayment(services, 'deposit_confirmed', (result.body.deposit as { reference: string }).reference);
+    if (!result.replayed) await notifyPayment(services, 'deposit_confirmed', (result.body.deposit as { reference: string }).reference);
     res.status(result.status).json(result.body);
   });
 
@@ -216,7 +216,7 @@ export function paymentsAdminRouter(services: Services): Router {
       await audit(db, req, { action: 'deposit.rejected', targetType: 'deposit', targetId: after.reference, before, after, reason });
       return after;
     });
-    void notifyPayment(services, 'deposit_rejected', deposit.reference, reason);
+    await notifyPayment(services, 'deposit_rejected', deposit.reference, reason);
     res.json({ deposit });
   });
 
@@ -283,7 +283,7 @@ export function paymentsAdminRouter(services: Services): Router {
       const event = WITHDRAWAL_EMAIL[action];
       if (event && !result.replayed) {
         const w = result.body.withdrawal as { reference: string; payoutTxnId: string | null };
-        void notifyPayment(services, event, w.reference, action === 'paid' ? w.payoutTxnId : (body.note ?? null));
+        await notifyPayment(services, event, w.reference, action === 'paid' ? w.payoutTxnId : (body.note ?? null));
       }
       res.status(result.status).json(result.body);
     });
@@ -326,12 +326,13 @@ export function paymentsAdminRouter(services: Services): Router {
   router.post('/issues/:id/messages', requireStaff(...VIEW), async (req, res) => {
     const { body } = parse(MessageBody, req.body);
     const id = uuid(req.params.id);
-    await withTransaction(pool, async db => {
-      const issue = await findIssue(db, id);
-      await addMessage(db, issue, staff(req), true, body);
+    const issue = await withTransaction(pool, async db => {
+      const found = await findIssue(db, id);
+      await addMessage(db, found, staff(req), true, body);
       await audit(db, req, { action: 'issue.replied', targetType: 'payment_issue', targetId: id });
-      return issue;
-    }).then(issue => void notifyIssueReply(services, Number(issue.user_id), body));
+      return found;
+    });
+    await notifyIssueReply(services, Number(issue.user_id), body);
     res.status(201).json({ ok: true });
   });
 

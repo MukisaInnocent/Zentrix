@@ -22,9 +22,9 @@ export async function issueEmailVerification(db: Db, userId: number, email: stri
 
 // Messages go out after the transaction commits. A failed send is logged, not fatal: the member can
 // ask for another message.
-export async function sendEmailVerification(services: Services, email: string, token: string): Promise<void> {
+export async function sendEmailVerification(services: Services, email: string, token: string, userId?: number): Promise<void> {
   await sendEmail(services, {
-    to: email, kind: 'email_verification', category: 'security', subject: 'Confirm your Pexerearn email address',
+    to: email, userId: userId ?? null, kind: 'email_verification', category: 'security', subject: 'Confirm your Pexerearn email address',
     heading: 'Confirm your email address',
     paragraphs: ['Welcome to Pexerearn. Confirm this is your email address so we can reach you about your account.'],
     button: { label: 'Confirm email address', url: `${services.config.publicOrigin}/verify.html#email=${token}` },

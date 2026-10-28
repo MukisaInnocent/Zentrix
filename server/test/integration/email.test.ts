@@ -86,9 +86,13 @@ describe('sending', () => {
     await quiet.client.put('/api/me/email-preferences', { referralRewards: false, signInAlerts: true });
     const a = await registerMember(app, { referralCode: keen.input.username });
     const b = await registerMember(app, { referralCode: quiet.input.username });
+    // Right away, with no waiting: the new member gets the sign-up email and the inviter hears about it.
+    expect((await app.outbox(a.input.email)).map(x => x.subject)).toContain('Confirm your Pexerearn email address');
+    expect((await app.outbox(keen.input.email)).map(x => x.subject)).toContain(`Pexerearn: @${a.input.username} joined with your link`);
+    expect((await app.outbox(quiet.input.email)).filter(x => x.subject?.includes('joined with your link'))).toEqual([]);
     await activate(a);
     await activate(b);
-    await new Promise(r => setTimeout(r, 500));
+    expect((await app.outbox(a.input.email)).map(x => x.subject)).toContain('Pexerearn: Welcome! Your account is active');
     await notifyReferralRewards(app.services); // a second run sends nothing new
     const rewardMails = async (to: string) => (await app.outbox(to)).filter(x => x.subject?.startsWith('Pexerearn: you earned'));
     const keenMails = await rewardMails(keen.input.email);
