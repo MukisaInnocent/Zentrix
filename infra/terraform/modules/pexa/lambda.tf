@@ -111,8 +111,12 @@ resource "aws_iam_role_policy" "fxfetch" {
   name = "write-fx-rates"
   role = aws_iam_role.fxfetch.id
   policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [{ Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" }]
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" },
+      # Without ListBucket a missing snapshot reads as AccessDenied instead of NoSuchKey.
+      { Effect = "Allow", Action = ["s3:ListBucket"], Resource = aws_s3_bucket.outbox.arn, Condition = { StringLike = { "s3:prefix" = ["fx/*"] } } },
+    ]
   })
 }
 

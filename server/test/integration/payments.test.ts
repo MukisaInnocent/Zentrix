@@ -304,13 +304,14 @@ describe('referral rewards', () => {
     ]);
 
     // The rate job stores the rates and pays it: KES 129 and UGX 3,700 per dollar, rounded down to whole shillings.
-    app.services.fx = new FixedFxSource({ source: 'test', rateAt: new Date(), unitsPerUsd: { USD: '1', KES: '129', UGX: '3700' } });
+    // The provider's rate is a month old; the latest rate on file is used however old it is (owner, 2026-10-28).
+    app.services.fx = new FixedFxSource({ source: 'test', rateAt: new Date(Date.now() - 30 * 86_400_000), unitsPerUsd: { USD: '1', KES: '129', UGX: '3700' } });
     await fxRatesJob.run(app.services);
     const rewardUgx = (rewardKes * 3700n) / (129n * 100n);
     expect((await summary(ugandan)).availableBalanceMinor).toBe(rewardUgx.toString());
     expect((await rewards()).rows[0]).toMatchObject({ status: 'credited', amount_minor: rewardUgx.toString(), currency_code: 'UGX', fx_rate: '28.682170542636' });
 
-    // With a rate on file, the next one is paid at once.
+    // With a rate on file, even a month-old one, the next reward is paid at once: nobody waits.
     await activateKenyan();
     expect((await summary(ugandan)).availableBalanceMinor).toBe((2n * rewardUgx).toString());
     expect((await ugandan.client.get<Body>('/api/referrals')).body.levels['1'].rewardsMinor).toBe((2n * rewardUgx).toString());

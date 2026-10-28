@@ -9,6 +9,8 @@ import type { Config } from '../config/env.js';
 export interface FxSnapshot {
   source: string;
   rateAt: Date;
+  /** When the provider publishes its next rates; asking again before then returns the same numbers. */
+  nextUpdateAt?: Date;
   unitsPerUsd: Record<string, string>;
 }
 
@@ -24,18 +26,24 @@ const OpenErApiResponse = z.object({
   result: z.literal('success'),
   base_code: z.literal('USD'),
   time_last_update_unix: z.number().int().positive(),
+  time_next_update_unix: z.number().int().positive().optional(),
   rates: z.record(z.string().regex(/^[A-Z]{3}$/), z.number().positive().finite()),
 });
 
 const Snapshot = z.object({
   source: z.string().min(1).max(60),
   rateAt: z.coerce.date(),
+  nextUpdateAt: z.coerce.date().optional(),
   unitsPerUsd: z.record(z.string().regex(/^[A-Z]{3}$/), z.string().regex(/^\d{1,18}(\.\d{1,12})?$/)),
 });
 
+// The provider publishes new rates once a day and blocks an address that asks too often (HTTP 429 for 20
+// minutes), so the source keeps its last answer until the provider's announced next update.
 export class OpenErApiSource implements FxSource {
-  constructor(private readonly url = OPEN_ER_API_URL) {}
+  private cached: FxSnapshot | null = null;
+  constructor(private readonly url = OPEN_ER_API_URL, private readonly now = () => new Date()) {}
   async latest(): Promise<FxSnapshot> {
+    if (this.cached?.nextUpdateAt && this.cached.nextUpdateAt > this.now()) return this.cached;
     const res = await fetch(this.url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`Exchange-rate API answered HTTP ${res.status}`);
     const body = OpenErApiResponse.parse(await res.json());
@@ -44,7 +52,13 @@ export class OpenErApiSource implements FxSource {
       const text = rate.toFixed(12).replace(/\.?0+$/, '');
       if (/^\d{1,18}(\.\d{1,12})?$/.test(text) && text !== '0') unitsPerUsd[code] = text;
     }
-    return { source: 'open.er-api.com', rateAt: new Date(body.time_last_update_unix * 1000), unitsPerUsd };
+    this.cached = {
+      source: 'open.er-api.com',
+      rateAt: new Date(body.time_last_update_unix * 1000),
+      ...(body.time_next_update_unix ? { nextUpdateAt: new Date(body.time_next_update_unix * 1000) } : {}),
+      unitsPerUsd,
+    };
+    return this.cached;
   }
 }
 
@@ -54,9 +68,11 @@ export class S3FxSource implements FxSource {
   constructor(private readonly bucket: string) {}
   async latest(): Promise<FxSnapshot> {
     const object = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: FX_S3_KEY }));
-    return Snapshot.parse(JSON.parse(await object.Body!.transformToString()));
+    return readSnapshot(await object.Body!.transformToString());
   }
 }
+
+export const readSnapshot = (json: string): FxSnapshot => Snapshot.parse(JSON.parse(json));
 
 // Tests and offline work: a fixed snapshot.
 export class FixedFxSource implements FxSource {

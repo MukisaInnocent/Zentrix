@@ -15,7 +15,7 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
      Lambda api, jobs, migrate ──> Aurora Serverless v2 PostgreSQL (0 to 2 ACU, pauses when idle)│
      Lambda api ──(free S3 gateway endpoint)──> S3 mail outbox ──> SQS ──> Lambda "mailer" ──> Resend
                                                                     └── dead-letter queue + alarm (mailer is outside the VPC)
-   EventBridge Scheduler ──> Lambda jobs (balance check hourly, clean-up daily, exchange rates every 6 hours)
+   EventBridge Scheduler ──> Lambda jobs (balance check hourly, clean-up daily, exchange rates when new ones arrive)
    EventBridge Scheduler ──> Lambda "fxfetch" (outside the VPC) ──> open.er-api.com, snapshot to S3 fx/latest.json
 ```
 
@@ -27,9 +27,10 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
   to Secrets Manager (no NAT or paid endpoints, by decision), so Terraform reads the values at deploy time and sets
   them as Lambda environment variables, which Lambda encrypts at rest. **Changing a secret needs a redeploy.**
 - Without a Resend key, emails (sign-in codes, reset links) are kept on the staff **Email outbox** page.
-- Exchange rates for referral rewards across countries: `fxfetch` fetches them into the outbox bucket under `fx/`
-  every 6 hours; ten minutes later the `fxrates` job (inside the VPC) stores them and pays rewards that were waiting
-  for a rate. A reward across currencies waits as pending until the first rates arrive.
+- Exchange rates for referral rewards across countries: `fxfetch` checks every 5 minutes and asks the provider only
+  after its announced daily update. When the rates are new it writes them to the outbox bucket under `fx/`, and that
+  write starts the `fxrates` job (S3 notification; a daily backup schedule too), which stores them in `fx_rates`. A
+  reward uses the latest stored rate however old, so it is paid at once; only a currency with no rate yet waits.
 - The SMS forwarder's HMAC secret is not created: SMS forwarding was removed by the owner (see CLAUDE.md).
 - Staff pages (`/admin/*`) are served by the API so it can check the staff session before sending them.
 

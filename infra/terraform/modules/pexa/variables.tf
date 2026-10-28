@@ -112,15 +112,15 @@ variable "mail_from" {
 }
 
 variable "fx_fetch_schedule" {
-  description = "When fxfetch fetches exchange rates into S3 (the provider updates once a day)."
+  description = "How often fxfetch checks for new exchange rates (owner: every 5 minutes). It calls the provider only after its announced next update and needs no database."
   type        = string
-  default     = "cron(10 */6 * * ? *)"
+  default     = "rate(5 minutes)"
 }
 
 variable "fx_rates_schedule" {
-  description = "When the fxrates job stores the fetched rates and pays referral rewards waiting for one."
+  description = "Backup run of the fxrates job. New rates already start it within 5 minutes (S3 notification); each run wakes the database."
   type        = string
-  default     = "cron(20 */6 * * ? *)"
+  default     = "cron(20 3 * * ? *)"
 }
 
 variable "cloudfront_price_class" {

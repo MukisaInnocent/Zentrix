@@ -3,11 +3,12 @@ import { notifyReferralRewards } from '../modules/notifications/notify.js';
 import { payPendingReferralRewards } from '../modules/referrals/service.js';
 import type { Job } from './runner.js';
 
-// Every 6 hours: stores the latest exchange rates, then pays the referral rewards that were waiting for one
-// (owner, 2026-10-28). The provider refreshes its rates once a day.
+// Every 5 minutes (owner, 2026-10-28): stores the latest exchange rates, then pays any referral reward still
+// waiting for a first rate of its currency. The provider refreshes its rates once a day; the source asks it again
+// only after its announced next update. On AWS the fetcher starts this job only when new rates arrive.
 export const fxRatesJob: Job = {
   name: 'fxrates',
-  schedule: '20 */6 * * *',
+  schedule: '*/5 * * * *',
   runOnStart: true,
   async run(services) {
     if (!services.fx) {

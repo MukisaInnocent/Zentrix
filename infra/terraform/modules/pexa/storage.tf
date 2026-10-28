@@ -105,5 +105,20 @@ resource "aws_s3_bucket_notification" "outbox" {
     events        = ["s3:ObjectCreated:*"]
     filter_prefix = "outbox/"
   }
-  depends_on = [aws_sqs_queue_policy.mail]
+  # fxfetch writes fx/latest.json only when the provider publishes new rates; the jobs function then stores them.
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.jobs.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "fx/"
+  }
+  depends_on = [aws_sqs_queue_policy.mail, aws_lambda_permission.fx_rates_from_s3]
+}
+
+resource "aws_lambda_permission" "fx_rates_from_s3" {
+  statement_id   = "fx-rates-from-s3"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.jobs.function_name
+  principal      = "s3.amazonaws.com"
+  source_arn     = aws_s3_bucket.outbox.arn
+  source_account = data.aws_caller_identity.current.account_id
 }

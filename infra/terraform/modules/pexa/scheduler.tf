@@ -56,7 +56,7 @@ resource "aws_scheduler_schedule" "jobs" {
   }
 }
 
-# Exchange rates: fxfetch (outside the VPC) fetches them into S3 a few minutes before the fxrates job stores them.
+# Exchange rates: fxfetch (outside the VPC) checks every 5 minutes; a new snapshot in S3 starts the fxrates job.
 resource "aws_scheduler_schedule" "fxfetch" {
   name                         = "${local.name}-fxfetch"
   schedule_expression          = var.fx_fetch_schedule

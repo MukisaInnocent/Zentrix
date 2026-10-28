@@ -17,6 +17,18 @@ describe('the exchange-rate API source', () => {
     expect(snapshot.unitsPerUsd).toEqual({ USD: '1', UGX: '3700', KES: '129.25', KWD: '0.307123', JPY: '150.1' });
   });
 
+  it('asks the provider again only after its announced next update', async () => {
+    let now = new Date('2026-10-28T06:00:00Z');
+    respond({ result: 'success', base_code: 'USD', time_last_update_unix: 1_793_145_600, time_next_update_unix: 1_793_232_000, rates: { UGX: 3700 } });
+    const source = new OpenErApiSource(undefined, () => now);
+    expect((await source.latest()).nextUpdateAt?.toISOString()).toBe('2026-10-29T00:00:00.000Z');
+    await source.latest();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    now = new Date('2026-10-29T00:05:00Z');
+    await source.latest();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('refuses an error answer or a malformed body', async () => {
     respond({ result: 'error', 'error-type': 'unsupported-code' });
     await expect(new OpenErApiSource().latest()).rejects.toThrow();

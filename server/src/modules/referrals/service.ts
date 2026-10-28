@@ -71,7 +71,8 @@ export interface RewardPayment {
 
 // Pays one referral reward from platform revenue in the invited member's currency. A referrer in another currency
 // receives it converted at the latest exchange rate (owner, 2026-10-28), through fx_clearing in both currencies.
-// Without a recent rate the reward waits as 'pending' and the exchange-rate job pays it after the next refresh.
+// Without any stored rate for a currency (a new database) the reward waits as 'pending' and the exchange-rate job pays it
+// once the first rates arrive.
 export async function payReferralReward(db: PoolClient, r: RewardPayment): Promise<'credited' | 'pending' | 'cancelled'> {
   const fx = r.referrerCurrency === r.currency ? null : await convert(db, r.amountMinor, r.currency, r.referrerCurrency);
   if (r.referrerCurrency !== r.currency && !fx) {
