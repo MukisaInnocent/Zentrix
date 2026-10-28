@@ -12,7 +12,7 @@ import { loadProfile } from './profile.js';
 
 // Members change presentation preferences freely. Username and country are locked. Password, email and phone change
 // only after an admin unlocks them (see auth/changes.ts).
-const EmailPreferencesSchema = z.strictObject({ referralRewards: z.boolean(), signInAlerts: z.boolean() });
+const EmailPreferencesSchema = z.strictObject({ referralRewards: z.boolean(), signInAlerts: z.boolean(), announcements: z.boolean().optional() });
 
 const PatchMeSchema = z.strictObject({
   timezone: z.string().trim().max(64).refine(validTimezone, { error: 'Choose a valid time zone.' }).optional(),
@@ -50,17 +50,18 @@ export function meRouter(services: Services): Router {
   // Optional emails (owner, 2026-10-28). Security and payment emails always go.
   router.get('/email-preferences', async (req, res) => {
     const p = await emailPreferences(services, req.auth!.userId);
-    res.json({ preferences: { referralRewards: p.referral_rewards, signInAlerts: p.sign_in_alerts } });
+    res.json({ preferences: { referralRewards: p.referral_rewards, signInAlerts: p.sign_in_alerts, announcements: p.announcements } });
   });
 
   router.put('/email-preferences', async (req, res) => {
     const input = parse(EmailPreferencesSchema, req.body);
     await services.pool.query(
-      `INSERT INTO email_preferences (user_id, referral_rewards, sign_in_alerts) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE SET referral_rewards = $2, sign_in_alerts = $3, updated_at = now()`,
-      [req.auth!.userId, input.referralRewards, input.signInAlerts],
+      `INSERT INTO email_preferences (user_id, referral_rewards, sign_in_alerts, announcements) VALUES ($1, $2, $3, coalesce($4, true))
+       ON CONFLICT (user_id) DO UPDATE SET referral_rewards = $2, sign_in_alerts = $3, announcements = coalesce($4, email_preferences.announcements), updated_at = now()`,
+      [req.auth!.userId, input.referralRewards, input.signInAlerts, input.announcements ?? null],
     );
-    res.json({ preferences: input });
+    const p = await emailPreferences(services, req.auth!.userId);
+    res.json({ preferences: { referralRewards: p.referral_rewards, signInAlerts: p.sign_in_alerts, announcements: p.announcements } });
   });
 
   router.patch('/', async (req, res) => {

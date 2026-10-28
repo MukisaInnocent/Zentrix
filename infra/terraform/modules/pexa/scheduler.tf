@@ -34,6 +34,7 @@ locals {
     reconciliation = var.reconciliation_schedule
     cleanup        = var.cleanup_schedule
     fxrates        = var.fx_rates_schedule
+    announcements  = var.announcements_schedule
   }
 }
 

@@ -73,6 +73,7 @@ async function emailChoices(form) {
   const { preferences } = await api.get('/api/me/email-preferences');
   form.elements.namedItem('referralRewards').checked = preferences.referralRewards;
   form.elements.namedItem('signInAlerts').checked = preferences.signInAlerts;
+  form.elements.namedItem('announcements').checked = preferences.announcements;
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const button = form.querySelector('button');
@@ -81,6 +82,7 @@ async function emailChoices(form) {
       await api.put('/api/me/email-preferences', {
         referralRewards: form.elements.namedItem('referralRewards').checked,
         signInAlerts: form.elements.namedItem('signInAlerts').checked,
+        announcements: form.elements.namedItem('announcements').checked,
       });
       toast.success('Email choices saved.');
     } catch {

@@ -8,11 +8,11 @@ import { renderEmail, type EmailContent } from './template.js';
 // turned off, sends each (kind, ref) only once, and never throws: a failed email is logged and recorded, and never
 // undoes or blocks the change it reports. Call it after the database change has committed.
 
-export type EmailCategory = 'security' | 'payment' | 'account' | 'referral' | 'sign_in';
-export type Preference = 'referral_rewards' | 'sign_in_alerts';
+export type EmailCategory = 'security' | 'payment' | 'account' | 'referral' | 'sign_in' | 'announcement';
+export type Preference = 'referral_rewards' | 'sign_in_alerts' | 'announcements';
 
 // Security, payment and account emails always go; these are the ones a member can turn off.
-export const OPTIONAL: Partial<Record<EmailCategory, Preference>> = { referral: 'referral_rewards', sign_in: 'sign_in_alerts' };
+export const OPTIONAL: Partial<Record<EmailCategory, Preference>> = { referral: 'referral_rewards', sign_in: 'sign_in_alerts', announcement: 'announcements' };
 
 export interface OutgoingEmail extends EmailContent {
   to: string;
@@ -27,10 +27,10 @@ export interface OutgoingEmail extends EmailContent {
 export type SendOutcome = 'queued' | 'sent' | 'skipped' | 'suppressed' | 'opted_out' | 'duplicate' | 'failed';
 
 export async function emailPreferences(services: Pick<Services, 'pool'>, userId: number): Promise<Record<Preference, boolean>> {
-  const row = await maybeOne<{ referral_rewards: boolean; sign_in_alerts: boolean }>(
-    services.pool, 'SELECT referral_rewards, sign_in_alerts FROM email_preferences WHERE user_id = $1', [userId],
+  const row = await maybeOne<{ referral_rewards: boolean; sign_in_alerts: boolean; announcements: boolean }>(
+    services.pool, 'SELECT referral_rewards, sign_in_alerts, announcements FROM email_preferences WHERE user_id = $1', [userId],
   );
-  return { referral_rewards: row?.referral_rewards ?? true, sign_in_alerts: row?.sign_in_alerts ?? true };
+  return { referral_rewards: row?.referral_rewards ?? true, sign_in_alerts: row?.sign_in_alerts ?? true, announcements: row?.announcements ?? true };
 }
 
 export async function sendEmail(services: Services, email: OutgoingEmail): Promise<SendOutcome> {

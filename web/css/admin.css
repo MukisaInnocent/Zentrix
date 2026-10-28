@@ -155,3 +155,15 @@ pre.zx-mono { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 
 /* Staff email outbox: message bodies keep their line breaks and wrap. */
 .zx-outbox-body { margin: var(--zx-space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+
+/* Email preview (announcements and email wording): roughly what the member sees. */
+.zx-mail-preview { border: 1px solid var(--zx-border); border-radius: var(--zx-radius); overflow: hidden; background: var(--zx-surface); }
+.zx-mail-preview__bar { padding: var(--zx-space-3) var(--zx-space-4); background: var(--zx-brand); color: #fff; font-weight: 800; }
+.zx-mail-preview__subject { padding: var(--zx-space-3) var(--zx-space-4); border-block-end: 1px solid var(--zx-border); font-size: .85rem; color: var(--zx-text-muted); overflow-wrap: anywhere; }
+.zx-mail-preview__body { display: grid; gap: var(--zx-space-3); padding: var(--zx-space-4); }
+.zx-mail-preview__body h3 { margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
+.zx-mail-preview__body p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.zx-mail-preview__button { justify-self: start; padding: 10px 20px; border-radius: 8px; background: var(--zx-brand); color: #fff; font-weight: 700; }
+.zx-mail-preview__note { font-size: .8125rem; color: var(--zx-text-muted); }
+.zx-fill-ins { display: flex; flex-wrap: wrap; gap: 6px; }
+.zx-fill-ins button { font-family: var(--zx-font-mono); font-size: .8rem; }

@@ -103,6 +103,8 @@
       "settings": "Settings",
       "audit": "Audit log",
       "emails": "Emails",
+      "announcements": "Announcements",
+      "emailTemplates": "Email wording",
       "outbox": "Dev outbox",
       "back": "Back to member app",
       "deposits": "Deposits",

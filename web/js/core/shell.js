@@ -130,6 +130,8 @@ const ADMIN_NAV = [
     items: [
       { id: 'admin-audit', href: '/admin/audit.html', icon: 'history', label: 'admin.nav.audit' },
       { id: 'admin-emails', href: '/admin/emails.html', icon: 'mail', label: 'admin.nav.emails' },
+      { id: 'admin-announcements', href: '/admin/announcements.html', icon: 'megaphone', label: 'admin.nav.announcements' },
+      { id: 'admin-email-templates', href: '/admin/email-templates.html', icon: 'file', label: 'admin.nav.emailTemplates' },
       { id: 'admin-outbox', href: '/admin/outbox.html', icon: 'mail', label: 'admin.nav.outbox' },
     ],
   },

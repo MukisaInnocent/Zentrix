@@ -4,7 +4,7 @@ import { withTransaction } from '../../db/tx.js';
 import { randomDigits, randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
 import { badRequest } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
-import { sendEmail } from '../email/send.js';
+import { sendTemplated } from '../email/templates.js';
 import { codeHash } from './totp.js';
 
 const EMAIL_TTL_MS = 48 * 3_600_000;
@@ -22,13 +22,11 @@ export async function issueEmailVerification(db: Db, userId: number, email: stri
 
 // Messages go out after the transaction commits. A failed send is logged, not fatal: the member can
 // ask for another message.
-export async function sendEmailVerification(services: Services, email: string, token: string, userId?: number): Promise<void> {
-  await sendEmail(services, {
-    to: email, userId: userId ?? null, kind: 'email_verification', category: 'security', subject: 'Confirm your Pexerearn email address',
-    heading: 'Confirm your email address',
-    paragraphs: ['Welcome to Pexerearn. Confirm this is your email address so we can reach you about your account.'],
-    button: { label: 'Confirm email address', url: `${services.config.publicOrigin}/verify.html#email=${token}` },
-    note: 'The link works for 48 hours. If you did not create a Pexerearn account, ignore this email.',
+export async function sendEmailVerification(services: Services, email: string, token: string, userId: number): Promise<void> {
+  const user = await maybeOne<{ username: string }>(services.pool, 'SELECT username FROM users WHERE id = $1', [userId]);
+  await sendTemplated(services, {
+    kind: 'email_verification', to: email, userId, values: { username: user?.username },
+    buttonUrl: `${services.config.publicOrigin}/verify.html#email=${token}`,
   });
 }
 

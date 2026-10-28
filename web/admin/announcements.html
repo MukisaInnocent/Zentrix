@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Announcements · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-announcements" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Announcements</h1>
+      <p>Write an email to members. It goes out from info@pexerearn.com in the site's design. Members who turned announcements off, and blocked or test addresses, are skipped. Never promise income or earnings.</p>
+    </div>
+  </div>
+  <div id="budget" class="zx-kpis" aria-label="Email allowance today"></div>
+  <div class="zx-cols">
+    <form id="compose" class="zx-card zx-form" novalidate>
+      <div class="zx-card__title"><h2>New announcement</h2></div>
+      <div class="zx-form-row zx-auto-grid zx-auto-grid--sm">
+        <div class="zx-field">
+          <label for="audience">Send to</label>
+          <select id="audience" name="audience" class="zx-select">
+            <option value="all">All members</option>
+            <option value="activated">Activated members</option>
+            <option value="not_activated">Members who have not activated</option>
+          </select>
+        </div>
+        <div class="zx-field">
+          <label for="country">Country</label>
+          <select id="country" name="country" class="zx-select"><option value="">All countries</option></select>
+        </div>
+      </div>
+      <p id="reach" class="zx-hint" aria-live="polite"></p>
+      <div class="zx-field">
+        <label for="subject">Subject</label>
+        <input id="subject" name="subject" class="zx-input" maxlength="150" required placeholder="Pexerearn: news for you">
+        <span class="zx-error" id="subject-error" hidden></span>
+      </div>
+      <div class="zx-field">
+        <label for="heading">Heading</label>
+        <input id="heading" name="heading" class="zx-input" maxlength="150" required placeholder="Something new on Pexerearn">
+        <span class="zx-error" id="heading-error" hidden></span>
+      </div>
+      <div class="zx-field">
+        <label for="body">Message</label>
+        <textarea id="body" name="body" class="zx-textarea" rows="8" maxlength="5000" required placeholder="Write your message. Leave an empty line to start a new paragraph."></textarea>
+        <span class="zx-hint">Leave an empty line to start a new paragraph.</span>
+        <span class="zx-error" id="body-error" hidden></span>
+      </div>
+      <div class="zx-form-row zx-auto-grid zx-auto-grid--sm">
+        <div class="zx-field">
+          <label for="buttonLabel">Button text (optional)</label>
+          <input id="buttonLabel" name="buttonLabel" class="zx-input" maxlength="40" placeholder="Open Pexerearn">
+          <span class="zx-error" id="buttonLabel-error" hidden></span>
+        </div>
+        <div class="zx-field">
+          <label for="buttonUrl">Button link (optional)</label>
+          <input id="buttonUrl" name="buttonUrl" class="zx-input" type="url" maxlength="500" placeholder="https://pexerearn.com/">
+          <span class="zx-error" id="buttonUrl-error" hidden></span>
+        </div>
+      </div>
+      <div class="zx-row-actions">
+        <button id="test" type="button" class="zx-btn zx-btn--secondary">Send me a test</button>
+        <button id="send" type="submit" class="zx-btn">Send</button>
+      </div>
+    </form>
+    <section class="zx-card zx-stack-3" aria-label="Preview">
+      <div class="zx-card__title"><h2>Preview</h2></div>
+      <div id="preview"></div>
+      <p class="zx-hint">Roughly how members see it. Send yourself a test to see the real email.</p>
+    </section>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-card__title"><h2>Sent announcements</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Sent</th><th scope="col">Subject</th><th scope="col">To</th><th scope="col">Progress</th><th scope="col">Status</th><th scope="col"><span class="zx-visually-hidden">Action</span></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

@@ -76,7 +76,7 @@ export function authRouter(services: Services): Router {
     const profile = await loadProfile(pool, auth.userId);
     if (!profile || profile.emailVerified) return void res.json({ ok: true, alreadyVerified: true });
     const token = await issueEmailVerification(pool, auth.userId, profile.email, services.now());
-    await sendEmailVerification(services, profile.email, token);
+    await sendEmailVerification(services, profile.email, token, auth.userId);
     res.json({ ok: true });
   });
 

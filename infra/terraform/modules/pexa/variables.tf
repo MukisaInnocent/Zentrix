@@ -123,6 +123,12 @@ variable "fx_rates_schedule" {
   default     = "cron(20 3 * * ? *)"
 }
 
+variable "announcements_schedule" {
+  description = "When the announcements job sends what did not fit in earlier days' email allowance (just after the daily allowance resets)."
+  type        = string
+  default     = "cron(10 0 * * ? *)"
+}
+
 variable "cloudfront_price_class" {
   description = "PriceClass_All includes the African edge locations closest to members in Uganda."
   type        = string

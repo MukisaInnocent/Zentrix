@@ -5,7 +5,7 @@ import { parse } from '../../http/validate.js';
 import { randomToken, sha256 } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
-import { sendEmail } from '../email/send.js';
+import { sendTemplated } from '../email/templates.js';
 import { consumeGrant } from './changes.js';
 import { hashPassword, passwordProblems, verifyPassword } from './passwords.js';
 import { revokeUserSessions, TOKEN_PATTERN } from './sessions.js';
@@ -20,9 +20,9 @@ export const ChangeSchema = z.strictObject({ currentPassword: z.string().min(1).
 export async function requestPasswordReset(services: Services, raw: unknown, ip: string | undefined): Promise<void> {
   const { email } = parse(ForgotSchema, raw);
   const now = services.now();
-  const user = await maybeOne<{ id: string }>(
+  const user = await maybeOne<{ id: string; username: string }>(
     services.pool,
-    `SELECT id FROM users WHERE email = $1 AND status <> 'closed' AND anonymized_at IS NULL`,
+    `SELECT id, username FROM users WHERE email = $1 AND status <> 'closed' AND anonymized_at IS NULL`,
     [email],
   );
   if (!user) return;
@@ -30,12 +30,9 @@ export async function requestPasswordReset(services: Services, raw: unknown, ip:
   await services.pool.query('INSERT INTO password_resets (token_hash, user_id, expires_at, ip) VALUES ($1, $2, $3, $4)', [
     sha256(token), user.id, new Date(now.getTime() + RESET_TTL_MS), ip ?? null,
   ]);
-  await sendEmail(services, {
-    to: email, userId: Number(user.id), kind: 'password_reset', category: 'security', subject: 'Reset your Pexerearn password',
-    heading: 'Reset your password',
-    paragraphs: ['Someone asked to reset the password for this Pexerearn account. To choose a new password, use the button below.'],
-    button: { label: 'Choose a new password', url: `${services.config.publicOrigin}/reset-password.html#token=${token}` },
-    note: 'The link works for 30 minutes. If you did not ask for this, ignore this email; your password stays the same.',
+  await sendTemplated(services, {
+    kind: 'password_reset', to: email, userId: Number(user.id), values: { username: user.username },
+    buttonUrl: `${services.config.publicOrigin}/reset-password.html#token=${token}`,
   });
 }
 
@@ -62,7 +59,7 @@ export async function resetPassword(services: Services, raw: unknown): Promise<v
     return true;
   });
   if (!done) throw badRequest('reset.invalid_link', 'This reset link is invalid or has expired. Ask for a new one.');
-  await notifyPasswordChanged(services, target.email);
+  await notifyPasswordChanged(services, Number(target.user_id), target.username, target.email);
 }
 
 export async function changePassword(services: Services, userId: number, sessionId: number, raw: unknown): Promise<void> {
@@ -82,14 +79,11 @@ export async function changePassword(services: Services, userId: number, session
     await revokeUserSessions(db, userId, 'password_changed', sessionId);
     await db.query(`INSERT INTO auth_events (user_id, kind) VALUES ($1, 'password_changed')`, [userId]);
   });
-  await notifyPasswordChanged(services, user.email);
+  await notifyPasswordChanged(services, userId, user.username, user.email);
 }
 
-async function notifyPasswordChanged(services: Services, email: string): Promise<void> {
-  await sendEmail(services, {
-    to: email, kind: 'password_changed', category: 'security', subject: 'Your Pexerearn password was changed',
-    heading: 'Your password was changed',
-    paragraphs: ['The password for your Pexerearn account was just changed and other devices were signed out.', 'If this was not you, reset your password now and contact support.'],
-    button: { label: 'Reset your password', url: `${services.config.publicOrigin}/forgot-password.html` },
+async function notifyPasswordChanged(services: Services, userId: number, username: string, email: string): Promise<void> {
+  await sendTemplated(services, {
+    kind: 'password_changed', to: email, userId, values: { username }, buttonUrl: `${services.config.publicOrigin}/forgot-password.html`,
   });
 }

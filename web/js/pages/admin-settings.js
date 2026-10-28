@@ -29,6 +29,17 @@ const KNOWN = {
     hint: 'Shown on the Contact page.',
     show: v => `${v.email} · ${v.phone} · ${v.hours}`,
   },
+  'email.allowance': {
+    title: 'Email allowance',
+    fields: [
+      { name: 'daily', label: 'Emails per day', type: 'number' },
+      { name: 'monthly', label: 'Emails per month', type: 'number' },
+      { name: 'reserved', label: 'Kept free each day for members (sign-up, payments, rewards)', type: 'number' },
+    ],
+    hint: 'Set these to your email plan (Resend free plan: 100 a day, 3,000 a month). Announcements only use what is left after the reserved part.',
+    show: v => `${v.daily.toLocaleString()} a day · ${v.monthly.toLocaleString()} a month · ${v.reserved.toLocaleString()} kept for members`,
+    read: v => ({ daily: Number(v.daily), monthly: Number(v.monthly), reserved: Number(v.reserved) }),
+  },
   'community.url': {
     title: 'Community link',
     fields: [{ name: 'url', label: 'Link (https), or leave empty for none' }],

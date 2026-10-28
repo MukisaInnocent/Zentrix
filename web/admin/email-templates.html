@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Email wording · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-email-templates" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Email wording</h1>
+      <p>The words of the emails the site sends by itself. Fill-ins such as <code>{username}</code> are replaced for each member. Links, sign-in codes and security notes are set by the site and cannot be changed. Every change is a new version in the audit log.</p>
+    </div>
+  </div>
+  <div class="zx-cols">
+    <div class="zx-card zx-stack-3">
+      <div class="zx-table-wrap">
+        <table class="zx-table">
+          <thead><tr><th scope="col">Email</th><th scope="col">Wording</th><th scope="col"><span class="zx-visually-hidden">Action</span></th></tr></thead>
+          <tbody id="rows"><tr><td colspan="3" class="zx-td-empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <section id="editor" class="zx-card zx-stack-3" hidden>
+      <div class="zx-card__title"><h2 id="editor-title">Edit</h2></div>
+      <p id="editor-when" class="zx-hint"></p>
+      <form id="template-form" class="zx-form" novalidate>
+        <div class="zx-field">
+          <label for="t-subject">Subject</label>
+          <input id="t-subject" name="subject" class="zx-input" maxlength="150" required>
+          <span class="zx-error" id="t-subject-error" hidden></span>
+        </div>
+        <div class="zx-field">
+          <label for="t-heading">Heading</label>
+          <input id="t-heading" name="heading" class="zx-input" maxlength="150" required>
+          <span class="zx-error" id="t-heading-error" hidden></span>
+        </div>
+        <div class="zx-field">
+          <label for="t-body">Message</label>
+          <textarea id="t-body" name="body" class="zx-textarea" rows="9" maxlength="5000" required></textarea>
+          <span class="zx-hint">An empty line starts a new paragraph. A paragraph is left out when one of its fill-ins has no value.</span>
+          <span class="zx-error" id="t-body-error" hidden></span>
+        </div>
+        <div id="button-field" class="zx-field">
+          <label for="t-buttonLabel">Button text</label>
+          <input id="t-buttonLabel" name="buttonLabel" class="zx-input" maxlength="40">
+          <span class="zx-hint">The button's link is set by the site.</span>
+          <span class="zx-error" id="t-buttonLabel-error" hidden></span>
+        </div>
+        <div class="zx-field">
+          <span class="zx-label">Fill-ins (click to add at the cursor)</span>
+          <div id="fill-ins" class="zx-fill-ins"></div>
+        </div>
+        <div class="zx-row-actions">
+          <button id="t-restore" type="button" class="zx-btn zx-btn--ghost">Restore original</button>
+          <button id="t-test" type="button" class="zx-btn zx-btn--secondary">Send me a test</button>
+          <button type="submit" class="zx-btn">Save</button>
+        </div>
+      </form>
+      <div class="zx-card__title"><h2>Preview with sample values</h2></div>
+      <div id="t-preview"></div>
+      <details>
+        <summary>Earlier versions</summary>
+        <ul id="history" class="zx-rows"></ul>
+      </details>
+    </section>
+  </div>
+</div>
+</main>
+</body>
+</html>

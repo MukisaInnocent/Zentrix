@@ -8,7 +8,7 @@ import { badRequest, conflict, DB_ERRORS, forbidden, pgErrorCode } from '../../l
 import { isMobileLike, parseInternational, PHONE_HELP } from '../../lib/phone.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
-import { sendEmail } from '../email/send.js';
+import { sendTemplated } from '../email/templates.js';
 import type { Request } from 'express';
 import type { AuthContext } from './context.js';
 import { verifyPassword } from './passwords.js';
@@ -76,9 +76,9 @@ async function checkPassword(services: Services, userId: number, password: strin
   return { email: user.email, username: user.username, dialCode: user.dial_code };
 }
 
-async function notify(services: Services, to: string | null, subject: string, text: string): Promise<void> {
+async function notify(services: Services, kind: 'email_changed' | 'email_updated' | 'phone_changed', to: string | null, userId: number, values: Record<string, string>): Promise<void> {
   if (!to) return;
-  await sendEmail(services, { to, kind: 'account_change', category: 'security', subject, heading: subject.replace(/^Your Pexerearn /, 'Your '), paragraphs: [text] });
+  await sendTemplated(services, { kind, to, userId, values });
 }
 
 export async function changeEmail(services: Services, req: Request, auth: AuthContext, raw: unknown): Promise<void> {
@@ -95,8 +95,8 @@ export async function changeEmail(services: Services, req: Request, auth: AuthCo
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) throw conflict('change.email_taken', 'That email address belongs to another account.');
     throw err;
   }
-  await notify(services, user.email, 'Your Pexerearn email address was changed', `The email address on your Pexerearn account (@${user.username}) was changed to ${input.newEmail}. If this was not you, contact support now.`);
-  await notify(services, input.newEmail, 'Your Pexerearn email address was updated', `This address is now the email for the Pexerearn account @${user.username}.`);
+  await notify(services, 'email_changed', user.email, auth.userId, { username: user.username, newEmail: input.newEmail });
+  await notify(services, 'email_updated', input.newEmail, auth.userId, { username: user.username });
 }
 
 export async function changePhone(services: Services, req: Request, auth: AuthContext, raw: unknown): Promise<{ withdrawalsLockedUntil: Date }> {
@@ -125,6 +125,6 @@ export async function changePhone(services: Services, req: Request, auth: AuthCo
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) throw conflict('change.phone_taken', 'That number belongs to another account.');
     throw err;
   }
-  await notify(services, user.email, 'Your Pexerearn phone number was changed', `The phone number on your Pexerearn account (@${user.username}) was changed. Withdrawals are locked for 48 hours. If this was not you, contact support now.`);
+  await notify(services, 'phone_changed', user.email, auth.userId, { username: user.username });
   return { withdrawalsLockedUntil: lockUntil };
 }

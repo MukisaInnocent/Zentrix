@@ -69,7 +69,7 @@ describe('sending', () => {
     expect((await login('Laptop B')).status).toBe(200);
     await new Promise(r => setTimeout(r, 300));
     expect(await alerts()).toBe(2);
-    expect((await m.client.get<Body>('/api/me/email-preferences')).body.preferences).toEqual({ referralRewards: true, signInAlerts: false });
+    expect((await m.client.get<Body>('/api/me/email-preferences')).body.preferences).toEqual({ referralRewards: true, signInAlerts: false, announcements: true });
     expect((await m.client.put<Body>('/api/me/email-preferences', { referralRewards: 'no' })).status).toBe(400);
   });
 

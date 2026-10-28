@@ -40,6 +40,17 @@ export const SETTING_DEFS = {
     fallback: [1, 2, 3, 5],
     description: 'Voucher values members can buy, as multiples of the activation fee (1 = exactly the fee).',
   },
+  // The email provider's allowance (Resend free plan: 100 a day, 3,000 a month). Announcements use only what is
+  // left after keeping `reserved` of each day free for members' own emails (sign-up, payments, rewards).
+  'email.allowance': {
+    schema: z.strictObject({
+      daily: z.int().min(1).max(1_000_000),
+      monthly: z.int().min(1).max(10_000_000),
+      reserved: z.int().min(0).max(1_000_000),
+    }).refine(a => a.reserved < a.daily, { error: 'Keep the reserved number below the daily allowance.' }),
+    fallback: { daily: 100, monthly: 3_000, reserved: 40 },
+    description: 'Emails the provider allows per day and per month, and how many of each day stay free for the emails members need (sign-up, payments, rewards). Announcements use the rest.',
+  },
   'community.url': {
     schema: z.url({ protocol: /^https$/ }).nullable(),
     fallback: null,

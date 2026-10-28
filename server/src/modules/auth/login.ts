@@ -6,7 +6,7 @@ import { parse } from '../../http/validate.js';
 import { randomDigits, randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
 import { AppError, unauthorized } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
-import { sendEmail } from '../email/send.js';
+import { sendTemplated } from '../email/templates.js';
 import { isStaffRole, type Role } from './context.js';
 import { burnPasswordCheck, verifyPassword } from './passwords.js';
 import type { RequestMeta } from './register.js';
@@ -144,11 +144,7 @@ export async function login(services: Services, raw: unknown, meta: RequestMeta)
     ]);
     let emailSent = false;
     if (emailCode && user.email) {
-      const outcome = await sendEmail(services, {
-        to: user.email, userId, kind: 'sign_in_code', category: 'security', subject: 'Your Pexerearn sign-in code',
-        heading: 'Your sign-in code',
-        paragraphs: [`Your Pexerearn sign-in code is ${emailCode}.`, 'It expires in 5 minutes and works once. If you did not just sign in, change your password now.'],
-      });
+      const outcome = await sendTemplated(services, { kind: 'sign_in_code', to: user.email, userId, values: { username: user.username, code: emailCode } });
       emailSent = outcome === 'queued' || outcome === 'sent';
     }
     return { kind: 'mfa', challengeToken, emailSent };
