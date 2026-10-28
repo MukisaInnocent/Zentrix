@@ -12,8 +12,8 @@ import { exponentOf, flagActive, listChannels, publicChannel } from './common.js
 import { cancelDeposit, listMemberDeposits, submitDeposit } from './deposits.js';
 import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messagesOf, openIssue, type IssueRow } from './issues.js';
 import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
-import { rows } from '../../db/sql.js';
-import { notifyPayment } from '../notifications/notify.js';
+import { maybeOne, rows } from '../../db/sql.js';
+import { notifyPayment, notifyStaffOfPayment } from '../notifications/notify.js';
 import { autoConfirmDeposit, autoPayWithdrawal, autopilotEnabled, ensureTestChannel } from './autopilot.js';
 
 const HOUR = 3_600_000;
@@ -114,6 +114,7 @@ export function paymentsRouter(services: Services): Router {
       const deposit = result.body.deposit as { id: string; reference: string };
       await notifyPayment(services, 'deposit_submitted', deposit.reference);
       if (await autoConfirmDeposit(services, deposit.id)) await notifyPayment(services, 'deposit_confirmed', deposit.reference);
+      else await notifyStaffOfPayment(services, 'deposit', deposit.reference);
     }
     res.status(result.status).json(result.body);
   });
@@ -121,6 +122,7 @@ export function paymentsRouter(services: Services): Router {
   router.post('/deposits/:id/cancel', async (req, res) => {
     const id = publicId(req.params.id);
     const deposit = await moneyTx(pool, db => cancelDeposit(db, req.auth!.userId, id));
+    await notifyPayment(services, 'deposit_cancelled', deposit.reference);
     res.json({ deposit });
   });
 
@@ -166,6 +168,12 @@ export function paymentsRouter(services: Services): Router {
       const withdrawal = result.body.withdrawal as { id: string; reference: string; currency: string };
       await notifyPayment(services, 'withdrawal_requested', withdrawal.reference);
       if (await autoPayWithdrawal(services, withdrawal.id, withdrawal.currency)) await notifyPayment(services, 'withdrawal_paid', withdrawal.reference, 'test mode');
+      else {
+        // Test auto-approve may have approved it and then found no channel holding enough: staff finish it.
+        const now = await maybeOne<{ status: string }>(pool, 'SELECT status FROM withdrawals WHERE public_id = $1', [withdrawal.id]);
+        if (now && now.status !== 'requested') await notifyPayment(services, 'withdrawal_approved', withdrawal.reference);
+        await notifyStaffOfPayment(services, 'withdrawal', withdrawal.reference);
+      }
     }
     res.status(result.status).json(result.body);
   });

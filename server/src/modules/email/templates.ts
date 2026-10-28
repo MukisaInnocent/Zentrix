@@ -21,7 +21,7 @@ export interface TemplateContent {
 
 interface TemplateDef {
   title: string;
-  group: 'Sign-up and security' | 'Activation and referrals' | 'Payments' | 'Support';
+  group: 'Sign-up and security' | 'Activation and referrals' | 'Payments' | 'Support' | 'Staff alerts';
   when: string;
   category: EmailCategory;
   /** Fill-in name -> what it holds, with a sample value for previews. */
@@ -96,6 +96,11 @@ export const TEMPLATES = {
     vars: { ...USER, ...MONEY, ...REASON }, button: true,
     defaults: { subject: 'Pexerearn: Activation payment {reference} not confirmed', heading: 'We could not confirm your payment', body: 'Hello @{username},\n\nWe could not confirm your activation payment {reference}.\n\nReason: {reason}\n\nOpen the Activate page to submit it again, or contact support if you think this is a mistake.', buttonLabel: 'Open the Activate page' },
   },
+  payment_deposit_cancelled: {
+    title: 'Activation payment cancelled', group: 'Activation and referrals', when: 'When a member cancels their activation payment claim.', category: 'payment',
+    vars: { ...USER, ...MONEY }, button: true,
+    defaults: { subject: 'Pexerearn: Activation payment {reference} cancelled', heading: 'Activation payment cancelled', body: 'Hello @{username},\n\nYou cancelled your activation payment claim {reference} ({amount}). Your account is not active yet.\n\nWhen you are ready, open the Activate page to submit your payment again.', buttonLabel: 'Open the Activate page' },
+  },
   activated_by: {
     title: 'Welcome: activated by someone else', group: 'Activation and referrals', when: 'When another member activates this account with a voucher or Pay For Client.', category: 'account',
     vars: { ...USER, how: { about: 'How it was activated', sample: 'a payment from @john' } }, button: true,
@@ -131,6 +136,11 @@ export const TEMPLATES = {
     vars: { ...USER, ...MONEY, ...REASON }, button: false,
     defaults: { subject: 'Pexerearn: Deposit {reference} not credited', heading: 'We could not credit your deposit', body: 'Hello @{username},\n\nWe could not credit your deposit {reference}.\n\nReason: {reason}\n\nContact support if you think this is a mistake.' },
   },
+  payment_wallet_deposit_cancelled: {
+    title: 'Deposit cancelled', group: 'Payments', when: 'When a member cancels a deposit claim.', category: 'payment',
+    vars: { ...USER, ...MONEY }, button: false,
+    defaults: { subject: 'Pexerearn: Deposit {reference} cancelled', heading: 'Deposit cancelled', body: 'Hello @{username},\n\nYou cancelled your deposit claim {reference} ({amount}). Nothing was credited.' },
+  },
   payment_withdrawal_requested: {
     title: 'Withdrawal requested', group: 'Payments', when: 'When a member asks for a withdrawal.', category: 'payment',
     vars: { ...USER, ...MONEY }, button: false,
@@ -160,6 +170,16 @@ export const TEMPLATES = {
     title: 'Reply to a payment report', group: 'Support', when: 'When staff answer a payment report.', category: 'payment',
     vars: { ...USER, reply: { about: "The staff member's reply", sample: 'We found your payment and confirmed it. Thank you for your patience.' } }, required: ['reply'], button: false,
     defaults: { subject: 'Pexerearn: reply to your payment report', heading: 'Reply to your payment report', body: 'Hello @{username},\n\nOur payments team replied to your report:\n\n{reply}\n\nTo answer, use Report a problem again or contact support.' },
+  },
+  staff_new_deposit: {
+    title: 'New payment to check', group: 'Staff alerts', when: 'To finance staff and admins when a member submits an activation payment or deposit (not when test auto-approve handles it).', category: 'payment',
+    vars: { staff: { about: "The staff member's username", sample: 'finance_jo' }, member: { about: "The member's username", sample: 'jane' }, country: { about: "The member's country", sample: 'Uganda' }, amount: { about: 'The amount with its currency', sample: 'UGX 19,000' }, reference: { about: 'The payment reference', sample: 'DP-7K2M9Q4X' }, purpose: { about: 'Activation payment or deposit', sample: 'activation payment' } }, button: true,
+    defaults: { subject: 'Pexerearn staff: new {purpose} {reference} to check', heading: 'A payment is waiting for review', body: 'Hello @{staff},\n\n@{member} ({country}) submitted a {purpose} of {amount} (reference {reference}). Check it against the channel statement, then confirm or reject it.', buttonLabel: 'Open the payment' },
+  },
+  staff_new_withdrawal: {
+    title: 'New withdrawal to approve', group: 'Staff alerts', when: 'To finance staff and admins when a member asks for a withdrawal (not when test auto-approve pays it).', category: 'payment',
+    vars: { staff: { about: "The staff member's username", sample: 'finance_jo' }, member: { about: "The member's username", sample: 'jane' }, country: { about: "The member's country", sample: 'Uganda' }, amount: { about: 'The amount with its currency', sample: 'UGX 19,000' }, reference: { about: 'The payment reference', sample: 'DP-7K2M9Q4X' } }, button: true,
+    defaults: { subject: 'Pexerearn staff: withdrawal {reference} to approve', heading: 'A withdrawal is waiting', body: 'Hello @{staff},\n\n@{member} ({country}) asked to withdraw {amount} (reference {reference}). Review it, then approve, send and record the payout.', buttonLabel: 'Open the withdrawal' },
   },
 } satisfies Record<string, TemplateDef>;
 

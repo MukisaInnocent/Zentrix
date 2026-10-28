@@ -612,3 +612,30 @@ describe('deposit balance', () => {
     expect(statement.filter((t: Body) => t.balance === 'deposit').map((t: Body) => t.amountMinor)).toEqual(['-30000', '30000']);
   });
 });
+
+describe('payment emails', () => {
+  it('tells finance staff about a new payment and withdrawal, and the member when they cancel a payment claim', async () => {
+    const financeEmails = (await app.owner.query<{ email: string }>(
+      `SELECT DISTINCT u.email FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role IN ('finance', 'admin') AND u.username NOT LIKE 'zx\_%'`,
+    )).rows.map(r => r.email);
+    const staffMails = async (prefix: string) => (await Promise.all(financeEmails.map(e => app.outbox(e)))).flat().filter(m => m.subject?.startsWith(prefix));
+
+    const member = await verifiedMember();
+    const claimed = await claim(member);
+    expect(claimed.status).toBe(201);
+    const ref = claimed.body.deposit.reference as string;
+    const alerts = await staffMails(`Pexerearn staff: new activation payment ${ref} to check`);
+    expect(alerts).toHaveLength(financeEmails.length);
+    expect(alerts[0]!.body).toContain(`/admin/deposits.html?id=${claimed.body.deposit.id}`);
+    expect(alerts[0]!.body).toContain(`@${member.input.username} (Uganda)`);
+
+    expect((await member.client.post<Body>(`/api/payments/deposits/${claimed.body.deposit.id}/cancel`, {})).status).toBe(200);
+    expect((await app.outbox(member.input.email)).map(m => m.subject)).toContain(`Pexerearn: Activation payment ${ref} cancelled`);
+
+    await fund(member, '50000');
+    const w = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key());
+    expect(w.status, JSON.stringify(w.body)).toBe(201);
+    expect(await staffMails(`Pexerearn staff: withdrawal ${w.body.withdrawal.reference} to approve`)).toHaveLength(financeEmails.length);
+    expect((await app.outbox(member.input.email)).map(m => m.subject)).toContain(`Pexerearn: Withdrawal ${w.body.withdrawal.reference} requested`);
+  });
+});

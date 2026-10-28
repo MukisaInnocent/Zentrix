@@ -8,7 +8,7 @@ import { sendTemplated, type TemplateKind } from '../email/templates.js';
 // failure and never undoes or blocks the change.
 
 export type PaymentEvent =
-  | 'deposit_submitted' | 'deposit_confirmed' | 'deposit_rejected'
+  | 'deposit_submitted' | 'deposit_confirmed' | 'deposit_rejected' | 'deposit_cancelled'
   | 'withdrawal_requested' | 'withdrawal_approved' | 'withdrawal_paid' | 'withdrawal_failed' | 'withdrawal_cancelled';
 
 // Thousands separators on the decimal string itself: no floating point.
@@ -21,15 +21,15 @@ export async function formatAmount(services: Pick<Services, 'pool'>, currency: s
 // Each payment event has its own email kind (wording editable in the staff console). Activation payments and
 // deposits into the balance (purpose 'wallet') have separate wording.
 const PAYMENT_KIND: Record<PaymentEvent, TemplateKind> = {
-  deposit_submitted: 'payment_deposit_submitted', deposit_confirmed: 'payment_deposit_confirmed', deposit_rejected: 'payment_deposit_rejected',
+  deposit_submitted: 'payment_deposit_submitted', deposit_confirmed: 'payment_deposit_confirmed', deposit_rejected: 'payment_deposit_rejected', deposit_cancelled: 'payment_deposit_cancelled',
   withdrawal_requested: 'payment_withdrawal_requested', withdrawal_approved: 'payment_withdrawal_approved', withdrawal_paid: 'payment_withdrawal_paid',
   withdrawal_failed: 'payment_withdrawal_failed', withdrawal_cancelled: 'payment_withdrawal_cancelled',
 };
 const WALLET_KIND: Partial<Record<PaymentEvent, TemplateKind>> = {
-  deposit_submitted: 'payment_wallet_deposit_submitted', deposit_confirmed: 'payment_wallet_deposit_confirmed', deposit_rejected: 'payment_wallet_deposit_rejected',
+  deposit_submitted: 'payment_wallet_deposit_submitted', deposit_confirmed: 'payment_wallet_deposit_confirmed', deposit_rejected: 'payment_wallet_deposit_rejected', deposit_cancelled: 'payment_wallet_deposit_cancelled',
 };
 const BUTTON_PATH: Partial<Record<TemplateKind, string>> = {
-  payment_deposit_confirmed: '/dashboard.html', payment_deposit_rejected: '/activate.html', payment_wallet_deposit_confirmed: '/dashboard.html', payment_withdrawal_paid: '/withdraw.html',
+  payment_deposit_confirmed: '/dashboard.html', payment_deposit_rejected: '/activate.html', payment_deposit_cancelled: '/activate.html', payment_wallet_deposit_confirmed: '/dashboard.html', payment_withdrawal_paid: '/withdraw.html',
 };
 
 // Looks the payment up by reference and emails its owner. Never throws. Callers await it before replying: on AWS
@@ -62,6 +62,39 @@ export async function notifyPayment(services: Services, event: PaymentEvent, ref
     if (event === 'deposit_confirmed') await notifyReferralRewards(services);
   } catch (err) {
     services.logger.error({ err, event, reference }, 'payment email failed');
+  }
+}
+
+// Tells finance staff and admins that a payment waits for them (owner, 2026-10-29). Not used when test auto-approve
+// handles the payment. System and test accounts have no real address and are left out.
+export async function notifyStaffOfPayment(services: Services, kind: 'deposit' | 'withdrawal', reference: string): Promise<void> {
+  try {
+    const table = kind === 'deposit' ? 'deposits' : 'withdrawals';
+    const p = await maybeOne<{ public_id: string; username: string; country: string; currency_code: string; amount: string; purpose: string }>(
+      services.pool,
+      `SELECT p.public_id, u.username, c.name AS country, p.currency_code,
+              ${kind === 'deposit' ? 'p.claimed_amount_minor' : 'p.amount_minor'}::text AS amount, ${kind === 'deposit' ? 'p.purpose' : `'withdrawal'`} AS purpose
+       FROM ${table} p JOIN users u ON u.id = p.user_id JOIN countries c ON c.code = u.country_code WHERE p.reference = $1`,
+      [reference],
+    );
+    if (!p) return;
+    const staff = await rows<{ id: string; username: string; email: string }>(
+      services.pool,
+      `SELECT DISTINCT u.id, u.username, u.email FROM users u JOIN user_roles r ON r.user_id = u.id
+       WHERE r.role IN ('finance', 'admin') AND u.status = 'active' AND u.anonymized_at IS NULL AND u.email IS NOT NULL AND u.username NOT LIKE 'zx\\_%'`,
+      [],
+    );
+    const amount = await formatAmount(services, p.currency_code, p.amount);
+    const page = kind === 'deposit' ? 'deposits' : 'withdrawals';
+    for (const s of staff) {
+      await sendTemplated(services, {
+        kind: kind === 'deposit' ? 'staff_new_deposit' : 'staff_new_withdrawal', to: s.email, userId: Number(s.id), ref: `staff:${reference}:${s.id}`,
+        values: { staff: s.username, member: p.username, country: p.country, amount, reference, purpose: p.purpose === 'wallet' ? 'deposit' : 'activation payment' },
+        buttonUrl: `${services.config.publicOrigin}/admin/${page}.html?id=${p.public_id}`,
+      });
+    }
+  } catch (err) {
+    services.logger.error({ err, kind, reference }, 'staff payment alert failed');
   }
 }
 
