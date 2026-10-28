@@ -616,7 +616,7 @@ describe('deposit balance', () => {
 describe('payment emails', () => {
   it('tells finance staff about a new payment and withdrawal, and the member when they cancel a payment claim', async () => {
     const financeEmails = (await app.owner.query<{ email: string }>(
-      `SELECT DISTINCT u.email FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role IN ('finance', 'admin') AND u.username NOT LIKE 'zx\_%'`,
+      `SELECT DISTINCT u.email FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role IN ('finance', 'admin') AND left(u.username, 3) <> 'zx_'`,
     )).rows.map(r => r.email);
     const staffMails = async (prefix: string) => (await Promise.all(financeEmails.map(e => app.outbox(e)))).flat().filter(m => m.subject?.startsWith(prefix));
 
