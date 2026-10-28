@@ -55,10 +55,11 @@ provider "aws" {
   }
 }
 
+# Live since 2026-10-29 (both steps done). Set false on launch day, before production attaches the names.
 variable "domain_live" {
   description = "Step 2: attach pexerearn.com and www once the certificate is ISSUED."
   type        = bool
-  default     = false
+  default     = true
 }
 
 data "aws_caller_identity" "current" {}
