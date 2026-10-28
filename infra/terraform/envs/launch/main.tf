@@ -35,8 +35,8 @@ locals {
   }
   names     = ["pexerearn.com", "www.pexerearn.com"]
   page_dir  = "${path.module}/../../../launch"
-  mime      = { html = "text/html; charset=utf-8", css = "text/css; charset=utf-8", js = "text/javascript; charset=utf-8", svg = "image/svg+xml", ics = "text/calendar; charset=utf-8" }
-  page_file = fileset(local.page_dir, "*.{html,css,js,svg,ics}")
+  mime      = { html = "text/html; charset=utf-8", css = "text/css; charset=utf-8", js = "text/javascript; charset=utf-8", svg = "image/svg+xml", ics = "text/calendar; charset=utf-8", png = "image/png", txt = "text/plain; charset=utf-8", xml = "application/xml; charset=utf-8" }
+  page_file = fileset(local.page_dir, "*.{html,css,js,svg,ics,png,txt,xml}")
 }
 
 provider "aws" {
@@ -127,6 +127,24 @@ resource "aws_s3_bucket_policy" "page" {
   depends_on = [aws_s3_bucket_public_access_block.page]
 }
 
+# One address for search engines: www.pexerearn.com answers with a permanent redirect to pexerearn.com.
+resource "aws_cloudfront_function" "www_redirect" {
+  name    = "pexa-launch-www-redirect"
+  runtime = "cloudfront-js-2.0"
+  comment = "Redirect www.pexerearn.com to pexerearn.com"
+  publish = true
+  code    = <<-JS
+    function handler(event) {
+      var request = event.request;
+      var host = request.headers.host ? request.headers.host.value : '';
+      if (host.indexOf('www.') === 0) {
+        return { statusCode: 301, statusDescription: 'Moved Permanently', headers: { location: { value: 'https://' + host.substring(4) + request.uri } } };
+      }
+      return request;
+    }
+  JS
+}
+
 data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
@@ -197,6 +215,10 @@ resource "aws_cloudfront_distribution" "page" {
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.page.id
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.www_redirect.arn
+    }
   }
 
   # Any other address (an old link, /register.html) shows the countdown too.
