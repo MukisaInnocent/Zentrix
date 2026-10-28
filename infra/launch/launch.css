@@ -1,0 +1,83 @@
+/* Launch countdown for pexerearn.com. The site's brand colours (web/css/tokens.css), light and dark. */
+:root {
+  --bg: #f5f3fc;
+  --surface: #ffffff;
+  --border: #e3ddf7;
+  --text: #1c1838;
+  --muted: #57527a;
+  --brand: #5b2bd6;
+  --brand-strong: #4520a8;
+  --brand-soft: #ebe4fe;
+  --font: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #120f22;
+    --surface: #1b1630;
+    --border: #2f2752;
+    --text: #ece8fb;
+    --muted: #b3abd3;
+    --brand: #a78bfa;
+    --brand-strong: #c4b5fd;
+    --brand-soft: #2a1f4d;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; min-block-size: 100%; }
+body {
+  min-block-size: 100dvh;
+  font: 400 16px/1.55 var(--font);
+  color: var(--text);
+  background: radial-gradient(1200px 600px at 50% -10%, var(--brand-soft), transparent 70%), var(--bg);
+}
+a { color: var(--brand); text-underline-offset: 2px; }
+a:hover { color: var(--brand-strong); }
+a:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
+
+.launch {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 32px;
+  min-block-size: 100dvh;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.launch__brand { display: inline-flex; align-items: center; gap: 10px; padding: 6px 16px 6px 6px; border-radius: 16px; background: #fff; box-shadow: 0 4px 18px rgb(28 24 56 / 8%); }
+.launch__brand img { display: block; inline-size: 44px; block-size: 44px; }
+.wordmark { font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; }
+.wordmark__pexer { color: #012a6e; }
+.wordmark__earn { background: linear-gradient(180deg, #05b171, #04a46c 50%, #039568); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+.launch__panel { display: grid; justify-items: center; gap: 14px; max-inline-size: 760px; }
+.launch__panel[hidden] { display: none; }
+.launch__eyebrow { margin: 0; font-size: .8rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+h1 { margin: 0; font-size: clamp(1.7rem, 1.2rem + 2.6vw, 2.9rem); line-height: 1.15; letter-spacing: -.02em; }
+.launch__lead { margin: 0; max-inline-size: 36em; color: var(--muted); font-size: 1.05rem; }
+.launch__when { margin: 0; color: var(--muted); font-size: .9rem; }
+
+.clock { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; inline-size: min(100%, 640px); margin-block: 10px; }
+.clock__unit {
+  display: grid;
+  gap: 4px;
+  padding: 16px 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(91 43 214 / 10%);
+}
+.clock__value { font-size: clamp(2rem, 1.2rem + 5vw, 4rem); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--brand); }
+.clock__label { font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+@media (min-width: 560px) { .clock { gap: 16px; } .clock__unit { padding: 24px 10px 20px; } }
+
+.launch__footer { color: var(--muted); font-size: .9rem; }
+
+.visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .clock__unit { transition: transform .2s ease; }
+  .clock__unit:hover { transform: translateY(-2px); }
+}

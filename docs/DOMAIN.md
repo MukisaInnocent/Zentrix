@@ -138,3 +138,19 @@ that bounces for good or reports spam is blocked until an admin removes it. The 
 To set it up for an environment: in Resend open **Webhooks > Add endpoint**, use the API address above, tick the
 `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed` and
 `email.suppressed` events, copy the signing secret into the app secret, and redeploy.
+
+## Launch countdown on pexerearn.com (until 2 November 2026)
+
+Owner, 2026-10-29: until launch, pexerearn.com and www.pexerearn.com show a countdown to **2 November 2026,
+00:00 East Africa Time** (21:00 UTC on 1 November); at zero it says "Pexerearn is live". The page is in
+`infra/launch` (no inline script or style; the time left is measured against the server's clock). It is served by
+its own small stack, `infra/terraform/envs/launch`: a private S3 bucket behind CloudFront with a certificate for
+both names. Cloudflare records (DNS only): the certificate validation CNAMEs, and `pexerearn.com` and `www`
+as CNAMEs to the stack's `cloudfront_domain`.
+
+To change the page: edit `infra/launch`, run `terraform apply` in `infra/terraform/envs/launch`, then
+`aws cloudfront create-invalidation --distribution-id <distribution_id> --paths "/*"` (or wait 5 minutes).
+
+**On launch day**, before the production stack attaches pexerearn.com: apply this stack with
+`domain_live = false` (or destroy it), because CloudFront allows a name on one distribution only. Then point the
+Cloudflare records at production.
