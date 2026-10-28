@@ -154,3 +154,13 @@ To change the page: edit `infra/launch`, run `terraform apply` in `infra/terrafo
 **On launch day**, before the production stack attaches pexerearn.com: apply this stack with
 `domain_live = false` (or destroy it), because CloudFront allows a name on one distribution only. Then point the
 Cloudflare records at production.
+
+### Search engines (2026-10-29)
+
+- Google Search Console: domain property `pexerearn.com`, owner's Google account, verified through the Cloudflare
+  TXT record `google-site-verification=...` on the root. **Keep that TXT record**, or the property loses
+  verification. Sitemap `https://pexerearn.com/sitemap.xml` submitted (Success); the home page is indexed.
+- Bing and other IndexNow engines: notified through IndexNow with the key file `infra/launch/<key>.txt`
+  (keep it published while the countdown runs; the production site needs its own copy to use IndexNow).
+- www.pexerearn.com redirects permanently to pexerearn.com (CloudFront function in the launch stack). The
+  production site should keep that single address and the same `robots.txt` and `sitemap.xml` paths.
