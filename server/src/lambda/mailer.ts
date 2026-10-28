@@ -12,7 +12,7 @@ interface S3Notification { Records?: { s3: { bucket: { name: string }; object: {
 const logger = createLogger({ level: process.env.LOG_LEVEL ?? 'info', mode: process.env.APP_MODE === 'live' ? 'live' : 'test', service: 'pexa-mailer' });
 const s3 = new S3Client({});
 const apiKey = process.env.RESEND_API_KEY ?? '';
-const mailer = apiKey ? new ResendMailer(apiKey, process.env.MAIL_FROM ?? 'Pexa <onboarding@resend.dev>') : null;
+const mailer = apiKey ? new ResendMailer(apiKey, process.env.MAIL_FROM ?? 'Pexerearn <info@pexerearn.com>') : null;
 
 export async function handler(event: SqsEvent): Promise<{ batchItemFailures: { itemIdentifier: string }[] }> {
   const failures: { itemIdentifier: string }[] = [];

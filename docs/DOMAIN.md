@@ -105,3 +105,24 @@ outbox) now starts with `https://staging.pexerearn.com`. The CloudFront link sti
 Set `keep_temporary_links = false` on the module in `envs/staging/main.tf` and apply: the app then refuses
 state-changing requests from the CloudFront link (pages there still load, but sign-in does not). The API Gateway
 link can be switched off with `disable_execute_api_endpoint` once nothing uses it.
+
+## Email from info@pexerearn.com
+
+Every email the site sends (sign-in codes, password reset links, payment notices) goes out as
+`Pexerearn <info@pexerearn.com>` (`MAIL_FROM`; the Terraform default, `render.yaml` and the server default). Resend
+delivers it only once it has verified the domain:
+
+1. In Resend, open **Domains > Add domain**, enter `pexerearn.com`, region **Ireland (eu-west-1)**.
+2. Resend lists a few records (a DKIM `TXT` at `resend._domainkey`, and an `MX` and an SPF `TXT` at `send`). In
+   Cloudflare, add each one exactly as shown, Proxy status **DNS only**, TTL Auto. They do not touch the `staging`
+   or `api-staging` records, or any mail you already receive.
+3. Click **Verify DNS records** in Resend and wait until the domain shows **Verified** (minutes, sometimes an hour).
+4. Optional but recommended: add a `TXT` record at `_dmarc` with `v=DMARC1; p=none;` so mail providers trust it.
+
+Until the domain is verified, Resend refuses mail from info@pexerearn.com. In the meantime set
+`MAIL_FROM=Pexerearn <onboarding@resend.dev>` (Terraform variable `mail_from`), which reaches only your Resend
+account's own address.
+
+Sending does not create a mailbox. For member replies to reach you, set up receiving for info@pexerearn.com, for
+example Cloudflare **Email > Email Routing** forwarding it to your own inbox (it adds its own MX records at the root
+domain, which do not conflict with Resend's records at `send`).

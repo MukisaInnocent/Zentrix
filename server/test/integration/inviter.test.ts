@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { storeRates } from '../../src/modules/fx/service.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
 import type { TestClient } from '../helpers/client.js';
 import { createStaff, loginStaff, registerMember, type Member } from '../helpers/factories.js';
@@ -105,6 +106,27 @@ describe('changing who invited a member', () => {
     await activate(waiting);
     expect((await summary(newInviter)).availableBalanceMinor).toBe('10000');
     expect((await summary(oldInviter)).availableBalanceMinor).toBe('0');
+  });
+
+  it('moves a converted reward back through the exchange account and pays the new inviter in their own currency', async () => {
+    await storeRates(app.services.pool, { source: 'test-inviter', rateAt: new Date(), unitsPerUsd: { KES: '129', UGX: '3700' } });
+    const oldInviter = await member();
+    const newInviter = await member({ country: 'KE', phone: `+25471${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}` });
+    const kenyan = await member({ country: 'KE', phone: `+25471${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`, referralCode: oldInviter.input.username });
+    const paid = BigInt((await summary(oldInviter)).availableBalanceMinor);
+    expect(paid).toBeGreaterThan(0n);
+    const clearingBefore = await app.owner.query(`SELECT currency_code, balance_minor FROM accounts WHERE kind = 'fx_clearing' ORDER BY currency_code`);
+
+    const res = await changeInviter(admin, kenyan, newInviter.input.username);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.moved).toHaveLength(1);
+    expect(res.body.moved[0]).toMatchObject({ from: oldInviter.input.username, to: newInviter.input.username, currency: 'KES', debtMinor: '0', debtCurrency: 'UGX' });
+    // The Ugandan gives the shillings back; the Kenyan inviter gets the reward in KES with no conversion.
+    expect((await summary(oldInviter)).availableBalanceMinor).toBe('0');
+    expect((await summary(newInviter)).availableBalanceMinor).toBe(res.body.moved[0].amountMinor);
+    // The reversal undid the conversion exactly, so fx_clearing is back where it was.
+    const clearingAfter = await app.owner.query(`SELECT currency_code, balance_minor FROM accounts WHERE kind = 'fx_clearing' ORDER BY currency_code`);
+    expect(clearingAfter.rows.map(r => [r.currency_code, r.balance_minor])).toEqual(clearingBefore.rows.map(r => [r.currency_code, r.currency_code === 'KES' ? String(BigInt(r.balance_minor) - BigInt(res.body.moved[0].amountMinor)) : String(BigInt(r.balance_minor) + paid)]));
   });
 
   it('refuses a loop, the member themselves, the same inviter and an unknown username', async () => {

@@ -10,7 +10,7 @@ resource "aws_sns_topic_subscription" "alarm_email" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
-  for_each            = { api = aws_lambda_function.api, jobs = aws_lambda_function.jobs, migrate = aws_lambda_function.migrate, mailer = aws_lambda_function.mailer }
+  for_each            = { api = aws_lambda_function.api, jobs = aws_lambda_function.jobs, migrate = aws_lambda_function.migrate, mailer = aws_lambda_function.mailer, fxfetch = aws_lambda_function.fxfetch }
   alarm_name          = "${local.name}-${each.key}-errors"
   alarm_description   = "Pexa ${var.environment}: the ${each.key} function reported errors."
   namespace           = "AWS/Lambda"

@@ -1,8 +1,9 @@
-# One package, four functions (ARM64):
+# One package, five functions (ARM64):
 #   api      Express app behind API Gateway          inside the VPC (database)
 #   jobs     scheduled jobs (EventBridge Scheduler)  inside the VPC (database)
 #   migrate  migrations and test seed, run by deploy inside the VPC (database)
 #   mailer   sends queued email with Resend          outside the VPC (internet, no database)
+#   fxfetch  fetches exchange rates into S3           outside the VPC (internet, no database)
 data "archive_file" "package" {
   type        = "zip"
   source_dir  = var.lambda_package_dir
@@ -31,7 +32,10 @@ locals {
     TEST_SUPERADMIN_PASSWORD    = local.app_secret.TEST_SUPERADMIN_PASSWORD
     MAIL_FROM                   = var.mail_from
     MAIL_S3_BUCKET              = local.resend_enabled ? aws_s3_bucket.outbox.bucket : ""
-    LOG_LEVEL                   = "info"
+    # Exchange rates: fxfetch leaves the latest snapshot in the outbox bucket under fx/.
+    FX_PROVIDER  = "s3"
+    FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
+    LOG_LEVEL    = "info"
     # Viewer -> CloudFront -> API Gateway -> Lambda.
     TRUST_PROXY = "2"
   }
@@ -62,8 +66,11 @@ resource "aws_iam_role_policy" "vpc_fn_outbox" {
   name = "write-mail-outbox"
   role = aws_iam_role.vpc_fn.id
   policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [{ Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/outbox/*" }]
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/outbox/*" },
+      { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" },
+    ]
   })
 }
 
@@ -89,9 +96,28 @@ resource "aws_iam_role_policy" "mailer" {
   })
 }
 
+resource "aws_iam_role" "fxfetch" {
+  name               = "${local.name}-fxfetch"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "fxfetch_logs" {
+  role       = aws_iam_role.fxfetch.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "fxfetch" {
+  name = "write-fx-rates"
+  role = aws_iam_role.fxfetch.id
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" }]
+  })
+}
+
 # ---- Log groups (created first so retention applies from the start) ----
 resource "aws_cloudwatch_log_group" "fn" {
-  for_each          = toset(["api", "jobs", "migrate", "mailer"])
+  for_each          = toset(["api", "jobs", "migrate", "mailer", "fxfetch"])
   name              = "/aws/lambda/${local.name}-${each.key}"
   retention_in_days = var.log_retention_days
 }
@@ -187,4 +213,24 @@ resource "aws_lambda_event_source_mapping" "mailer" {
   function_name           = aws_lambda_function.mailer.arn
   batch_size              = 10
   function_response_types = ["ReportBatchItemFailures"]
+}
+
+resource "aws_lambda_function" "fxfetch" {
+  function_name    = "${local.name}-fxfetch"
+  role             = aws_iam_role.fxfetch.arn
+  runtime          = var.lambda_runtime
+  architectures    = ["arm64"]
+  handler          = "server/dist/src/lambda/fxfetch.handler"
+  filename         = data.archive_file.package.output_path
+  source_code_hash = data.archive_file.package.output_base64sha256
+  memory_size      = 256
+  timeout          = 30
+  environment {
+    variables = {
+      APP_MODE     = var.app_mode
+      FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
+      LOG_LEVEL    = "info"
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.fn, aws_iam_role_policy_attachment.fxfetch_logs]
 }

@@ -1,15 +1,18 @@
 import cron from 'node-cron';
 import type { Services } from '../services.js';
 import { cleanupJob } from './cleanup.js';
+import { fxRatesJob } from './fx-rates.js';
 import { reconciliationJob } from './reconciliation.js';
 
 export interface Job {
   name: string;
   schedule: string;
+  // Also run once when the worker starts (for data the app needs before the first scheduled run).
+  runOnStart?: boolean;
   run(services: Services): Promise<void>;
 }
 
-export const JOBS: Job[] = [cleanupJob, reconciliationJob];
+export const JOBS: Job[] = [cleanupJob, reconciliationJob, fxRatesJob];
 
 // Runs a job only if no other process holds its advisory lock, so several workers never double-run it.
 export async function runExclusive(services: Services, job: Job): Promise<boolean> {
@@ -38,6 +41,7 @@ export function startJobs(services: Services): () => Promise<void> {
   const tasks = JOBS.map(job =>
     cron.schedule(job.schedule, () => runExclusive(services, job), { name: job.name, noOverlap: true, timezone: 'UTC' }),
   );
+  for (const job of JOBS) if (job.runOnStart) void runExclusive(services, job);
   services.logger.info({ jobs: JOBS.map(j => j.name) }, 'jobs scheduled');
   return async () => {
     for (const task of tasks) await task.stop();

@@ -34,11 +34,15 @@ const EnvSchema = z.object({
   SMTP_URL: z.string().optional(),
   // Resend (https://resend.com) email API key. When set, email goes through its HTTP API instead of SMTP.
   RESEND_API_KEY: z.string().optional(),
-  MAIL_FROM: z.string().min(3).default('Pexerearn <no-reply@pexerearn.test>'),
+  MAIL_FROM: z.string().min(3).default('Pexerearn <info@pexerearn.com>'),
   // AWS: the API runs in a VPC without internet access, so it hands each email to this S3 bucket and a mailer
   // function outside the VPC sends it (docs/DEPLOYMENT.md).
   // Empty means off (Terraform passes an empty value when no email service is set up).
   MAIL_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
+  // Exchange rates for referral rewards paid across currencies: the free open.er-api.com endpoint, or (AWS, no
+  // internet in the VPC) the snapshot the fetcher function leaves in FX_S3_BUCKET. 'none' stores no rates.
+  FX_PROVIDER: z.enum(['open-er-api', 's3', 'none']).default('open-er-api'),
+  FX_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
   GEOIP_PROVIDER: z.enum(['none', 'test-header']).default('none'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MIGRATE_ON_START: z.stringbool().default(false),
@@ -72,6 +76,8 @@ export interface Config {
   resendApiKey: string | null;
   mailFrom: string;
   mailS3Bucket: string | null;
+  fxProvider: 'open-er-api' | 's3' | 'none';
+  fxS3Bucket: string | null;
   geoipProvider: 'none' | 'test-header';
   logLevel: string;
   migrateOnStart: boolean;
@@ -151,6 +157,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     resendApiKey: e.RESEND_API_KEY && e.RESEND_API_KEY.length > 0 ? e.RESEND_API_KEY : null,
     mailFrom: e.MAIL_FROM,
     mailS3Bucket: e.MAIL_S3_BUCKET && e.MAIL_S3_BUCKET.length > 0 ? e.MAIL_S3_BUCKET : null,
+    fxProvider: e.FX_PROVIDER,
+    fxS3Bucket: e.FX_S3_BUCKET && e.FX_S3_BUCKET.length > 0 ? e.FX_S3_BUCKET : null,
     geoipProvider: e.GEOIP_PROVIDER,
     logLevel: e.LOG_LEVEL,
     migrateOnStart: e.MIGRATE_ON_START,

@@ -69,11 +69,11 @@ services:
       - key: RUN_JOBS_IN_WEB
         value: "true"
       # Email through the Resend API (https://resend.com). Sign-in codes for staff are emailed with it.
-      # Without a verified domain, Resend sends only from onboarding@resend.dev to the Resend account's own email.
+      # Mail goes out from info@pexerearn.com, so pexerearn.com must be verified in Resend (docs/DOMAIN.md).
       - key: RESEND_API_KEY
         sync: false
       - key: MAIL_FROM
-        value: Pexerearn <onboarding@resend.dev>
+        value: Pexerearn <info@pexerearn.com>
       # Email address given to the seeded zx_admin account, so its sign-in codes reach a real inbox.
       - key: SEED_ADMIN_EMAIL
         sync: false

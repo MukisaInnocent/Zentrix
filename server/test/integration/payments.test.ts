@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTransaction } from '../../src/db/tx.js';
+import { fxRatesJob } from '../../src/jobs/fx-rates.js';
+import { FixedFxSource } from '../../src/providers/fx.js';
 import { toDecimalString } from '../../src/lib/money.js';
 import { accountId, move, post } from '../../src/modules/ledger/ledger.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
@@ -273,19 +275,56 @@ describe('referral rewards', () => {
     expect([topLevels['1'], topLevels['3']]).toEqual([{ total: 1, active: 0, inactive: 1, rewardsMinor: '0' }, { total: 1, active: 1, inactive: 0, rewardsMinor: '2000' }]);
   });
 
-  it('scale to the invited member country and skip a level whose referrer uses another currency', async () => {
+  it('scale to the invited member country and pay a referrer in another country in their own currency at the latest rate', async () => {
     const ugandan = await verifiedMember();
-    const kenyan = await verifiedMember({ country: 'KE', phone: kenyanPhone(), referralCode: ugandan.input.username });
+    await activate(ugandan); // the referral pages need an activated account
     await app.owner.query(
       `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number) VALUES ('mpesa_test', 'M-Pesa', 'KE', 'KES', 'PEXEREARN TEST', '000111') ON CONFLICT DO NOTHING`,
     );
-    const d = await kenyan.client.post<Body>('/api/payments/deposits', { channel: 'mpesa_test', senderPhone: kenyan.input.phone, providerTxnId: txnId() }, key());
-    expect(d.status, JSON.stringify(d.body)).toBe(201);
-    const ok = await financeClient.post<Body>(`/api/admin/payments/deposits/${d.body.deposit.id}/confirm`, { amount: toDecimalString(BigInt(d.body.deposit.claimedAmountMinor), 2) }, key());
-    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
-    expect((await summary(kenyan)).membershipActive).toBe(true);
-    // The Ugandan referrer is paid in shillings only, so nothing is paid across currencies.
+    const activateKenyan = async (): Promise<bigint> => {
+      const kenyan = await verifiedMember({ country: 'KE', phone: kenyanPhone(), referralCode: ugandan.input.username });
+      const d = await kenyan.client.post<Body>('/api/payments/deposits', { channel: 'mpesa_test', senderPhone: kenyan.input.phone, providerTxnId: txnId() }, key());
+      expect(d.status, JSON.stringify(d.body)).toBe(201);
+      const ok = await financeClient.post<Body>(`/api/admin/payments/deposits/${d.body.deposit.id}/confirm`, { amount: toDecimalString(BigInt(d.body.deposit.claimedAmountMinor), 2) }, key());
+      expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+      expect((await summary(kenyan)).membershipActive).toBe(true);
+      return BigInt(d.body.deposit.claimedAmountMinor);
+    };
+    const rewards = () => app.owner.query(
+      `SELECT r.status, r.amount_minor, r.currency_code, r.source_amount_minor, r.source_currency_code, r.fx_rate
+       FROM referral_rewards r JOIN users u ON u.id = r.referrer_user_id WHERE u.public_id = $1 ORDER BY r.id`, [ugandan.user.id],
+    );
+
+    // No exchange rate yet: the level 1 reward (10,000 scaled to Kenya's fee, in KES cents) waits.
+    const feeKes = await activateKenyan();
+    const rewardKes = (10_000n * feeKes) / 19_000n;
     expect((await summary(ugandan)).availableBalanceMinor).toBe('0');
+    expect((await rewards()).rows).toEqual([
+      { status: 'pending', amount_minor: null, currency_code: 'UGX', source_amount_minor: rewardKes.toString(), source_currency_code: 'KES', fx_rate: null },
+    ]);
+
+    // The rate job stores the rates and pays it: KES 129 and UGX 3,700 per dollar, rounded down to whole shillings.
+    app.services.fx = new FixedFxSource({ source: 'test', rateAt: new Date(), unitsPerUsd: { USD: '1', KES: '129', UGX: '3700' } });
+    await fxRatesJob.run(app.services);
+    const rewardUgx = (rewardKes * 3700n) / (129n * 100n);
+    expect((await summary(ugandan)).availableBalanceMinor).toBe(rewardUgx.toString());
+    expect((await rewards()).rows[0]).toMatchObject({ status: 'credited', amount_minor: rewardUgx.toString(), currency_code: 'UGX', fx_rate: '28.682170542636' });
+
+    // With a rate on file, the next one is paid at once.
+    await activateKenyan();
+    expect((await summary(ugandan)).availableBalanceMinor).toBe((2n * rewardUgx).toString());
+    expect((await ugandan.client.get<Body>('/api/referrals')).body.levels['1'].rewardsMinor).toBe((2n * rewardUgx).toString());
+    const list = (await ugandan.client.get<Body>('/api/referrals/members?level=1')).body.members;
+    expect(list.map((m: Body) => [m.currency, m.rewardMinor, m.rewardCurrency])).toEqual([['KES', rewardUgx.toString(), 'UGX'], ['KES', rewardUgx.toString(), 'UGX']]);
+
+    // The money moved through fx_clearing: KES revenue paid it, UGX was credited, and each transaction balances.
+    const clearing = await app.owner.query(`SELECT currency_code, balance_minor FROM accounts WHERE kind = 'fx_clearing' ORDER BY currency_code`);
+    expect(clearing.rows).toEqual([
+      { currency_code: 'KES', balance_minor: (2n * rewardKes).toString() },
+      { currency_code: 'UGX', balance_minor: (-2n * rewardUgx).toString() },
+    ]);
+    const memo = await app.owner.query(`SELECT memo FROM ledger_transactions WHERE kind = 'referral_bonus' AND memo LIKE '%converted from KES%'`);
+    expect(memo.rowCount).toBe(2);
   });
 });
 

@@ -106,9 +106,21 @@ variable "alarm_email" {
 }
 
 variable "mail_from" {
-  description = "Sender for outgoing email. Without a verified Resend domain use onboarding@resend.dev."
+  description = "Sender for outgoing email. The pexerearn.com domain must be verified in Resend (docs/DOMAIN.md)."
   type        = string
-  default     = "Pexa <onboarding@resend.dev>"
+  default     = "Pexerearn <info@pexerearn.com>"
+}
+
+variable "fx_fetch_schedule" {
+  description = "When fxfetch fetches exchange rates into S3 (the provider updates once a day)."
+  type        = string
+  default     = "cron(10 */6 * * ? *)"
+}
+
+variable "fx_rates_schedule" {
+  description = "When the fxrates job stores the fetched rates and pays referral rewards waiting for one."
+  type        = string
+  default     = "cron(20 */6 * * ? *)"
 }
 
 variable "cloudfront_price_class" {

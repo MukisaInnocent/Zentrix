@@ -54,5 +54,5 @@ export async function init() {
     h('td', {}, m.country),
     h('td', { class: 'zx-td-muted' }, formatDate(m.joinedAt)),
     h('td', {}, h('span', { class: `zx-badge ${m.status === 'Active' ? 'zx-badge--success' : 'zx-badge--warning'}` }, m.status)),
-    h('td', { class: 'zx-amount' }, m.rewardMinor === '0' ? '' : formatMoney(m.rewardMinor, m.currency)))));
+    h('td', { class: 'zx-amount' }, m.rewardMinor === '0' ? '' : formatMoney(m.rewardMinor, m.rewardCurrency)))));
 }

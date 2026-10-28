@@ -15,17 +15,21 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
      Lambda api, jobs, migrate ──> Aurora Serverless v2 PostgreSQL (0 to 2 ACU, pauses when idle)│
      Lambda api ──(free S3 gateway endpoint)──> S3 mail outbox ──> SQS ──> Lambda "mailer" ──> Resend
                                                                     └── dead-letter queue + alarm (mailer is outside the VPC)
-   EventBridge Scheduler ──> Lambda jobs (balance check hourly, clean-up daily)
+   EventBridge Scheduler ──> Lambda jobs (balance check hourly, clean-up daily, exchange rates every 6 hours)
+   EventBridge Scheduler ──> Lambda "fxfetch" (outside the VPC) ──> open.er-api.com, snapshot to S3 fx/latest.json
 ```
 
-- One code package, four functions (ARM64): `api` (the Express app through serverless-http), `jobs`,
-  `migrate` (migrations and test seed, run by the pipeline) and `mailer`. Locally the same app still runs with
+- One code package, five functions (ARM64): `api` (the Express app through serverless-http), `jobs`,
+  `migrate` (migrations and test seed, run by the pipeline), `mailer` and `fxfetch`. Locally the same app still runs with
   `npm run dev` as a normal Node server.
 - All money data stays in Aurora PostgreSQL (no DynamoDB).
 - Secrets live in Secrets Manager (`pexa-<env>/database`, `pexa-<env>/app`). The functions in the VPC have no route
   to Secrets Manager (no NAT or paid endpoints, by decision), so Terraform reads the values at deploy time and sets
   them as Lambda environment variables, which Lambda encrypts at rest. **Changing a secret needs a redeploy.**
 - Without a Resend key, emails (sign-in codes, reset links) are kept on the staff **Email outbox** page.
+- Exchange rates for referral rewards across countries: `fxfetch` fetches them into the outbox bucket under `fx/`
+  every 6 hours; ten minutes later the `fxrates` job (inside the VPC) stores them and pays rewards that were waiting
+  for a rate. A reward across currencies waits as pending until the first rates arrive.
 - The SMS forwarder's HMAC secret is not created: SMS forwarding was removed by the owner (see CLAUDE.md).
 - Staff pages (`/admin/*`) are served by the API so it can check the staff session before sending them.
 
@@ -147,7 +151,8 @@ Remove-Item .lambda\app-secret.json
 ```
 
 Then redeploy (step 4 from `terraform plan`, or push to the `staging` branch). `terraform output email_delivery`
-shows `resend` once it is on. Without a verified Resend domain, mail goes only to your Resend account's address.
+shows `resend` once it is on. Mail goes out from `info@pexerearn.com`, which needs the domain verified in Resend
+first (docs/DOMAIN.md, "Email from info@pexerearn.com").
 
 ## Custom domain
 
