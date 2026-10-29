@@ -36,7 +36,12 @@ locals {
     # Exchange rates: fxfetch leaves the latest snapshot in the outbox bucket under fx/.
     FX_PROVIDER  = "s3"
     FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
-    LOG_LEVEL    = "info"
+    # Mobile money (paygate.tf): the simulator in test mode; LivePay through the S3 handoff once enabled.
+    PAYMENT_PROVIDER            = var.livepay_enabled ? "livepay" : "simulator"
+    PAYGATE_S3_BUCKET           = var.livepay_enabled ? aws_s3_bucket.outbox.bucket : ""
+    LIVEPAY_LIVE_WEBHOOK_SECRET = var.livepay_enabled ? try(local.app_secret.LIVEPAY_LIVE_WEBHOOK_SECRET, "") : ""
+    LIVEPAY_WEBHOOK_URL         = "${local.public_origin}/api/webhooks/livepay"
+    LOG_LEVEL                   = "info"
     # Viewer -> CloudFront -> API Gateway -> Lambda.
     TRUST_PROXY = "2"
   }
@@ -71,6 +76,8 @@ resource "aws_iam_role_policy" "vpc_fn_outbox" {
     Statement = [
       { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/outbox/*" },
       { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" },
+      { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/commands/*" },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:DeleteObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/results/*" },
     ]
   })
 }

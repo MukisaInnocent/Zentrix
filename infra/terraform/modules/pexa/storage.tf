@@ -105,13 +105,30 @@ resource "aws_s3_bucket_notification" "outbox" {
     events        = ["s3:ObjectCreated:*"]
     filter_prefix = "outbox/"
   }
+  # LivePay commands for the paygate function, and its results for the jobs function (paygate.tf).
+  dynamic "queue" {
+    for_each = var.livepay_enabled ? [1] : []
+    content {
+      queue_arn     = aws_sqs_queue.paygate[0].arn
+      events        = ["s3:ObjectCreated:*"]
+      filter_prefix = "paygate/commands/"
+    }
+  }
+  dynamic "lambda_function" {
+    for_each = var.livepay_enabled ? [1] : []
+    content {
+      lambda_function_arn = aws_lambda_function.jobs.arn
+      events              = ["s3:ObjectCreated:*"]
+      filter_prefix       = "paygate/results/"
+    }
+  }
   # fxfetch writes fx/latest.json only when the provider publishes new rates; the jobs function then stores them.
   lambda_function {
     lambda_function_arn = aws_lambda_function.jobs.arn
     events              = ["s3:ObjectCreated:*"]
     filter_prefix       = "fx/"
   }
-  depends_on = [aws_sqs_queue_policy.mail, aws_lambda_permission.fx_rates_from_s3]
+  depends_on = [aws_sqs_queue_policy.mail, aws_sqs_queue_policy.paygate, aws_lambda_permission.fx_rates_from_s3]
 }
 
 resource "aws_lambda_permission" "fx_rates_from_s3" {

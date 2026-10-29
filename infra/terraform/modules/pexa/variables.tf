@@ -17,6 +17,22 @@ variable "app_mode" {
   }
 }
 
+variable "livepay_enabled" {
+  description = "Collect activation fees and send payouts through LivePay (docs/PLAN.md D29). Needs live mode: LivePay has no sandbox. Off: test mode uses the simulator."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.livepay_enabled
+    error_message = "LivePay moves real money and needs APP_MODE=live, which this code does not deploy yet. Keep livepay_enabled = false until go-live."
+  }
+}
+
+variable "payments_schedule" {
+  description = "How often the payments job reads the status of LivePay requests that got no answer (only while livepay_enabled)."
+  type        = string
+  default     = "rate(5 minutes)"
+}
+
 variable "test_auto_approve" {
   description = "Test mode only: activation payments and withdrawals pass by themselves."
   type        = bool

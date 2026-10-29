@@ -30,12 +30,14 @@ resource "aws_iam_role_policy" "scheduler" {
 }
 
 locals {
-  schedules = {
+  schedules = merge({
     reconciliation = var.reconciliation_schedule
     cleanup        = var.cleanup_schedule
     fxrates        = var.fx_rates_schedule
     announcements  = var.announcements_schedule
-  }
+    },
+    # Only with LivePay: each run wakes a paused database.
+  var.livepay_enabled ? { payments = var.payments_schedule } : {})
 }
 
 resource "aws_scheduler_schedule" "jobs" {
