@@ -48,7 +48,7 @@ describe('LivePay client', () => {
     const [o] = await client(fakeFetch(200, { success: true, internal_reference: 'abc', network: 'MTN' }, seen)).execute(collect);
     expect(seen.url).toBe('https://livepay.me/api/collect-money');
     expect((seen.init?.headers as Record<string, string>).Authorization).toBe('Bearer k');
-    expect(JSON.parse(String(seen.init?.body))).toMatchObject({ accountNumber: 'LP2305443309', amount: 19000, currency: 'UGX', reference: 'DP-AB12CD34' });
+    expect(JSON.parse(seen.init?.body as string)).toMatchObject({ accountNumber: 'LP2305443309', amount: 19000, currency: 'UGX', reference: 'DP-AB12CD34' });
     expect(o).toMatchObject({ accepted: 'yes', providerRef: 'abc', network: 'MTN' });
   });
 

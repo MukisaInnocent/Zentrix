@@ -70,8 +70,10 @@ const ChannelBody = z.strictObject({
   instructions: z.string().trim().max(600).optional(),
   depositsEnabled: z.boolean().default(true),
   payoutsEnabled: z.boolean().default(true),
+  // 'livepay': members pay with a prompt on their phone and staff send payouts through LivePay. Fixed once created.
+  provider: z.enum(['livepay']).optional(),
 });
-const ChannelPatch = ChannelBody.omit({ code: true, country: true }).partial().strict();
+const ChannelPatch = ChannelBody.omit({ code: true, country: true, provider: true }).partial().strict();
 const ChannelsQuery = z.object({ country: z.string().trim().toUpperCase().length(2).optional(), removed: z.enum(['0', '1']).default('0') });
 const RemoveBody = z.strictObject({ reason: z.string().trim().min(5, { error: 'Say why the method is removed.' }).max(300) });
 
@@ -544,9 +546,9 @@ export function paymentsAdminRouter(services: Services): Router {
       const code = body.code ?? (await newChannelCode(db, body.name, body.country));
       if (await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [code])) throw conflict('channel.exists', 'A channel with this code already exists.');
       await db.query(
-        `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled],
+        `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled, provider)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled, body.provider ?? null],
       );
       await audit(db, req, { action: 'channel.created', targetType: 'payment_channel', targetId: code, after: { ...body, code } });
       return code;

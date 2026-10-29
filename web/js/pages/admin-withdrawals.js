@@ -1,10 +1,11 @@
 import { api } from '../core/api.js';
 import { $, h, on } from '../core/dom.js';
-import { act, ago, askForm, copyable, debounce, emptyRow, kv, live, money, moneyPost, pager, panel, queryParam, segmented, sheet, statusBadge, timeline, when } from '../admin/kit.js';
+import { act, ago, askForm, checkProvider, copyable, debounce, emptyRow, kv, live, money, moneyPost, pager, panel, providerPanel, queryParam, segmented, sheet, statusBadge, timeline, when } from '../admin/kit.js';
 
 // Withdrawal queue. Approve (an admin for large amounts or new accounts), Start payout (claims it so two
 // people never pay the same request), send the money from the business channel to the member's verified
-// phone, then Mark paid with the payout transaction ID. Failed or cancelled requests return the funds.
+// phone, then Mark paid with the payout transaction ID. Failed or cancelled requests return the funds. Where LivePay
+// is set up, Send with LivePay replaces the manual steps: LivePay sends the money and the result is recorded by itself.
 const state = { status: 'open', q: '', page: 1 };
 let poll;
 
@@ -42,7 +43,10 @@ async function openWithdrawal(id) {
     view.body.replaceChildren(h('p', { class: 'zx-error' }, err.message));
     return;
   }
-  const { withdrawal: w, member: m, events, issues, you } = data;
+  const { withdrawal: w, member: m, events, issues, you, provider } = data;
+  const request = provider?.request ?? null;
+  // A payout LivePay is still handling cannot be recorded by hand; one in review can.
+  const inFlight = request && ['queued', 'sent', 'pending'].includes(request.status);
   view.setTitle(`Withdrawal ${w.reference}`);
   const warnings = [];
   if (m.status !== 'active') warnings.push(`The member account is ${m.status}. Do not pay; cancel instead.`);
@@ -66,6 +70,7 @@ async function openWithdrawal(id) {
         w.payoutTxnId ? ['Payout transaction', copyable(w.payoutTxnId)] : null,
         w.closedReason ? ['Reason', w.closedReason] : null,
       ])),
+    providerPanel(request),
     warnings.length ? panel('Check before paying', h('ul', { class: 'zx-warnlist' }, warnings.map(x => h('li', {}, x)))) : null,
     panel('Member',
       kv([
@@ -111,8 +116,23 @@ async function openWithdrawal(id) {
   } else if (w.status === 'approved') {
     actions.push(cancel);
     if (w.needsAdminApproval && you.isApprover) actions.push(h('span', { class: 'zx-hint' }, 'You approved this, so another staff member must send it.'));
-    else actions.push(button('Start payout', '', async () => {
-      if (await act(() => moneyPost(`/api/admin/payments/withdrawals/${w.id}/start`, {}), 'Marked as being sent by you. Send the money now.')) await openWithdrawalAgain();
+    else {
+      actions.push(button(provider?.payoutChannel ? 'Pay by hand' : 'Start payout', '', async () => {
+        if (await act(() => moneyPost(`/api/admin/payments/withdrawals/${w.id}/start`, {}), 'Marked as being sent by you. Send the money now.')) await openWithdrawalAgain();
+      }));
+      if (provider?.payoutChannel) actions.push(button('Send with LivePay', 'success', async () => {
+        if (await askForm({
+          title: 'Send with LivePay', text: `LivePay sends ${money(w.amountMinor, w.currency)} to ${w.payoutPhone} from ${provider.payoutChannel.name}. The result is recorded by itself. This moves real money in live mode.`,
+          submitLabel: 'Send now', tone: 'success',
+          fields: [{ name: 'note', label: 'Note (optional)', type: 'textarea' }],
+          submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/send-provider`, v.note ? { note: v.note } : {}),
+        })) await openWithdrawalAgain();
+      }));
+    }
+  } else if (w.status === 'processing' && inFlight) {
+    actions.push(h('span', { class: 'zx-hint' }, 'LivePay is sending this payout. It finishes by itself.'));
+    actions.push(button('Check with LivePay', '', async () => {
+      if (await act(() => checkProvider(request.reference), 'Status checked.')) await openWithdrawalAgain();
     }));
   } else if (w.status === 'processing') {
     actions.push(button('Payout failed', 'danger', async () => {

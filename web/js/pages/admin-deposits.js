@@ -1,7 +1,7 @@
 import { api } from '../core/api.js';
 import { $, h, on } from '../core/dom.js';
 import { minorToDecimal, loadCurrencies } from '../core/format.js';
-import { act, ago, askForm, copyable, debounce, emptyRow, kv, live, money, moneyPost, pager, panel, queryParam, segmented, sheet, statusBadge, timeline, when } from '../admin/kit.js';
+import { act, ago, askForm, checkProvider, copyable, debounce, emptyRow, kv, live, money, moneyPost, pager, panel, providerPanel, queryParam, segmented, sheet, statusBadge, timeline, when } from '../admin/kit.js';
 
 // Deposit queue. Staff open a claim, find the payment on the channel statement (same transaction ID, sender
 // and amount), then confirm the amount actually received or reject it with a reason the member will see.
@@ -52,7 +52,7 @@ async function openDeposit(id) {
     view.body.replaceChildren(h('p', { class: 'zx-error' }, err.message));
     return;
   }
-  const { deposit: d, member: m, events, related, issues } = data;
+  const { deposit: d, member: m, events, related, issues, provider } = data;
   view.setTitle(`${d.purpose === 'wallet' ? 'Deposit' : 'Activation payment'} ${d.reference}`);
   const warnings = [];
   if (related.some(r => r.providerTxnId === d.providerTxnId)) warnings.push('This transaction ID appears on another claim. Check it is not the same payment twice.');
@@ -74,6 +74,7 @@ async function openDeposit(id) {
         d.memberNote ? ['Member note', d.memberNote] : null,
         d.reviewNote ? ['Review note', d.reviewNote] : null,
       ])),
+    providerPanel(provider),
     warnings.length ? panel('Check before confirming', h('ul', { class: 'zx-warnlist' }, warnings.map(w => h('li', {}, w)))) : null,
     panel('Member',
       kv([
@@ -96,6 +97,18 @@ async function openDeposit(id) {
   );
 
   if (d.status !== 'pending') return view.setActions();
+  // A LivePay payment settles by itself; staff step in only when it needs a check (review).
+  if (provider && ['queued', 'sent', 'pending'].includes(provider.status)) {
+    const check = h('button', { type: 'button', class: 'zx-btn' }, 'Check with LivePay');
+    check.addEventListener('click', async () => {
+      if (await act(() => checkProvider(provider.reference), 'Status checked.')) {
+        view.close();
+        await poll.refresh();
+        await openDeposit(d.id);
+      }
+    });
+    return view.setActions(h('span', { class: 'zx-hint' }, 'Waiting for the member to approve the prompt. It settles by itself.'), check);
+  }
   const exponent = (await loadCurrencies())[d.currency] ?? 0;
   const confirm = h('button', { type: 'button', class: 'zx-btn zx-btn--success' }, 'Confirm received');
   const reject = h('button', { type: 'button', class: 'zx-btn zx-btn--danger' }, 'Reject');

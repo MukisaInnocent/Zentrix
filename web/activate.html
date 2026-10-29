@@ -21,6 +21,7 @@
     </div>
   </div>
   <div id="auto-note" class="zx-banner zx-banner--success" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#info"></use></svg><span class="zx-banner__text">Test mode: payments pass automatically. Just press Submit payment.</span></div>
+  <div id="last-failed" class="zx-banner zx-banner--warning" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#info"></use></svg><span id="last-failed-text" class="zx-banner__text"></span></div>
   <div id="paused" class="zx-banner zx-banner--warning" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#clock"></use></svg><span class="zx-banner__text">Payments are paused for a short check. Please come back later.</span></div>
 
   <section class="zx-card zx-stack-4">
@@ -36,16 +37,16 @@
   </section>
 
   <section id="form-card" class="zx-card">
-    <h2>2. Enter your payment details</h2>
+    <h2 id="form-title">2. Enter your payment details</h2>
     <form id="activate-form" class="zx-form" novalidate>
       <div class="zx-error" data-form-error hidden role="alert"></div>
-      <div class="zx-field">
+      <div id="txn-field" class="zx-field">
         <label for="activate-txn">Transaction ID</label>
         <input id="activate-txn" class="zx-input zx-input--code" name="providerTxnId" autocomplete="off" required minlength="4" maxlength="60" placeholder="From your confirmation message">
         <span id="activate-txn-error" class="zx-error" hidden></span>
       </div>
       <div class="zx-field">
-        <label for="activate-phone">Number you paid from</label>
+        <label id="activate-phone-label" for="activate-phone">Number you paid from</label>
         <input id="activate-phone" class="zx-input" name="senderPhone" type="tel" inputmode="tel" autocomplete="tel" required>
         <span id="activate-phone-error" class="zx-error" hidden></span>
       </div>
@@ -54,8 +55,8 @@
   </section>
 
   <section id="waiting" class="zx-card zx-card--accent" hidden>
-    <h2>We are checking your payment</h2>
-    <p class="zx-hint">Your account opens as soon as our team finds it on the statement. This page updates by itself.</p>
+    <h2 id="waiting-title">We are checking your payment</h2>
+    <p id="waiting-text" class="zx-hint">Your account opens as soon as our team finds it on the statement. This page updates by itself.</p>
   </section>
 
 </div>

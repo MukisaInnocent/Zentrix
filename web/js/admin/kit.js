@@ -199,3 +199,25 @@ export function debounce(fn, ms = 300) {
     t = setTimeout(() => fn(...args), ms);
   };
 }
+
+// A provider (LivePay) request: what LivePay last said about a payment or payout.
+const PROVIDER_STATUS = { queued: 'Waiting to send', sent: 'Sent, no answer yet', pending: 'Pending at LivePay', succeeded: 'Succeeded', failed: 'Failed', review: 'Needs a staff check' };
+export function providerPanel(r) {
+  if (!r) return null;
+  return panel('LivePay',
+    kv([
+      ['Status', PROVIDER_STATUS[r.status] ?? r.status],
+      r.providerStatus ? ['LivePay says', r.providerStatus] : null,
+      ['Our reference', copyable(r.reference)],
+      r.providerRef ? ['LivePay reference', copyable(r.providerRef)] : null,
+      r.providerTxnId ? ['Network transaction', copyable(r.providerTxnId)] : null,
+      r.network ? ['Network', r.network] : null,
+      r.chargeMinor && r.chargeMinor !== '0' ? ['LivePay charge', money(r.chargeMinor, r.currency)] : null,
+      r.message ? ['Message', r.message] : null,
+      ['Status checks', `${r.checks}${r.lastCheckedAt ? `, last ${ago(r.lastCheckedAt)}` : ''}`],
+    ]),
+    r.status === 'review' ? h('p', { class: 'zx-hint' }, 'Check this payment on the LivePay dashboard, then settle it with the buttons below.') : null);
+}
+
+// Asks LivePay for the latest status now (within LivePay's limit of status checks).
+export const checkProvider = reference => api.post(`/api/admin/payments/provider-requests/${encodeURIComponent(reference)}/check`, {});

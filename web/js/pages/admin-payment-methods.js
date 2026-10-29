@@ -41,9 +41,14 @@ async function addMethod() {
     title: 'Add a payment method', submitLabel: 'Add method',
     fields: [
       { name: 'country', label: 'Country', type: 'select', required: true, value: state.country || 'UG', options: countries.map(c => ({ value: c.code, label: `${c.name} (${c.currency_code})` })) },
+      {
+        name: 'provider', label: 'How members pay', type: 'select', value: '',
+        options: [{ value: '', label: 'Manual: members send money and enter the transaction ID' }, { value: 'livepay', label: 'LivePay: a payment prompt on the member’s phone (UGX only so far)' }],
+        hint: 'Cannot be changed later. With LivePay, enter the LivePay account number below; payouts are sent through LivePay.',
+      },
       ...methodFields(),
     ],
-    submit: v => api.post('/api/admin/payments/channels', { country: v.country, ...toBody(v) }),
+    submit: v => api.post('/api/admin/payments/channels', { country: v.country, ...toBody(v), ...(v.provider ? { provider: v.provider } : {}) }),
   });
   if (saved) {
     toast.success('Payment method added.');
@@ -93,7 +98,7 @@ async function load() {
   const { channels } = await api.get(`/api/admin/payments/channels?${params}`);
   $('#rows').replaceChildren(...(channels.length ? channels.map(c => h('tr', {},
     h('td', {}, `${countryName(c.countryCode)} (${c.currency})`),
-    h('td', { class: 'zx-td-strong' }, c.name, c.removedAt ? h('div', { class: 'zx-hint' }, 'Removed') : null),
+    h('td', { class: 'zx-td-strong' }, c.name, c.provider ? h('div', { class: 'zx-hint' }, 'LivePay') : null, c.removedAt ? h('div', { class: 'zx-hint' }, 'Removed') : null),
     h('td', {}, c.accountName),
     h('td', { class: 'zx-td-mono' }, c.accountNumber),
     h('td', { class: 'zx-td-mono' }, c.ussdCode ?? '-'),

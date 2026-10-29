@@ -13,7 +13,7 @@ import { createStaff, loginStaff, registerMember, uniquePhoneUG, type Member } f
 // the simulator; a hand-driven gateway covers answers that arrive later (webhook, status reads).
 let app: TestApp;
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 type Body = Record<string, any>;
 const key = () => ({ 'idempotency-key': randomUUID() });
 
