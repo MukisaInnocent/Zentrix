@@ -115,6 +115,15 @@ describe('payment provider configuration', () => {
     expect(() => loadConfig({ ...base, PAYMENT_PROVIDER: 'livepay' })).toThrow(ConfigError);
   });
 
+  it('loads LivePay keys in test mode only with the deliberate staging trial switch', () => {
+    const trial = { ...base, LIVEPAY_TRIAL: 'true', PAYMENT_PROVIDER: 'livepay', LIVEPAY_LIVE_WEBHOOK_SECRET: 's', PAYGATE_S3_BUCKET: 'pexa-outbox' };
+    expect(loadConfig(trial).paymentProvider).toBe('livepay');
+    // Other live-only secrets still stop test mode.
+    expect(() => loadConfig({ ...trial, PAYMENT_PROVIDER_LIVE_API_KEY: 'x' })).toThrow(/live-only secrets/);
+    // The trial still needs the webhook secret.
+    expect(() => loadConfig({ ...trial, LIVEPAY_LIVE_WEBHOOK_SECRET: '' })).toThrow(/LIVEPAY_LIVE_WEBHOOK_SECRET/);
+  });
+
   it('defaults the webhook URL to the site address', () => {
     expect(loadConfig(base).livepayWebhookUrl).toBe('http://localhost:3000/api/webhooks/livepay');
   });

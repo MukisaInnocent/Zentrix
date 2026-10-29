@@ -91,6 +91,8 @@ export function paymentsRouter(services: Services): Router {
       withdrawalsPaused: withdrawals.active,
       // Test mode with TEST_AUTO_APPROVE: payments pass by themselves, and the page says so.
       autoApprove: services.config.appMode === 'test' && services.config.testAutoApprove,
+      // Staging LivePay trial: LivePay prompts take real money although the site is in test mode.
+      livepayTrial: services.config.appMode === 'test' && services.config.livepayTrial && services.config.paymentProvider === 'livepay',
       activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor },
       // Provider methods (LivePay) show only while the provider is connected.
       channels: channels.filter(c => (c.depositsEnabled || c.payoutsEnabled) && (!c.provider || services.payments)).map(publicChannel),

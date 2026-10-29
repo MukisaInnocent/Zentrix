@@ -41,6 +41,7 @@ locals {
     PAYGATE_S3_BUCKET           = var.livepay_enabled ? aws_s3_bucket.outbox.bucket : ""
     LIVEPAY_LIVE_WEBHOOK_SECRET = var.livepay_enabled ? try(local.app_secret.LIVEPAY_LIVE_WEBHOOK_SECRET, "") : ""
     LIVEPAY_WEBHOOK_URL         = "${local.public_origin}/api/webhooks/livepay"
+    LIVEPAY_TRIAL               = tostring(var.livepay_trial)
     LOG_LEVEL                   = "info"
     # Viewer -> CloudFront -> API Gateway -> Lambda.
     TRUST_PROXY = "2"

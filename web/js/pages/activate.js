@@ -99,6 +99,7 @@ async function refresh() {
   $('#fee').textContent = info.activation.feeMinor ? formatMoney(info.activation.feeMinor, info.currency) : 'Not set for your country yet';
   $('#paused').hidden = !info.depositsPaused;
   $('#auto-note').hidden = !info.autoApprove;
+  $('#livepay-trial').hidden = !info.livepayTrial;
   // Test mode: a made-up transaction ID so the member only has to press Submit.
   if (info.autoApprove && !$('#activate-txn').value) $('#activate-txn').value = `TEST${Date.now().toString(36).toUpperCase()}`;
   const pendingDeposit = list.deposits.find(d => d.status === 'pending');

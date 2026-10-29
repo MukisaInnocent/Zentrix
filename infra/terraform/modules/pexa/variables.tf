@@ -21,10 +21,12 @@ variable "livepay_enabled" {
   description = "Collect activation fees and send payouts through LivePay (docs/PLAN.md D29). Needs live mode: LivePay has no sandbox. Off: test mode uses the simulator."
   type        = bool
   default     = false
-  validation {
-    condition     = !var.livepay_enabled
-    error_message = "LivePay moves real money and needs APP_MODE=live, which this code does not deploy yet. Keep livepay_enabled = false until go-live."
-  }
+}
+
+variable "livepay_trial" {
+  description = "Owner, 2026-10-30: let LivePay run with real keys while the site is in test mode, to try it on staging. LivePay payments then move REAL money."
+  type        = bool
+  default     = false
 }
 
 variable "payments_schedule" {

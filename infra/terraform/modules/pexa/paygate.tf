@@ -1,9 +1,27 @@
 # LivePay (owner, 2026-10-30; docs/PLAN.md D29). The API has no internet, so it leaves each provider command in the
 # outbox bucket under paygate/commands/; S3 notifies this queue; the paygate function (outside the VPC) calls LivePay
 # and writes the outcome under paygate/results/, which starts the jobs function (storage.tf) to apply it.
-# Everything here exists only while livepay_enabled is true, which needs live mode (LivePay has no sandbox).
+# Everything here exists only while livepay_enabled is true. LivePay has no sandbox: in test mode it needs the
+# deliberate livepay_trial switch (owner, 2026-10-30, staging), and the keys must already be in the app secret.
 locals {
   livepay = var.livepay_enabled ? 1 : 0
+  livepay_keys_present = nonsensitive(alltrue([
+    for k in ["LIVEPAY_LIVE_API_KEY", "LIVEPAY_LIVE_WEBHOOK_SECRET", "LIVEPAY_ACCOUNT_NUMBER"] : try(local.app_secret[k], "") != ""
+  ]))
+}
+
+resource "terraform_data" "livepay_guard" {
+  count = local.livepay
+  lifecycle {
+    precondition {
+      condition     = var.app_mode == "live" || var.livepay_trial
+      error_message = "LivePay moves real money. In test mode set livepay_trial = true to run a deliberate trial."
+    }
+    precondition {
+      condition     = local.livepay_keys_present
+      error_message = "Add LIVEPAY_LIVE_API_KEY, LIVEPAY_LIVE_WEBHOOK_SECRET and LIVEPAY_ACCOUNT_NUMBER to the app secret first (docs/LIVEPAY.md)."
+    }
+  }
 }
 
 resource "aws_sqs_queue" "paygate_dlq" {
@@ -97,7 +115,7 @@ resource "aws_lambda_function" "paygate" {
       LOG_LEVEL              = "info"
     }
   }
-  depends_on = [aws_cloudwatch_log_group.paygate, aws_iam_role_policy_attachment.paygate_logs]
+  depends_on = [aws_cloudwatch_log_group.paygate, aws_iam_role_policy_attachment.paygate_logs, terraform_data.livepay_guard]
 }
 
 resource "aws_lambda_event_source_mapping" "paygate" {

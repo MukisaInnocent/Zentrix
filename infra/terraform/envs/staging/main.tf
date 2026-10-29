@@ -82,6 +82,11 @@ module "pexa" {
   site_domain        = "staging.pexerearn.com"
   api_domain         = "api-staging.pexerearn.com"
   custom_domain_live = true
+
+  # Owner, 2026-10-30: try LivePay on staging with real keys. LivePay payments here move REAL money. The keys come
+  # from the app secret (docs/LIVEPAY.md, "Staging trial"); turn both off to go back to manual payments.
+  livepay_enabled = true
+  livepay_trial   = true
 }
 
 output "site_url" {

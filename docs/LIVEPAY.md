@@ -27,6 +27,17 @@ LivePay has **no sandbox**: its docs say every test uses live credentials and mo
 - LivePay's keys are named `LIVEPAY_LIVE_API_KEY` and `LIVEPAY_LIVE_WEBHOOK_SECRET`; test mode refuses to start while they are set.
 - To try it locally: in the staff console, open Payment methods, Add method, choose **LivePay** for Uganda, then activate a member.
 
+## Staging trial (owner, 2026-10-30)
+
+The owner wants to try real LivePay on staging first. Staging stays in test mode, but `livepay_trial = true` (in `infra/terraform/envs/staging/main.tf`) lets LivePay's keys load there, so **LivePay payments on staging move real money**. The activation page shows a warning while the trial is on. No other live-only key is allowed, and live mode refuses the switch.
+
+1. In the LivePay dashboard, set the webhook URL to exactly `https://staging.pexerearn.com/api/webhooks/livepay`. LivePay signs the URL, so any other address fails the signature check.
+2. `aws sso login --profile Pexerearn`, then `.\infra\scripts\set-livepay-secret.ps1`. It asks for the account number, API key and webhook secret without showing them, and adds them to `pexa-staging/app`.
+3. Deploy: push to the `staging` branch. Terraform stops with a clear message if the keys are missing.
+4. On staging, staff console, Payment methods, Add method: Uganda, How members pay = LivePay, account number = your LivePay account number.
+5. Register a member with **your own phone number** (prompts go only to the registered number), activate with a LivePay prompt, and watch it in the staff console. Then try a small payout.
+6. To stop the trial: set `livepay_enabled` and `livepay_trial` to false and deploy again.
+
 ## Going live
 
 1. In the LivePay dashboard: verify the business account, create the API key, and set the webhook URL to `https://pexerearn.com/api/webhooks/livepay` (or whatever site address production uses). Note the webhook secret and the account number (LP...).

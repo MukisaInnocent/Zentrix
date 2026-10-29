@@ -56,6 +56,9 @@ const EnvSchema = z.object({
   // The webhook address registered in the LivePay dashboard; it is part of what LivePay signs.
   LIVEPAY_WEBHOOK_URL: z.url({ protocol: /^https?$/ }).optional(),
   // AWS: the API has no internet, so provider commands go through this bucket to the paygate function.
+  // Owner, 2026-10-30: try real LivePay on staging before go-live. Only this switch lets LivePay's keys load in test
+  // mode; every LivePay payment then moves REAL money even though the site is in test mode. Refused in live mode.
+  LIVEPAY_TRIAL: z.stringbool().default(false),
   PAYGATE_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MIGRATE_ON_START: z.stringbool().default(false),
@@ -100,6 +103,7 @@ export interface Config {
   livepayBaseUrl: string;
   livepayWebhookUrl: string;
   paygateS3Bucket: string | null;
+  livepayTrial: boolean;
   logLevel: string;
   migrateOnStart: boolean;
   seedOnStart: boolean;
@@ -191,6 +195,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     livepayBaseUrl: e.LIVEPAY_BASE_URL,
     livepayWebhookUrl: e.LIVEPAY_WEBHOOK_URL ?? `${origin}/api/webhooks/livepay`,
     paygateS3Bucket: e.PAYGATE_S3_BUCKET || null,
+    livepayTrial: e.LIVEPAY_TRIAL,
     logLevel: e.LOG_LEVEL,
     migrateOnStart: e.MIGRATE_ON_START,
     seedOnStart: e.SEED_ON_START,
@@ -214,11 +219,14 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
       !config.paygateS3Bucket && !config.livepayApiKey && 'LIVEPAY_LIVE_API_KEY',
       !config.paygateS3Bucket && !config.livepayAccountNumber && 'LIVEPAY_ACCOUNT_NUMBER',
     ].filter(Boolean);
-    if (config.appMode !== 'live') throw new ConfigError('PAYMENT_PROVIDER=livepay moves real money and needs APP_MODE=live (LivePay has no sandbox). Use simulator in test mode.');
+    if (config.appMode !== 'live' && !config.livepayTrial) {
+      throw new ConfigError('PAYMENT_PROVIDER=livepay moves real money and needs APP_MODE=live (LivePay has no sandbox). Use simulator in test mode, or LIVEPAY_TRIAL=true for a deliberate staging trial.');
+    }
     if (missing.length > 0) throw new ConfigError(`PAYMENT_PROVIDER=livepay needs ${missing.join(', ')}.`);
   }
   if (config.appMode === 'test') {
-    const live = liveOnlyKeys(env);
+    // The LivePay trial lets only LivePay's own keys through; any other live-only secret still stops test mode.
+    const live = liveOnlyKeys(env).filter(k => !(config.livepayTrial && k.startsWith('LIVEPAY_')));
     if (live.length > 0) {
       throw new ConfigError(`Test mode refuses to start while live-only secrets are set: ${live.join(', ')}`);
     }
@@ -235,5 +243,6 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (config.testAutoApprove) problems.push('TEST_AUTO_APPROVE must be false');
   if (config.testSuperadminPassword) problems.push('TEST_SUPERADMIN_PASSWORD must not be set');
   if (config.paymentProvider === 'simulator') problems.push('PAYMENT_PROVIDER=simulator is test-only');
+  if (config.livepayTrial) problems.push('LIVEPAY_TRIAL is for test-mode staging only');
   if (problems.length > 0) throw new ConfigError(`Live mode refuses to start: ${problems.join('; ')}.`);
 }
