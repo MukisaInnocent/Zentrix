@@ -120,6 +120,7 @@ These are defaults. Any of them can change before or during Phase 1.
 | D26 | Task types that pay for likes, follows, subscribes or views on third-party platforms sit behind a per-country switch. It is on in test mode and off by default in live mode. | Those platforms ban paid engagement (risk R2). You decide at go-live (Q13). |
 | D27 | Navigation on phones is the left slide-in drawer from the demo and screenshots, plus a bottom bar for the main destinations with a "Menu" button that opens the drawer. | My reading of "bottom-aligned mobile drawer navigation". |
 | D28 | Seed and test phone numbers use obvious placeholder patterns, and nothing is ever sent to them because test mode only simulates SMS and payouts. | Item 8 of "How to operate" in the master prompt. |
+| D29 | LivePay (livepay.me, docs.livepay.me) is the first payment-provider API (owner, 2026-10-30). A LivePay payment method is an ordinary `payment_channels` row marked `provider = 'livepay'`, with its own clearing account, so the ledger, deposits, withdrawals, maker-checker and the balance check stay as they are. Every LivePay call is a command whose result is applied by one function; a webhook only triggers a status check, and money moves only on a status read back from LivePay that matches the request's amount and currency. | LivePay's webhook signature does not cover the amount, and LivePay has no sandbox. On AWS the API has no internet, so commands go through S3 to a `paygate` function outside the VPC, like email. |
 
 ---
 
@@ -403,6 +404,20 @@ Each phase ends only when its tests pass. Money phases (2, 3 and 4) are written 
 4. AWS preparation: Dockerfile, ECS Fargate or Elastic Beanstalk notes, RDS Multi-AZ, an ALB with ACM certificates, the S3 storage driver, Secrets Manager, CloudWatch alarms and a private database subnet.
 5. A backup and restore drill run against a local database, with timings recorded in RUNBOOK.md.
 6. A written migration and rollback procedure, and an end-to-end test of the go-live gate.
+
+### LivePay: mobile-money API (owner, 2026-10-30)
+
+Branch `feat/livepay`. The manual flow stays for countries LivePay does not cover, as a fallback, and whenever LivePay is busy or down.
+
+1. Migration 0022: `payment_channels.provider` (`livepay` or empty for manual), `deposits.method` (`manual` or `api`), `withdrawals.payout_method`, and `provider_requests` (one row per collection or payout: our reference, amount, currency, phone, LivePay's reference and transaction ID, charge, status `queued -> sent -> pending -> succeeded | failed | review`, enforced by trigger) plus `provider_calls` (an outgoing-call log for LivePay's rate limits).
+2. Provider code (`server/src/providers/livepay.ts`): the HTTP client (collect, send, transaction status, balance, validate number), webhook signature check (HMAC-SHA256 over URL, timestamp and the sorted fields, with a 5-minute window we add ourselves), status mapping, and a simulator with the same behaviour for test mode.
+3. Activation by API: the member picks the LivePay method, confirms the phone (their registered phone by default), and approves the prompt on their phone. The deposit is created as pending with `method = 'api'`. When LivePay reports success and the status read back matches the fee, the system account `zx_livepay` confirms it through the same `confirmDeposit` path (platform revenue, activation, referral rewards). A failure rejects it with LivePay's reason. Members cannot cancel a payment that is in flight.
+4. Withdrawals by API: staff approve as today; a second step "Send with LivePay" starts the payout (the starter must not be the approver when two people are needed). Success records the payout as paid by `zx_livepay` with LivePay's transaction ID; failure returns the hold. While a request is in flight, staff cannot record it by hand; a request in `review` (amount mismatch, unknown status, or no answer after 24 hours) is settled by staff through the existing confirm, reject, paid and failed actions.
+5. Charges: LivePay's `charge` on a successful request is recorded as `provider_charge` from platform revenue to the channel's clearing account, so the ledger matches the LivePay wallet. `TODO(owner)`: whether members should pay it.
+6. Webhook `/api/webhooks/livepay` (raw body, outside session and CSRF, signature only). A `payments` job every minute checks requests that got no answer, within the rate budget (45 of LivePay's 50 calls per 15 minutes for collections and status checks; 5 payouts a minute); when the budget is used up, new LivePay collections are refused with a message pointing to the manual methods.
+7. Modes: test mode uses the simulator (`PAYMENT_PROVIDER=simulator`); a number ending in 000 fails. LivePay's real keys are named `LIVEPAY_LIVE_API_KEY` and `LIVEPAY_LIVE_WEBHOOK_SECRET`, so test mode refuses to start with them (LivePay has no sandbox: every call moves real money). Live mode with `PAYMENT_PROVIDER=livepay` requires both keys and `LIVEPAY_ACCOUNT_NUMBER`.
+8. AWS: the API writes commands to S3 (`paygate/commands/`); the `paygate` function outside the VPC calls LivePay and writes the result to `paygate/results/`; that write starts the `payresults` job inside the VPC, which applies it. Written, not applied.
+9. Open with LivePay: whether IP whitelisting is required (no fixed outgoing IP on AWS without a NAT gateway), the full list of status values, higher rate limits, the amount limits and fees, the licensed operator, and where the webhook secret comes from. Phone numbers are sent in international form (+256...), which LivePay says it accepts; check this on the first real payment.
 
 ---
 

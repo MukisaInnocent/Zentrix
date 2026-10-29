@@ -6,7 +6,7 @@ import { basisPointsOf } from '../../lib/money.js';
 import type { Role } from '../auth/context.js';
 import { accountId, InsufficientFundsError, post, type Leg } from '../ledger/ledger.js';
 import { memberInfo, newReference, requireActive, requireConfig, settleDebt, sourceAccount, type BalanceSource } from '../wallet/service.js';
-import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor } from './common.js';
+import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor, settleProviderRequest } from './common.js';
 
 // Manual payouts. On request the amount plus fee moves from the chosen balance to the member's withdrawal
 // hold. Staff approve, start the payout (claiming it so nobody pays twice), send the money from the business
@@ -91,6 +91,8 @@ export interface WithdrawalView {
   currency: string;
   status: string;
   needsAdminApproval: boolean;
+  // 'api' when the payout went through the provider (LivePay).
+  payoutMethod: string;
   payoutTxnId: string | null;
   closedReason: string | null;
   createdAt: Date;
@@ -109,12 +111,13 @@ export interface WithdrawalRow {
   payout_phone: string; amount_minor: string; fee_minor: string; currency_code: string; needs_two_people: boolean; status: string;
   approved_by: string | null; approved_at: Date | null; processing_by: string | null; processing_at: Date | null; paid_by: string | null;
   paid_at: Date | null; payout_txn_id: string | null; closed_by: string | null; closed_reason: string | null; closed_at: Date | null;
-  created_at: Date; channel_code: string; channel_name: string;
+  created_at: Date; channel_code: string; channel_name: string; payout_method: string;
 }
 
 export const withdrawalView = (w: WithdrawalRow): WithdrawalView => ({
   id: w.public_id, reference: w.reference, source: w.source, channel: { code: w.channel_code, name: w.channel_name }, payoutPhone: w.payout_phone,
   amountMinor: w.amount_minor, feeMinor: w.fee_minor, currency: w.currency_code, status: w.status, needsAdminApproval: w.needs_two_people,
+  payoutMethod: w.payout_method,
   payoutTxnId: w.payout_txn_id, closedReason: w.closed_reason, createdAt: w.created_at, approvedAt: w.approved_at,
   processingAt: w.processing_at, paidAt: w.paid_at, closedAt: w.closed_at,
 });
@@ -254,6 +257,7 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
     }
     case 'paid': {
       expect('processing');
+      await settleProviderRequest(db, { withdrawalId: w.id }, 'succeeded', input.note ?? 'paid');
       if (w.needs_two_people && String(staffId) === w.approved_by) {
         throw forbidden('withdrawal.two_people', 'A different staff member from the approver must record this payout.');
       }
@@ -298,6 +302,7 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
     case 'fail': {
       expect('processing');
       if (!input.note) throw badRequest('validation_failed', 'Say why the payout failed.', { note: ['Say why the payout failed.'] });
+      await settleProviderRequest(db, { withdrawalId: w.id }, 'failed', input.note);
       await release(db, w, staffId, 'failed', input.note);
       break;
     }

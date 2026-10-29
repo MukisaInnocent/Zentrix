@@ -6,7 +6,7 @@ import { toDecimalString } from '../../lib/money.js';
 import { accountId, move, post } from '../ledger/ledger.js';
 import { distributeReferralRewards } from '../referrals/service.js';
 import { memberInfo, newReference, requireActive, requireConfig } from '../wallet/service.js';
-import { assertNotPaused, channelByCode, exponentOf, normalizePhone, normalizeTxnId, setActor } from './common.js';
+import { assertNotPaused, channelByCode, exponentOf, normalizePhone, normalizeTxnId, setActor, settleProviderRequest } from './common.js';
 
 // Manual deposits (owner decisions of 2026-10-24 and 2026-10-25). A member sends money to a business channel,
 // then claims it with the mobile-money transaction ID. Staff find the payment on the channel statement and
@@ -21,11 +21,13 @@ const MAX_PENDING: Record<DepositPurpose, number> = { activation: 1, wallet: 3 }
 
 export interface DepositClaim {
   purpose?: DepositPurpose;
+  // 'api': the member pays through the provider (LivePay); the claim carries our own reference as its transaction ID.
+  method?: 'manual' | 'api';
   // Wallet deposits only: the amount the member says they sent. An activation is always the fee.
   amountMinor?: bigint;
   channelCode: string;
   senderPhone: string;
-  providerTxnId: string;
+  providerTxnId?: string;
   note?: string | undefined;
 }
 
@@ -34,6 +36,7 @@ export interface DepositView {
   reference: string;
   channel: { code: string; name: string };
   purpose: DepositPurpose;
+  method: 'manual' | 'api';
   claimedAmountMinor: string;
   creditedAmountMinor: string | null;
   currency: string;
@@ -49,18 +52,18 @@ export interface DepositView {
 export const DEPOSIT_SELECT = `
   SELECT d.id, d.public_id, d.reference, d.user_id, d.claimed_amount_minor, d.credited_amount_minor, d.currency_code, d.sender_phone,
          d.provider_txn_id, d.member_note, d.status, d.review_note, d.reviewed_at, d.reviewed_by, d.created_at, d.channel_id,
-         d.purpose, c.code AS channel_code, c.name AS channel_name
+         d.purpose, d.method, c.code AS channel_code, c.name AS channel_name
   FROM deposits d JOIN payment_channels c ON c.id = d.channel_id`;
 
 export interface DepositRow {
   id: string; public_id: string; reference: string; user_id: string; claimed_amount_minor: string; credited_amount_minor: string | null;
   currency_code: string; sender_phone: string; provider_txn_id: string; member_note: string | null; status: string; review_note: string | null;
   reviewed_at: Date | null; reviewed_by: string | null; created_at: Date; channel_id: string; channel_code: string; channel_name: string;
-  purpose: DepositPurpose;
+  purpose: DepositPurpose; method: 'manual' | 'api';
 }
 
 export const depositView = (d: DepositRow): DepositView => ({
-  id: d.public_id, reference: d.reference, channel: { code: d.channel_code, name: d.channel_name }, purpose: d.purpose,
+  id: d.public_id, reference: d.reference, channel: { code: d.channel_code, name: d.channel_name }, purpose: d.purpose, method: d.method,
   claimedAmountMinor: d.claimed_amount_minor, creditedAmountMinor: d.credited_amount_minor, currency: d.currency_code,
   senderPhone: d.sender_phone, providerTxnId: d.provider_txn_id, memberNote: d.member_note, status: d.status,
   reviewNote: d.review_note, reviewedAt: d.reviewed_at, createdAt: d.created_at,
@@ -78,11 +81,16 @@ export async function submitDeposit(db: PoolClient, userId: number, claim: Depos
   if (!channel.depositsEnabled || channel.currency !== member.currency || channel.countryCode !== member.countryCode) {
     throw badRequest('payments.channel_unavailable', 'That payment method is not available for your country.');
   }
+  const method = claim.method ?? 'manual';
+  if ((method === 'api') !== Boolean(channel.provider)) {
+    throw badRequest('payments.channel_method', channel.provider ? 'Pay with this method from the payment prompt on your phone.' : 'This payment method takes manual payments only.');
+  }
   await assertNotPaused(db, 'deposits_paused', member.currency);
   const amount = purpose === 'activation' ? BigInt((await requireConfig(db, member.countryCode)).membershipFeeMinor) : claim.amountMinor ?? 0n;
   if (amount <= 0n) throw badRequest('validation_failed', 'Enter the amount you sent.', { amount: ['Enter the amount you sent.'] });
   const senderPhone = normalizePhone(claim.senderPhone);
-  const txnId = normalizeTxnId(claim.providerTxnId);
+  const reference = newReference('DP');
+  const txnId = method === 'api' ? reference : normalizeTxnId(claim.providerTxnId ?? '');
   if (!/^[A-Z0-9.-]{4,40}$/.test(txnId)) {
     throw badRequest('validation_failed', 'Enter the transaction ID from your payment message.', { providerTxnId: ['Enter the transaction ID from your payment message.'] });
   }
@@ -95,9 +103,9 @@ export async function submitDeposit(db: PoolClient, userId: number, claim: Depos
   try {
     id = (await one<{ id: string }>(
       db,
-      `INSERT INTO deposits (reference, user_id, channel_id, claimed_amount_minor, currency_code, sender_phone, provider_txn_id, member_note, purpose)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [newReference('DP'), userId, channel.id, amount.toString(), member.currency, senderPhone, txnId, claim.note ?? null, purpose],
+      `INSERT INTO deposits (reference, user_id, channel_id, claimed_amount_minor, currency_code, sender_phone, provider_txn_id, member_note, purpose, method)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [reference, userId, channel.id, amount.toString(), member.currency, senderPhone, txnId, claim.note ?? null, purpose, method],
     )).id;
   } catch (err) {
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) {
@@ -122,6 +130,7 @@ export async function cancelDeposit(db: PoolClient, userId: number, publicId: st
   const d = await lockDeposit(db, publicId);
   if (Number(d.user_id) !== userId) throw notFound();
   if (d.status !== 'pending') throw badRequest('deposit.not_pending', 'Only a deposit that is still waiting for review can be cancelled.');
+  if (d.method === 'api') throw badRequest('deposit.in_flight', 'This payment is on its way through mobile money and cannot be cancelled. If you do not approve it on your phone, it fails by itself.');
   await setActor(db, userId, 'Cancelled by member');
   await db.query(`UPDATE deposits SET status = 'cancelled' WHERE id = $1`, [d.id]);
   return depositView({ ...d, status: 'cancelled' });
@@ -134,6 +143,7 @@ export async function confirmDeposit(db: PoolClient, staffId: number, publicId: 
   const d = await lockDeposit(db, publicId);
   if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own payment.');
   if (d.status !== 'pending') throw conflict('deposit.not_pending', `This payment is already ${d.status}.`);
+  await settleProviderRequest(db, { depositId: d.id }, 'succeeded', note ?? 'confirmed');
   if (d.purpose === 'wallet') return confirmWalletDeposit(db, staffId, d, receivedMinor, note);
   const fee = BigInt(d.claimed_amount_minor);
   if (receivedMinor !== fee) {
@@ -201,6 +211,7 @@ export async function rejectDeposit(db: PoolClient, staffId: number, publicId: s
   const d = await lockDeposit(db, publicId);
   if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own payment.');
   if (d.status !== 'pending') throw conflict('deposit.not_pending', `This deposit is already ${d.status}.`);
+  await settleProviderRequest(db, { depositId: d.id }, 'failed', reason);
   await setActor(db, staffId, reason);
   await db.query(`UPDATE deposits SET status = 'rejected', reviewed_by = $2, reviewed_at = now(), review_note = $3 WHERE id = $1`, [d.id, staffId, reason]);
   const after = await one<DepositRow>(db, `${DEPOSIT_SELECT} WHERE d.id = $1`, [d.id]);

@@ -130,7 +130,7 @@ export async function buildReport(db: Db): Promise<Report> {
   };
 }
 
-async function raise(db: Db, kind: string, severity: 'warning' | 'critical', currency: string | null, message: string, details: object): Promise<void> {
+export async function raise(db: Db, kind: string, severity: 'warning' | 'critical', currency: string | null, message: string, details: object): Promise<void> {
   await db.query(
     `INSERT INTO alerts (kind, severity, currency_code, message, details) VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (kind, currency_code) WHERE status <> 'resolved'

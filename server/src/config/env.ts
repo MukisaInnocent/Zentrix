@@ -46,6 +46,17 @@ const EnvSchema = z.object({
   FX_PROVIDER: z.enum(['open-er-api', 's3', 'none']).default('open-er-api'),
   FX_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
   GEOIP_PROVIDER: z.enum(['none', 'test-header']).default('none'),
+  // Mobile-money provider API (owner, 2026-10-30: LivePay). Default: the simulator in test mode, none in live mode.
+  // LivePay has no sandbox, so its keys carry LIVE in their names and test mode refuses to start with them.
+  PAYMENT_PROVIDER: z.enum(['none', 'simulator', 'livepay']).optional(),
+  LIVEPAY_LIVE_API_KEY: z.string().optional(),
+  LIVEPAY_LIVE_WEBHOOK_SECRET: z.string().optional(),
+  LIVEPAY_ACCOUNT_NUMBER: z.string().regex(/^$|^[A-Za-z0-9]{4,40}$/).optional(),
+  LIVEPAY_BASE_URL: z.url({ protocol: /^https$/ }).default('https://livepay.me/api'),
+  // The webhook address registered in the LivePay dashboard; it is part of what LivePay signs.
+  LIVEPAY_WEBHOOK_URL: z.url({ protocol: /^https?$/ }).optional(),
+  // AWS: the API has no internet, so provider commands go through this bucket to the paygate function.
+  PAYGATE_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MIGRATE_ON_START: z.stringbool().default(false),
   SEED_ON_START: z.stringbool().default(false),
@@ -82,6 +93,13 @@ export interface Config {
   fxProvider: 'open-er-api' | 's3' | 'none';
   fxS3Bucket: string | null;
   geoipProvider: 'none' | 'test-header';
+  paymentProvider: 'none' | 'simulator' | 'livepay';
+  livepayApiKey: string | null;
+  livepayWebhookSecret: string | null;
+  livepayAccountNumber: string | null;
+  livepayBaseUrl: string;
+  livepayWebhookUrl: string;
+  paygateS3Bucket: string | null;
   logLevel: string;
   migrateOnStart: boolean;
   seedOnStart: boolean;
@@ -164,6 +182,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fxProvider: e.FX_PROVIDER,
     fxS3Bucket: e.FX_S3_BUCKET && e.FX_S3_BUCKET.length > 0 ? e.FX_S3_BUCKET : null,
     geoipProvider: e.GEOIP_PROVIDER,
+    paymentProvider: e.PAYMENT_PROVIDER ?? (e.APP_MODE === 'test' ? 'simulator' : 'none'),
+    livepayApiKey: e.LIVEPAY_LIVE_API_KEY || null,
+    livepayWebhookSecret: e.LIVEPAY_LIVE_WEBHOOK_SECRET || null,
+    livepayAccountNumber: e.LIVEPAY_ACCOUNT_NUMBER || null,
+    livepayBaseUrl: e.LIVEPAY_BASE_URL,
+    livepayWebhookUrl: e.LIVEPAY_WEBHOOK_URL ?? `${origin}/api/webhooks/livepay`,
+    paygateS3Bucket: e.PAYGATE_S3_BUCKET || null,
     logLevel: e.LOG_LEVEL,
     migrateOnStart: e.MIGRATE_ON_START,
     seedOnStart: e.SEED_ON_START,
@@ -179,6 +204,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (!config.cookieSecure && !isLocalOrigin(config.publicOrigin)) {
     throw new ConfigError('COOKIE_SECURE=false is only allowed for a localhost PUBLIC_ORIGIN.');
+  }
+  if (config.paymentProvider === 'livepay') {
+    const missing = [
+      !config.livepayWebhookSecret && 'LIVEPAY_LIVE_WEBHOOK_SECRET',
+      // With the S3 handoff (AWS) only the paygate function holds the API key and account number.
+      !config.paygateS3Bucket && !config.livepayApiKey && 'LIVEPAY_LIVE_API_KEY',
+      !config.paygateS3Bucket && !config.livepayAccountNumber && 'LIVEPAY_ACCOUNT_NUMBER',
+    ].filter(Boolean);
+    if (config.appMode !== 'live') throw new ConfigError('PAYMENT_PROVIDER=livepay moves real money and needs APP_MODE=live (LivePay has no sandbox). Use simulator in test mode.');
+    if (missing.length > 0) throw new ConfigError(`PAYMENT_PROVIDER=livepay needs ${missing.join(', ')}.`);
   }
   if (config.appMode === 'test') {
     const live = liveOnlyKeys(env);
@@ -197,5 +232,6 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (config.seedOnStart) problems.push('SEED_ON_START must be false');
   if (config.testAutoApprove) problems.push('TEST_AUTO_APPROVE must be false');
   if (config.testSuperadminPassword) problems.push('TEST_SUPERADMIN_PASSWORD must not be set');
+  if (config.paymentProvider === 'simulator') problems.push('PAYMENT_PROVIDER=simulator is test-only');
   if (problems.length > 0) throw new ConfigError(`Live mode refuses to start: ${problems.join('; ')}.`);
 }

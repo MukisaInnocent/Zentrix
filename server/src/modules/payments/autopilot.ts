@@ -16,7 +16,7 @@ import { staffWithdrawalAction } from './withdrawals.js';
 const APPROVER = { username: 'zx_autopilot_a', phone: '+256700990001' };
 const PAYER = { username: 'zx_autopilot_b', phone: '+256700990002' };
 
-async function systemUser(db: PoolClient, services: Services, who: { username: string; phone: string }): Promise<number> {
+export async function systemUser(db: PoolClient, services: Services, who: { username: string; phone: string }): Promise<number> {
   const found = await maybeOne<{ id: string }>(db, 'SELECT id FROM users WHERE username = $1', [who.username]);
   if (found) return Number(found.id);
   // A random password nobody knows: these accounts cannot sign in.

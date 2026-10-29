@@ -3,6 +3,7 @@ import type { Services } from '../services.js';
 import { announcementsJob } from './announcements.js';
 import { cleanupJob } from './cleanup.js';
 import { fxRatesJob } from './fx-rates.js';
+import { paymentsJob } from './payments.js';
 import { reconciliationJob } from './reconciliation.js';
 
 export interface Job {
@@ -13,7 +14,7 @@ export interface Job {
   run(services: Services): Promise<void>;
 }
 
-export const JOBS: Job[] = [cleanupJob, reconciliationJob, fxRatesJob, announcementsJob];
+export const JOBS: Job[] = [cleanupJob, reconciliationJob, fxRatesJob, announcementsJob, paymentsJob];
 
 // Runs a job only if no other process holds its advisory lock, so several workers never double-run it.
 export async function runExclusive(services: Services, job: Job): Promise<boolean> {

@@ -9,12 +9,14 @@ import { requireActivated, requireAuth } from '../auth/middleware.js';
 import { idempotent, moneyTx } from '../ledger/idempotency.js';
 import { BALANCE_SOURCES, getWalletSummary, memberInfo, requireConfig } from '../wallet/service.js';
 import { exponentOf, flagActive, listChannels, publicChannel } from './common.js';
-import { cancelDeposit, listMemberDeposits, submitDeposit } from './deposits.js';
+import { cancelDeposit, DEPOSIT_SELECT, depositView, listMemberDeposits, submitDeposit, type DepositRow } from './deposits.js';
 import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messagesOf, openIssue, type IssueRow } from './issues.js';
 import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
 import { maybeOne, rows } from '../../db/sql.js';
 import { notifyPayment, notifyStaffOfPayment } from '../notifications/notify.js';
 import { autoConfirmDeposit, autoPayWithdrawal, autopilotEnabled, ensureTestChannel } from './autopilot.js';
+import { sendCommand, startCollection } from './provider.js';
+import type { ProviderCommand } from '../../providers/livepay.js';
 
 const HOUR = 3_600_000;
 
@@ -42,6 +44,8 @@ const DepositBody = z.strictObject({
   providerTxnId: z.string().trim().min(4, { error: 'Enter the transaction ID from your payment message.' }).max(60),
   note: z.string().trim().max(300).optional(),
 });
+// Activation through the provider (LivePay): the member approves a prompt on this phone.
+const CollectBody = z.strictObject({ channel: z.string().trim().min(2).max(40), phone: z.string().trim().min(4).max(32) });
 const WithdrawBody = z.strictObject({ source: z.enum(BALANCE_SOURCES).default('main'), amount: AmountInput });
 const QuoteQuery = z.object({ amount: z.string().trim().max(24) });
 const IssueBody = z.strictObject({
@@ -88,7 +92,8 @@ export function paymentsRouter(services: Services): Router {
       // Test mode with TEST_AUTO_APPROVE: payments pass by themselves, and the page says so.
       autoApprove: services.config.appMode === 'test' && services.config.testAutoApprove,
       activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor },
-      channels: channels.filter(c => c.depositsEnabled || c.payoutsEnabled).map(publicChannel),
+      // Provider methods (LivePay) show only while the provider is connected.
+      channels: channels.filter(c => (c.depositsEnabled || c.payoutsEnabled) && (!c.provider || services.payments)).map(publicChannel),
     });
   });
 
@@ -117,6 +122,28 @@ export function paymentsRouter(services: Services): Router {
       else await notifyStaffOfPayment(services, 'deposit', deposit.reference);
     }
     res.status(result.status).json(result.body);
+  });
+
+  // Pay the activation fee with a mobile-money prompt (LivePay). The deposit waits as pending until LivePay's answer is
+  // read back; the page polls GET /deposits. A repeated request (same Idempotency-Key) sends no second prompt.
+  router.post('/collections', limiter(pool, { name: 'deposit-collect', windowMs: HOUR, limit: 10, key: byUser }), async (req, res) => {
+    const input = parse(CollectBody, req.body);
+    let command: ProviderCommand | null = null;
+    const result = await idempotent(pool, req, 'deposit.collect', async db => {
+      const started = await startCollection(db, services, req.auth!.userId, { channelCode: input.channel, phone: input.phone });
+      command = started.command;
+      return { status: 201, body: { deposit: started.deposit } };
+    });
+    if (command) {
+      try {
+        await sendCommand(services, command);
+      } catch (err) {
+        services.logger.error({ err, reference: (command as ProviderCommand).reference }, 'provider collection could not be sent now');
+      }
+    }
+    const id = (result.body.deposit as { id: string }).id;
+    const now = await maybeOne<DepositRow>(pool, `${DEPOSIT_SELECT} WHERE d.public_id = $1`, [id]);
+    res.status(result.status).json(now ? { deposit: depositView(now) } : result.body);
   });
 
   router.post('/deposits/:id/cancel', async (req, res) => {

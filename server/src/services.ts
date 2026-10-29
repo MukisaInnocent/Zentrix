@@ -3,6 +3,7 @@ import { createPool, type Pool } from './db/pool.js';
 import type { Logger } from './lib/logger.js';
 import { createFxSource, type FxSource } from './providers/fx.js';
 import { createGeoIp, type GeoIp } from './providers/geoip.js';
+import { createGateway, type PaymentGateway } from './providers/livepay.js';
 import { createMailer, type Mailer } from './providers/mail.js';
 import { createSmsSender, type SmsSender } from './providers/sms.js';
 
@@ -15,6 +16,8 @@ export interface Services {
   sms: SmsSender;
   geoip: GeoIp;
   fx: FxSource | null;
+  // Mobile-money provider (LivePay or the simulator); null when payments are manual only.
+  payments: PaymentGateway | null;
   now: () => Date;
 }
 
@@ -37,6 +40,7 @@ export function createServices(config: Config, logger: Logger, overrides: Partia
     sms: overrides.sms ?? createSmsSender(config, pool),
     geoip: overrides.geoip ?? createGeoIp(config),
     fx: overrides.fx !== undefined ? overrides.fx : createFxSource(config),
+    payments: overrides.payments !== undefined ? overrides.payments : createGateway(config),
     now: overrides.now ?? (() => new Date()),
   };
 }

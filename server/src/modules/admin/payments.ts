@@ -16,6 +16,8 @@ import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { decideTreasury, listTreasury, requestTreasury, TREASURY_KINDS } from '../payments/treasury.js';
 import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type StaffAction, type WithdrawalRow } from '../payments/withdrawals.js';
 import { getTransactions, getWalletSummary } from '../wallet/service.js';
+import { checkRequest, providerChannel, sendCommand, startPayout } from '../payments/provider.js';
+import type { ProviderCommand } from '../../providers/livepay.js';
 import { notifyIssueReply, notifyPayment, type PaymentEvent } from '../notifications/notify.js';
 
 // Staff payments console: live overview, deposit and withdrawal queues, member issues, the balance check,
@@ -38,6 +40,21 @@ const RejectBody = z.strictObject({ reason: z.string().trim().min(5, { error: 'G
 const WithdrawalBody = z.strictObject({ note: Note.optional(), payoutTxnId: z.string().trim().max(60).optional(), channel: z.string().trim().max(40).optional() });
 const IssueStatusBody = z.strictObject({ status: z.enum(['open', 'in_progress', 'resolved']), resolution: z.string().trim().max(1000).optional() });
 const MessageBody = z.strictObject({ body: z.string().trim().min(1).max(2000) });
+const SendBody = z.strictObject({ note: Note.optional() });
+const ProviderReference = z.string().regex(/^[A-Z0-9-]{4,30}$/);
+
+interface ProviderRequestRow {
+  reference: string; kind: string; provider: string; status: string; provider_ref: string | null; provider_txn_id: string | null;
+  provider_status: string | null; network: string | null; charge_minor: string | null; message: string | null; checks: number;
+  last_checked_at: Date | null; created_at: Date; completed_at: Date | null; amount_minor: string; currency_code: string; phone: string;
+}
+const PROVIDER_REQUEST_SELECT = `SELECT reference, kind, provider, status, provider_ref, provider_txn_id, provider_status, network, charge_minor,
+  message, checks, last_checked_at, created_at, completed_at, amount_minor, currency_code, phone FROM provider_requests`;
+const providerRequestView = (r: ProviderRequestRow) => ({
+  reference: r.reference, kind: r.kind, provider: r.provider, status: r.status, providerRef: r.provider_ref, providerTxnId: r.provider_txn_id,
+  providerStatus: r.provider_status, network: r.network, chargeMinor: r.charge_minor, message: r.message, checks: r.checks,
+  lastCheckedAt: r.last_checked_at, createdAt: r.created_at, completedAt: r.completed_at, amountMinor: r.amount_minor, currency: r.currency_code, phone: r.phone,
+});
 const FlagBody = z.strictObject({ key: z.enum(['deposits_paused', 'withdrawals_paused']), currency: z.string().length(3).toUpperCase(), active: z.boolean(), reason: z.string().trim().min(5).max(500) });
 const AlertBody = z.strictObject({ note: Note.optional() });
 const SnapshotBody = z.strictObject({ channel: z.string().trim().max(40), balance: AmountInput, note: z.string().trim().max(300).optional() });
@@ -188,8 +205,9 @@ export function paymentsAdminRouter(services: Services): Router {
       rows<IssueRow>(pool, `${ISSUE_SELECT} WHERE i.deposit_id = $1 ORDER BY i.id DESC`, [d.id]),
       getWalletSummary(pool, Number(d.user_id)),
     ]);
+    const request = await maybeOne<ProviderRequestRow>(pool, `${PROVIDER_REQUEST_SELECT} WHERE deposit_id = $1`, [d.id]);
     res.json({
-      deposit: depositView(d), member: { ...member, balances: summary }, events,
+      deposit: depositView(d), member: { ...member, balances: summary }, events, provider: request ? providerRequestView(request) : null,
       related: related.map(r => ({ ...depositView(r), member: r.username })), issues: issues.map(issueView),
     });
   });
@@ -262,7 +280,13 @@ export function paymentsAdminRouter(services: Services): Router {
         [w.user_id],
       ),
     ]);
+    const country = (await one<{ country_code: string }>(pool, 'SELECT country_code FROM users WHERE id = $1', [w.user_id])).country_code;
+    const [request, payoutChannel] = await Promise.all([
+      maybeOne<ProviderRequestRow>(pool, `${PROVIDER_REQUEST_SELECT} WHERE withdrawal_id = $1 ORDER BY id DESC LIMIT 1`, [w.id]),
+      services.payments ? providerChannel(pool, country, w.currency_code, 'payouts') : Promise.resolve(null),
+    ]);
     res.json({
+      provider: { request: request ? providerRequestView(request) : null, payoutChannel: payoutChannel ? { code: payoutChannel.code, name: payoutChannel.name } : null },
       withdrawal: { ...withdrawalView(w), approvedBy: w.approver, processingBy: w.processor, paidBy: w.payer, closedBy: w.closer },
       member: { ...member, balances: summary, lifetime: { depositedMinor: recent.deposits, withdrawnMinor: recent.withdrawals } },
       events, issues: issues.map(issueView),
@@ -288,6 +312,57 @@ export function paymentsAdminRouter(services: Services): Router {
       res.status(result.status).json(result.body);
     });
   }
+
+  // Send an approved withdrawal through the provider (LivePay). The money call happens after the transaction commits;
+  // a repeated request (same Idempotency-Key) sends nothing again.
+  router.post('/withdrawals/:id/send-provider', requireStaff('finance'), async (req, res) => {
+    const id = uuid(req.params.id);
+    const body = parse(SendBody, req.body);
+    let command: ProviderCommand | null = null;
+    const result = await idempotent(pool, req, `admin.withdrawal.send.${id}`, async db => {
+      const started = await startPayout(db, services, id, { id: staff(req), roles: req.auth!.roles, note: body.note ?? null });
+      command = started.command;
+      await audit(db, req, { action: 'withdrawal.sent_provider', targetType: 'withdrawal', targetId: started.withdrawal.reference, before: started.before, after: started.withdrawal, reason: body.note });
+      return { status: 200, body: { withdrawal: started.withdrawal } };
+    });
+    if (command) {
+      try {
+        await sendCommand(services, command);
+      } catch (err) {
+        // The polling job reads its status; nothing is lost.
+        services.logger.error({ err, reference: (command as ProviderCommand).reference }, 'provider payout could not be sent now');
+      }
+    }
+    const now = await maybeOne<WithdrawalRow>(pool, `${WITHDRAWAL_SELECT} WHERE w.public_id = $1`, [id]);
+    res.status(result.status).json(now ? { withdrawal: withdrawalView(now) } : result.body);
+  });
+
+  // Provider requests: the queue staff watch, and a manual status read (within LivePay's rate limit).
+  router.get('/provider-requests', requireStaff(...VIEW), async (req, res) => {
+    const q = parse(ListQuery, req.query);
+    const list = await rows<ProviderRequestRow & { username: string }>(
+      pool,
+      `SELECT r.reference, r.kind, r.provider, r.status, r.provider_ref, r.provider_txn_id, r.provider_status, r.network, r.charge_minor, r.message,
+              r.checks, r.last_checked_at, r.created_at, r.completed_at, r.amount_minor, r.currency_code, r.phone, u.username
+       FROM provider_requests r
+       LEFT JOIN deposits d ON d.id = r.deposit_id LEFT JOIN withdrawals w ON w.id = r.withdrawal_id
+       JOIN users u ON u.id = coalesce(d.user_id, w.user_id)
+       WHERE ($1::text IS NULL OR r.status = $1 OR ($1 = 'open' AND r.status IN ('queued', 'sent', 'pending', 'review')))
+       ORDER BY r.id DESC LIMIT $2 OFFSET $3`,
+      [q.status || null, PAGE + 1, (q.page - 1) * PAGE],
+    );
+    res.json({ page: q.page, hasMore: list.length > PAGE, enabled: Boolean(services.payments), requests: list.slice(0, PAGE).map(r => ({ ...providerRequestView(r), member: r.username })) });
+  });
+
+  router.post('/provider-requests/:reference/check', requireStaff('finance'), async (req, res) => {
+    const reference = ProviderReference.safeParse(req.params.reference);
+    if (!reference.success) throw notFound();
+    if (!await checkRequest(services, reference.data)) {
+      throw conflict('payments.check_unavailable', 'This request is closed, or LivePay\'s limit of status checks is used up for now. Try again in a few minutes.');
+    }
+    const r = await maybeOne<ProviderRequestRow>(pool, `${PROVIDER_REQUEST_SELECT} WHERE reference = $1`, [reference.data]);
+    res.json({ request: r ? providerRequestView(r) : null });
+  });
 
   // A member's money: balances, statement and recent deposits and withdrawals.
   router.get('/members/:id', requireStaff(...VIEW), async (req, res) => {

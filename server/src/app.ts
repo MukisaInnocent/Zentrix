@@ -11,6 +11,7 @@ import { csrfProtection, loadSession } from './modules/auth/middleware.js';
 import { authRouter } from './modules/auth/routes.js';
 import { chatRouter } from './modules/chat/routes.js';
 import { resendWebhook } from './modules/email/webhook.js';
+import { livePayWebhook } from './modules/payments/provider.js';
 import { metaRouter, referenceRouter } from './modules/countries/routes.js';
 import { paymentsRouter } from './modules/payments/routes.js';
 import { referralsRouter } from './modules/referrals/routes.js';
@@ -45,6 +46,9 @@ export function createApp(services: Services): express.Express {
   // Server to server: Resend reports email delivery. Outside the session, CSRF and Origin checks; the signature on
   // the raw body is checked instead (modules/email/webhook.ts).
   app.post('/api/webhooks/resend', express.raw({ type: () => true, limit: '256kb' }), resendWebhook(services));
+  // Server to server: LivePay reports payment results (modules/payments/provider.ts). Signature only; it moves no money
+  // by itself, it reads the status back from LivePay.
+  app.post('/api/webhooks/livepay', express.raw({ type: () => true, limit: '64kb' }), livePayWebhook(services));
 
   const api = Router();
   api.use(noStore);

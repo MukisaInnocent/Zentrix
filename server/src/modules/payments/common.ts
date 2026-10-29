@@ -1,7 +1,7 @@
 import { parseInternational, PHONE_HELP } from '../../lib/phone.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
-import { badRequest, notFound, serviceUnavailable } from '../../lib/errors.js';
+import { badRequest, conflict, notFound, serviceUnavailable } from '../../lib/errors.js';
 
 export interface Channel {
   id: number;
@@ -17,18 +17,20 @@ export interface Channel {
   depositsEnabled: boolean;
   payoutsEnabled: boolean;
   removedAt: Date | null;
+  // Set when a provider API (LivePay) runs this method; empty for a manual method.
+  provider: 'livepay' | null;
 }
 
 interface ChannelRow {
   id: string; code: string; name: string; country_code: string; currency_code: string; account_name: string; account_number: string;
   instructions: string | null; ussd_code: string | null; merchant_code: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
-  removed_at: Date | null;
+  removed_at: Date | null; provider: 'livepay' | null;
 }
 
 const toChannel = (r: ChannelRow): Channel => ({
   id: Number(r.id), code: r.code, name: r.name, countryCode: r.country_code, currency: r.currency_code, accountName: r.account_name,
   accountNumber: r.account_number, instructions: r.instructions, ussdCode: r.ussd_code, merchantCode: r.merchant_code, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
-  removedAt: r.removed_at,
+  removedAt: r.removed_at, provider: r.provider,
 });
 
 // Removed (archived) methods are left out unless asked for; only the staff console lists them.
@@ -53,7 +55,7 @@ export async function channelByCode(db: Db, code: string): Promise<Channel> {
 export const publicChannel = (c: Channel) => ({
   code: c.code, name: c.name, currency: c.currency, accountName: c.accountName, accountNumber: c.accountNumber, instructions: c.instructions,
   ussdCode: c.ussdCode, merchantCode: c.merchantCode,
-  depositsEnabled: c.depositsEnabled, payoutsEnabled: c.payoutsEnabled,
+  depositsEnabled: c.depositsEnabled, payoutsEnabled: c.payoutsEnabled, provider: c.provider,
 });
 
 export type FlagKey = 'deposits_paused' | 'withdrawals_paused';
@@ -103,3 +105,22 @@ export async function exponentOf(db: Db, currency: string): Promise<number> {
 }
 
 export const PAGE = 25;
+
+// A payment the provider API is still handling cannot be settled by hand. Once the request is in review (amount
+// mismatch, unknown status or no answer), the staff action that settles the payment also closes the request.
+export async function settleProviderRequest(
+  db: Db, subject: { depositId: string } | { withdrawalId: string }, outcome: 'succeeded' | 'failed', note: string,
+): Promise<void> {
+  const [column, id] = 'depositId' in subject ? ['deposit_id', subject.depositId] : ['withdrawal_id', subject.withdrawalId];
+  const open = await maybeOne<{ id: string; status: string }>(
+    db, `SELECT id, status FROM provider_requests WHERE ${column} = $1 AND status NOT IN ('succeeded', 'failed') FOR UPDATE`, [id],
+  );
+  if (!open) return;
+  if (open.status !== 'review') {
+    throw conflict('payments.provider_in_flight', 'LivePay is still handling this payment. Wait for its answer, or use Check with LivePay.');
+  }
+  await db.query(
+    'UPDATE provider_requests SET status = $2, completed_at = now(), message = $3 WHERE id = $1',
+    [open.id, outcome, `Settled by staff: ${note}`.slice(0, 500)],
+  );
+}
