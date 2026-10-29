@@ -45,7 +45,7 @@ const DepositBody = z.strictObject({
   note: z.string().trim().max(300).optional(),
 });
 // Activation through the provider (LivePay): the member approves a prompt on this phone.
-const CollectBody = z.strictObject({ channel: z.string().trim().min(2).max(40), phone: z.string().trim().min(4).max(32) });
+const CollectBody = z.strictObject({ channel: z.string().trim().min(2).max(40), phone: z.string().trim().min(4).max(32).optional() });
 const WithdrawBody = z.strictObject({ source: z.enum(BALANCE_SOURCES).default('main'), amount: AmountInput });
 const QuoteQuery = z.object({ amount: z.string().trim().max(24) });
 const IssueBody = z.strictObject({

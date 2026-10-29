@@ -5,8 +5,8 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
 import { sha256 } from '../../lib/crypto.js';
 import { AppError, badRequest, conflict, serviceUnavailable } from '../../lib/errors.js';
-import { MoneyFormatError, toDecimalString, toMinor } from '../../lib/money.js';
-import { scalar, verifyLivePaySignature, type ProviderCommand, type ProviderOutcome } from '../../providers/livepay.js';
+import { toDecimalString } from '../../lib/money.js';
+import { providerAmountToMinor, scalar, verifyLivePaySignature, type ProviderCommand, type ProviderOutcome } from '../../providers/livepay.js';
 import type { Services } from '../../services.js';
 import type { Role } from '../auth/context.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
@@ -27,8 +27,9 @@ import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type Withdraw
 
 const PROVIDER_ACTOR = { username: 'zx_livepay', phone: '+256700990003' };
 
-// LivePay's limits: 50 collections and status reads per 15 minutes, 5 payouts a minute. We keep a margin.
-export const BUDGET = { readsPer15Min: 45, payoutsPerMinute: 5, reserveForStatus: 10 };
+// LivePay's limits: 50 collections and status reads per 15 minutes, 5 payouts a minute. We keep a margin; status
+// reads after a webhook may use part of it. A member may have 5 failed prompts a day.
+export const BUDGET = { readsPer15Min: 45, webhookReadsPer15Min: 48, payoutsPerMinute: 5, reserveForStatus: 10, failedPromptsPerDay: 5 };
 // A request with no answer is read again after this long; one still open after a day goes to staff review.
 const RECHECK_MINUTES = 2;
 const MISSING_FAIL_MINUTES = 15;
@@ -42,6 +43,11 @@ interface RequestRow {
 
 async function recordCall(db: Db, provider: string, op: ProviderCommand['op'], reference: string): Promise<void> {
   await db.query('INSERT INTO provider_calls (provider, op, reference) VALUES ($1, $2, $3)', [provider, op, reference]);
+}
+
+// Counting and recording calls happens under one lock, so concurrent requests cannot overshoot the budget.
+async function lockBudget(db: Db): Promise<void> {
+  await db.query(`SELECT pg_advisory_xact_lock(hashtext('zentrix-provider-budget'))`);
 }
 
 async function callsSince(db: Db, provider: string, ops: string[], interval: string): Promise<number> {
@@ -69,24 +75,39 @@ async function commandFor(db: Db, r: Pick<RequestRow, 'kind' | 'reference' | 'cu
     op: r.kind, provider: provider as ProviderCommand['provider'], reference: r.reference, currency: r.currency_code, phone: r.phone,
     amount: toDecimalString(BigInt(r.amount_minor), exponent),
     description: r.kind === 'collect' ? `Pexerearn activation ${r.reference}` : `Pexerearn withdrawal ${r.reference}`,
+    createdAt: new Date().toISOString(),
   };
 }
 
 // Member: start paying the activation fee through the provider. Runs inside the request's idempotent transaction;
 // the caller sends the returned command after commit (sendCommand), so no money call happens inside a transaction.
 export async function startCollection(
-  db: PoolClient, services: Services, userId: number, input: { channelCode: string; phone: string },
+  db: PoolClient, services: Services, userId: number, input: { channelCode: string; phone?: string | undefined },
 ): Promise<{ deposit: DepositView; command: ProviderCommand }> {
   const g = gateway(services);
-  if (await callsSince(db, g.provider, ['collect', 'status'], '15 minutes') >= BUDGET.readsPer15Min - BUDGET.reserveForStatus) {
-    throw serviceUnavailable('payments.provider_busy', 'Mobile money payments are busy right now. Please try again in a few minutes, or use another payment method.');
-  }
   const member = await memberInfo(db, userId);
   // LivePay needs the network for every currency except UGX; choosing a network is not built yet.
   if (member.currency !== 'UGX') {
     throw badRequest('payments.channel_unavailable', 'Mobile money prompts are not available for your country yet. Please use another payment method.');
   }
-  const phone = normalizePhone(input.phone);
+  // Prompts go only to the member's registered number, so nobody can send payment prompts to strangers.
+  const phone = normalizePhone(input.phone ?? member.phone ?? '');
+  if (!member.phone || phone !== member.phone) {
+    throw badRequest('payments.phone_registered', `Payment prompts go only to your registered number ${member.phone ?? ''}. To pay from another phone, use a manual method.`, { phone: ['Use your registered number.'] });
+  }
+  const failed = await one<{ n: string }>(
+    db,
+    `SELECT count(*) AS n FROM provider_requests r JOIN deposits d ON d.id = r.deposit_id
+     WHERE d.user_id = $1 AND r.status = 'failed' AND r.created_at > now() - interval '1 day'`,
+    [userId],
+  );
+  if (Number(failed.n) >= BUDGET.failedPromptsPerDay) {
+    throw badRequest('payments.too_many_failed', 'Several payment prompts did not go through today. Please try again tomorrow, or use another payment method.');
+  }
+  await lockBudget(db);
+  if (await callsSince(db, g.provider, ['collect', 'status'], '15 minutes') >= BUDGET.readsPer15Min - BUDGET.reserveForStatus) {
+    throw serviceUnavailable('payments.provider_busy', 'Mobile money payments are busy right now. Please try again in a few minutes, or use another payment method.');
+  }
   const deposit = await submitDeposit(db, userId, { purpose: 'activation', method: 'api', channelCode: input.channelCode, senderPhone: phone });
   const d = await one<{ id: string; channel_id: string }>(db, 'SELECT id, channel_id FROM deposits WHERE public_id = $1', [deposit.id]);
   const request: RequestRow = await one<RequestRow>(
@@ -105,6 +126,7 @@ export async function startPayout(
   db: PoolClient, services: Services, publicId: string, staff: { id: number; roles: Role[]; note?: string | null | undefined },
 ): Promise<{ withdrawal: WithdrawalView; command: ProviderCommand; before: WithdrawalView }> {
   const g = gateway(services);
+  await lockBudget(db);
   if (await callsSince(db, g.provider, ['payout'], '1 minute') >= BUDGET.payoutsPerMinute) {
     throw serviceUnavailable('payments.provider_busy', 'LivePay takes 5 payouts a minute. Wait a minute and send again.');
   }
@@ -143,9 +165,15 @@ export async function checkRequest(services: Services, reference: string, opts: 
   if (!g) return false;
   const r = await maybeOne<RequestRow>(services.pool, 'SELECT * FROM provider_requests WHERE reference = $1', [reference]);
   if (!r || r.status === 'succeeded' || r.status === 'failed') return false;
-  if (!opts.force && await callsSince(services.pool, r.provider, ['collect', 'status'], '15 minutes') >= BUDGET.readsPer15Min) return false;
-  await recordCall(services.pool, r.provider, 'status', reference);
-  await services.pool.query('UPDATE provider_requests SET checks = checks + 1, last_checked_at = now() WHERE id = $1', [r.id]);
+  const limit = opts.force ? BUDGET.webhookReadsPer15Min : BUDGET.readsPer15Min;
+  const allowed = await withTransaction(services.pool, async db => {
+    await lockBudget(db);
+    if (await callsSince(db, r.provider, ['collect', 'status'], '15 minutes') >= limit) return false;
+    await recordCall(db, r.provider, 'status', reference);
+    await db.query('UPDATE provider_requests SET checks = checks + 1, last_checked_at = now() WHERE id = $1', [r.id]);
+    return true;
+  });
+  if (!allowed) return false;
   await sendCommand(services, { op: 'status', provider: r.provider as ProviderCommand['provider'], reference, currency: r.currency_code });
   return true;
 }
@@ -168,7 +196,16 @@ export async function applyOutcome(services: Services, outcome: ProviderOutcome)
       services.logger.warn({ reference: outcome.reference, op: outcome.op }, 'provider outcome for an unknown reference ignored');
       return out;
     }
-    if (r.status === 'succeeded' || r.status === 'failed') return out;
+    if (r.status === 'succeeded' || r.status === 'failed') {
+      // A result that contradicts a closed request (paid after we gave up, or reversed after success) is never
+      // dropped silently: money may have moved twice or not at all.
+      if (outcome.op === 'status' && ((r.status === 'failed' && outcome.status === 'succeeded') || (r.status === 'succeeded' && outcome.status === 'failed'))) {
+        await raise(db, 'payments.provider_late_result', 'critical', r.currency_code,
+          `LivePay now reports ${r.reference} as ${outcome.rawStatus ?? outcome.status} (${outcome.currency ?? ''} ${outcome.amount ?? ''}), but it was closed as ${r.status}. Check the LivePay dashboard and refund or recover the money.`.slice(0, 500),
+          { reference: r.reference, kind: r.kind, closedAs: r.status, providerStatus: outcome.rawStatus ?? null });
+      }
+      return out;
+    }
     const ageMinutes = (services.now().getTime() - r.created_at.getTime()) / 60_000;
 
     if (outcome.op !== 'status') {
@@ -178,9 +215,10 @@ export async function applyOutcome(services: Services, outcome: ProviderOutcome)
              provider_ref = coalesce($2, provider_ref), network = coalesce($3, network), message = $4 WHERE id = $1`,
           [r.id, outcome.providerRef ?? null, outcome.network ?? null, outcome.message?.slice(0, 500) ?? null],
         );
-      } else if (outcome.accepted === 'no') {
+      } else if (outcome.accepted === 'no' && r.kind === 'collect') {
         out.push(...await fail(db, services, r, outcome, `LivePay refused the request: ${outcome.message ?? `HTTP ${outcome.httpStatus ?? '?'}`}`));
       } else {
+        // A payout is never failed on a refusal alone (it may be a retry of one LivePay is paying): a status read decides.
         await db.query(`UPDATE provider_requests SET status = CASE WHEN status = 'queued' THEN 'sent' ELSE status END, message = $2 WHERE id = $1`,
           [r.id, (outcome.message ?? 'No clear answer; the status will be checked.').slice(0, 500)]);
       }
@@ -194,7 +232,11 @@ export async function applyOutcome(services: Services, outcome: ProviderOutcome)
         if (ageMinutes > REVIEW_AFTER_HOURS * 60) await review(db, r, 'Still pending at LivePay after a day.');
         break;
       case 'missing':
-        if (ageMinutes > MISSING_FAIL_MINUTES) out.push(...await fail(db, services, r, outcome, 'LivePay has no record of this payment.'));
+        // A payout is never failed automatically on "missing": a delayed send could still pay it. Staff check it.
+        if (ageMinutes > MISSING_FAIL_MINUTES) {
+          if (r.kind === 'collect') out.push(...await fail(db, services, r, outcome, 'LivePay has no record of this payment.'));
+          else await review(db, r, 'LivePay has no record of this payout. Check the LivePay dashboard before failing or paying it.');
+        }
         break;
       case 'failed':
         out.push(...await fail(db, services, r, outcome, outcome.message ? `LivePay: ${outcome.message}` : 'The mobile-money payment failed.'));
@@ -237,14 +279,7 @@ async function fail(db: PoolClient, services: Services, r: RequestRow, outcome: 
 
 async function succeed(db: PoolClient, services: Services, r: RequestRow, outcome: ProviderOutcome): Promise<Notice[]> {
   const exponent = await exponentOf(db, r.currency_code);
-  const minor = (value: string | undefined): bigint | null => {
-    try {
-      return value === undefined ? null : toMinor(value, exponent);
-    } catch (err) {
-      if (err instanceof MoneyFormatError) return null;
-      throw err;
-    }
-  };
+  const minor = (value: string | undefined) => providerAmountToMinor(value, exponent);
   const amount = minor(outcome.amount);
   if (amount !== BigInt(r.amount_minor) || (outcome.currency ?? '').toUpperCase() !== r.currency_code) {
     await review(db, r, `LivePay reports ${outcome.currency ?? '?'} ${outcome.amount ?? '?'} but we asked for ${r.currency_code} ${toDecimalString(BigInt(r.amount_minor), exponent)}.`);
@@ -295,13 +330,23 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
 
 // The provider's charge leaves the LivePay account: platform revenue -> the channel's cash. TODO(owner): whether
 // members pay it instead.
+// If platform revenue cannot cover it, the payment still stands and staff are told to record the charge.
 async function postCharge(db: PoolClient, r: RequestRow, charge: bigint, actor: number): Promise<void> {
   const revenue = await accountId(db, { kind: 'platform_revenue', currency: r.currency_code });
   const clearing = await accountId(db, { kind: 'payment_clearing', channelId: Number(r.channel_id), currency: r.currency_code });
-  await post(db, {
-    kind: 'provider_charge', memo: `LivePay charge on ${r.reference}`, refType: 'provider_request', refId: r.reference, actorUserId: actor,
-    legs: move(revenue, clearing, charge),
-  });
+  await db.query('SAVEPOINT provider_charge');
+  try {
+    await post(db, {
+      kind: 'provider_charge', memo: `LivePay charge on ${r.reference}`, refType: 'provider_request', refId: r.reference, actorUserId: actor,
+      legs: move(revenue, clearing, charge),
+    });
+    await db.query('RELEASE SAVEPOINT provider_charge');
+  } catch (err) {
+    if (!(err instanceof InsufficientFundsError)) throw err;
+    await db.query('ROLLBACK TO SAVEPOINT provider_charge');
+    await raise(db, 'payments.provider_charge_unrecorded', 'warning', r.currency_code,
+      `LivePay charged ${charge.toString()} on ${r.reference}, but platform revenue cannot cover it. Record it with a treasury entry.`, { reference: r.reference });
+  }
 }
 
 // Polling job: reads the status of requests with no answer for a while (lost webhooks, timeouts, AWS handoff),

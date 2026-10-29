@@ -182,7 +182,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fxProvider: e.FX_PROVIDER,
     fxS3Bucket: e.FX_S3_BUCKET && e.FX_S3_BUCKET.length > 0 ? e.FX_S3_BUCKET : null,
     geoipProvider: e.GEOIP_PROVIDER,
-    paymentProvider: e.PAYMENT_PROVIDER ?? (e.APP_MODE === 'test' ? 'simulator' : 'none'),
+    // The simulator activates members without money, so it is not the default on a production deployment (the launch
+    // runs in test mode on AWS with manual payments).
+    paymentProvider: e.PAYMENT_PROVIDER ?? (e.APP_MODE === 'test' && e.NODE_ENV !== 'production' ? 'simulator' : 'none'),
     livepayApiKey: e.LIVEPAY_LIVE_API_KEY || null,
     livepayWebhookSecret: e.LIVEPAY_LIVE_WEBHOOK_SECRET || null,
     livepayAccountNumber: e.LIVEPAY_ACCOUNT_NUMBER || null,

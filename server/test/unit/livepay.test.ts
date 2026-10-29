@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from '../../src/config/env.js';
-import { LivePayClient, livePaySignature, mapStatus, SimulatedProvider, verifyLivePaySignature } from '../../src/providers/livepay.js';
+import { expiredOutcome, LivePayClient, livePaySignature, mapStatus, providerAmountToMinor, SimulatedProvider, verifyLivePaySignature } from '../../src/providers/livepay.js';
 
 const URL_ = 'https://api.pexerearn.com/api/webhooks/livepay';
 const SECRET = 'whsec-test-0123456789';
@@ -80,6 +80,23 @@ describe('LivePay client', () => {
     expect(mapStatus('On hold')).toBe('unknown');
   });
 
+  it('reads amounts with trailing zero decimals and refuses extra precision', () => {
+    expect(providerAmountToMinor('19000', 0)).toBe(19000n);
+    expect(providerAmountToMinor('19000.00', 0)).toBe(19000n);
+    expect(providerAmountToMinor('5.25', 2)).toBe(525n);
+    expect(providerAmountToMinor('19000.5', 0)).toBeNull();
+    expect(providerAmountToMinor('abc', 0)).toBeNull();
+  });
+
+  it('never sends a collection or payout older than 5 minutes', () => {
+    const now = new Date('2026-11-02T10:00:00Z');
+    const fresh = { ...collect, createdAt: new Date(now.getTime() - 60_000).toISOString() };
+    const stale = { ...collect, op: 'payout' as const, createdAt: new Date(now.getTime() - 6 * 60_000).toISOString() };
+    expect(expiredOutcome(fresh, now)).toBeNull();
+    expect(expiredOutcome(stale, now)).toMatchObject({ accepted: 'unsure', reference: collect.reference });
+    expect(expiredOutcome({ op: 'status', provider: 'livepay', reference: 'X-1234', currency: 'UGX', createdAt: stale.createdAt }, now)).toBeNull();
+  });
+
   it('simulator: succeeds at once, and a number ending in 000 is declined', async () => {
     const sim = new SimulatedProvider();
     expect((await sim.execute(collect)).map(o => o.status ?? o.accepted)).toEqual(['yes', 'succeeded']);
@@ -92,6 +109,8 @@ describe('payment provider configuration', () => {
 
   it('uses the simulator in test mode and refuses LivePay keys there', () => {
     expect(loadConfig(base).paymentProvider).toBe('simulator');
+    // A production deployment in test mode (the launch) never activates members through the simulator by default.
+    expect(loadConfig({ ...base, NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://pexerearn.com' }).paymentProvider).toBe('none');
     expect(() => loadConfig({ ...base, LIVEPAY_LIVE_API_KEY: 'k' })).toThrow(/live-only secrets/);
     expect(() => loadConfig({ ...base, PAYMENT_PROVIDER: 'livepay' })).toThrow(ConfigError);
   });

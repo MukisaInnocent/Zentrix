@@ -1,14 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createLogger } from '../lib/logger.js';
-import { LivePayClient, PAYGATE_COMMANDS, PAYGATE_RESULTS, type ProviderCommand } from '../providers/livepay.js';
+import { expiredOutcome, LivePayClient, PAYGATE_COMMANDS, PAYGATE_RESULTS, type ProviderCommand } from '../providers/livepay.js';
 
 // AWS Lambda entry that talks to LivePay. Runs outside the VPC (it needs the internet, not the database), like the
 // mailer. The API writes each command to the bucket under paygate/commands/ (S3HandoffGateway); S3 notifies the SQS
 // queue, which triggers this function. It calls LivePay, writes the outcomes under paygate/results/ (which starts the
 // `payresults` handler in the jobs function, inside the VPC) and deletes the command. A failed command is retried,
 // then moves to the dead-letter queue; a retried collection or payout is safe because LivePay refuses a duplicate
-// reference and the status read settles it. Phone numbers and amounts are never logged.
+// reference and the status read settles it; a command older than 5 minutes is not sent at all. Phone numbers and
+// amounts are never logged.
 interface SqsEvent { Records: { messageId: string; body: string }[] }
 interface S3Notification { Records?: { s3: { bucket: { name: string }; object: { key: string } } }[]; Event?: string }
 
@@ -33,7 +34,9 @@ export async function handler(event: SqsEvent): Promise<{ batchItemFailures: { i
         if (!client) throw new Error('LIVEPAY_LIVE_API_KEY or LIVEPAY_ACCOUNT_NUMBER is not set; the command waits.');
         const object = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         const command = JSON.parse(await object.Body!.transformToString()) as ProviderCommand;
-        const outcomes = await client.execute(command);
+        // A stale collection or payout (late retry, or a dead-letter redrive) is never sent.
+        const expired = expiredOutcome(command, new Date());
+        const outcomes = expired ? [expired] : await client.execute(command);
         await s3.send(new PutObjectCommand({
           Bucket: bucket, Key: `${PAYGATE_RESULTS}${command.reference}-${command.op}-${randomUUID()}.json`,
           Body: JSON.stringify(outcomes), ContentType: 'application/json',

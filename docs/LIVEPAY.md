@@ -14,6 +14,8 @@ How Pexerearn uses LivePay (livepay.me, API docs at docs.livepay.me) to collect 
 - A mismatch, a status word we do not know, a request with no answer after a day, or a success the ledger cannot record goes to **review**: an alert appears in the staff console and staff settle it with the usual buttons after checking the LivePay dashboard.
 - While LivePay is handling a payment, staff cannot settle it by hand and the member cannot cancel it.
 - Before a payout is sent, the ledger must show enough money held on the LivePay method.
+- A payout is never failed automatically on "missing" or on a refusal alone (it might be a retry of one LivePay is paying): it goes to review. On AWS a collection or payout command older than 5 minutes is never sent. A result that contradicts a closed request (paid after we gave up) raises a critical alert.
+- Prompts go only to the member's registered number, at most 5 failed prompts a day per member, and the rate budget is counted under a lock.
 - LivePay's charge on each payment is recorded as `provider_charge` from platform revenue, so the ledger matches the LivePay wallet. `TODO(owner)`: should members pay it instead?
 - Rate limits: Pexerearn stays within LivePay's 50 collections and status checks per 15 minutes and 5 payouts a minute. When the limit is reached, members see "busy, try again or use another method".
 
@@ -28,8 +30,8 @@ LivePay has **no sandbox**: its docs say every test uses live credentials and mo
 ## Going live
 
 1. In the LivePay dashboard: verify the business account, create the API key, and set the webhook URL to `https://pexerearn.com/api/webhooks/livepay` (or whatever site address production uses). Note the webhook secret and the account number (LP...).
-2. Ask LivePay (WhatsApp +256 763 233 480): is IP whitelisting required (AWS has no fixed outgoing IP without a NAT gateway, about USD 35 a month)? What is the full list of status values? Can the rate limits be raised? What are the minimum and maximum amounts and the fees? Which licensed operator do they work with?
-3. Put the secrets in the production secret (Secrets Manager): `LIVEPAY_LIVE_API_KEY`, `LIVEPAY_LIVE_WEBHOOK_SECRET`, `LIVEPAY_ACCOUNT_NUMBER`. Never in git or chat.
+2. IP whitelisting is not required (owner, 2026-10-30), so no NAT gateway is needed. Still ask LivePay (WhatsApp +256 763 233 480): what is the full list of status values? Can the rate limits be raised? What are the minimum and maximum amounts and the fees? Which licensed operator do they work with?
+3. Put the secrets in the production secret (Secrets Manager): `LIVEPAY_LIVE_API_KEY`, `LIVEPAY_LIVE_WEBHOOK_SECRET`, `LIVEPAY_ACCOUNT_NUMBER`. Never in git or chat. A key that was ever pasted into a chat or email must be regenerated first.
 4. Live mode itself needs the go-live checklist. Then set `livepay_enabled = true` in Terraform (its check refuses it until live mode can be deployed) and apply with the owner's approval. This creates the `paygate` function, its queue and alarm, and the `payments` polling schedule.
 5. In the staff console, add the LivePay method for Uganda. Record the LivePay wallet balance as the method's statement on the Balances page, then make one small real payment and one small payout and check them on the LivePay dashboard. Check that the phone number format (+256...) is accepted.
 

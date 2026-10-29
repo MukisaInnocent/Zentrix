@@ -36,8 +36,8 @@ locals {
     # Exchange rates: fxfetch leaves the latest snapshot in the outbox bucket under fx/.
     FX_PROVIDER  = "s3"
     FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
-    # Mobile money (paygate.tf): the simulator in test mode; LivePay through the S3 handoff once enabled.
-    PAYMENT_PROVIDER            = var.livepay_enabled ? "livepay" : "simulator"
+    # Mobile money (paygate.tf): off (manual payments) until enabled; then LivePay through the S3 handoff.
+    PAYMENT_PROVIDER            = var.livepay_enabled ? "livepay" : "none"
     PAYGATE_S3_BUCKET           = var.livepay_enabled ? aws_s3_bucket.outbox.bucket : ""
     LIVEPAY_LIVE_WEBHOOK_SECRET = var.livepay_enabled ? try(local.app_secret.LIVEPAY_LIVE_WEBHOOK_SECRET, "") : ""
     LIVEPAY_WEBHOOK_URL         = "${local.public_origin}/api/webhooks/livepay"

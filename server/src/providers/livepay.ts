@@ -18,6 +18,32 @@ export interface ProviderCommand {
   phone?: string;
   amount?: string;
   description?: string;
+  // When the command was made. A collection or payout older than COMMAND_TTL_MS is never sent (a late queue retry).
+  createdAt?: string;
+}
+
+// A collection or payout not sent within 5 minutes is dropped unsent: it may be a retry of one LivePay already has,
+// so it is reported as 'unsure' and a status read settles it. Requests are failed for "missing" only after
+// MISSING_FAIL_MINUTES (modules/payments/provider.ts), well after this window.
+export const COMMAND_TTL_MS = 5 * 60_000;
+
+export function expiredOutcome(command: ProviderCommand, now: Date): ProviderOutcome | null {
+  if (command.op === 'status' || !command.createdAt) return null;
+  if (now.getTime() - new Date(command.createdAt).getTime() <= COMMAND_TTL_MS) return null;
+  return {
+    op: command.op, provider: command.provider, reference: command.reference, at: now.toISOString(), accepted: 'unsure',
+    message: 'Not sent: the command expired in the queue. Its status will be checked.',
+  };
+}
+
+// A provider amount in major units, as minor units. Tolerates trailing zero decimals ("19000.00" for UGX).
+export function providerAmountToMinor(value: string | undefined, exponent: number): bigint | null {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec((value ?? '').trim());
+  if (!match) return null;
+  let fraction = match[2] ?? '';
+  while (fraction.length > exponent && fraction.endsWith('0')) fraction = fraction.slice(0, -1);
+  if (fraction.length > exponent) return null;
+  return BigInt(match[1]!) * 10n ** BigInt(exponent) + BigInt(fraction.padEnd(exponent, '0') || '0');
 }
 
 // pending: still running; missing: the provider has no record of the reference; unknown: no usable answer.
