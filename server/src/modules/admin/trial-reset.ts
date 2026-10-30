@@ -12,6 +12,7 @@ export interface TrialResetReport {
   livepayChannel: string;
   archivedChannels: string[];
   frozenMembers: number;
+  releasedAccounts: number;
 }
 
 const REASON = 'Staging LivePay trial reset (owner, 2026-10-30)';
@@ -59,6 +60,26 @@ export async function livepayTrialReset(pool: Pool, input: { accountNumber: stri
       await db.query(`UPDATE sessions SET revoked_at = now(), revoke_reason = 'frozen' WHERE user_id = ANY($1::bigint[]) AND revoked_at IS NULL`, [frozen.map(f => f.id)]);
       await audit(db, null, { action: 'member.freeze', targetType: 'user', targetId: 'all-members', after: { status: 'frozen', count: frozen.length, users: frozen.map(f => f.public_id) }, reason: REASON });
     }
-    return { livepayChannel: code, archivedChannels: archived.map(c => c.code), frozenMembers: frozen.length };
+
+    // Frozen trial accounts give up their phone number and email, so the same person can register again and test
+    // activation afresh (the owner's own number). The old values are kept in the audit log; nothing else changes.
+    // An audited admin action (the users trigger allows phone changes only with this flag; the audit entries follow).
+    await db.query(`SELECT set_config('zentrix.admin_change', 'on', true)`);
+    const released = await rows<{ public_id: string; email: string | null; phone_e164: string | null }>(
+      db,
+      `WITH old AS (
+         SELECT id, email, phone_e164 FROM users WHERE status = 'frozen' AND status_reason = $1 AND anonymized_at IS NULL FOR UPDATE
+       )
+       UPDATE users u SET email = NULL, phone_e164 = NULL, anonymized_at = now()
+       FROM old WHERE u.id = old.id
+       RETURNING u.public_id, old.email, old.phone_e164`,
+      [REASON],
+    );
+    for (const r of released) {
+      await audit(db, null, { action: 'member.released', targetType: 'user', targetId: r.public_id, before: { email: r.email, phone: r.phone_e164 }, after: { email: null, phone: null }, reason: REASON });
+    }
+    // Registration attempts blocked while the numbers were taken count towards the hourly limit; start it afresh.
+    await db.query(`DELETE FROM rate_limits WHERE key LIKE '%register%'`);
+    return { livepayChannel: code, archivedChannels: archived.map(c => c.code), frozenMembers: frozen.length, releasedAccounts: released.length };
   });
 }

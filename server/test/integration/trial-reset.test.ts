@@ -33,10 +33,19 @@ describe('LivePay trial reset', () => {
     const users = await app.owner.query<{ username: string; status: string }>('SELECT username, status FROM users WHERE username = ANY($1)', [[member.input.username, staff.username]]);
     expect(Object.fromEntries(users.rows.map(u => [u.username, u.status]))).toEqual({ [member.input.username]: 'frozen', [staff.username]: 'active' });
     const audit = await app.owner.query(`SELECT action FROM audit_log WHERE reason LIKE 'Staging LivePay trial reset%' ORDER BY id`);
-    expect(audit.rows.map(r => r.action)).toEqual(['channel.created', 'channel.removed', 'member.freeze']);
+    expect(audit.rows.map(r => r.action).filter(a => a !== 'member.released')).toEqual(['channel.created', 'channel.removed', 'member.freeze']);
+
+    // The frozen account gave up its phone and email: the same person can register again.
+    const back = await registerMember(app, { phone: member.input.phone, email: member.input.email });
+    expect(back.user.phone).toBe(member.input.phone);
+    expect(report.releasedAccounts).toBeGreaterThanOrEqual(1);
+    const kept = await app.owner.query(`SELECT before->>'phone' AS phone FROM audit_log WHERE action = 'member.released' AND before->>'phone' = $1`, [member.input.phone]);
+    expect(kept.rowCount).toBe(1);
 
     // A second run changes nothing else.
     const again = await livepayTrialReset(app.services.pool, { accountNumber: 'LP2610300054' });
     expect(again).toMatchObject({ livepayChannel: 'livepay_ug', archivedChannels: [] });
+    expect(again.frozenMembers).toBe(2); // the two members who registered since
+    expect(again.releasedAccounts).toBe(2);
   });
 });
