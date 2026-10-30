@@ -45,8 +45,8 @@ export default defineConfig([
     },
   },
   {
-    // Browser code: vanilla ES modules, no build step.
-    files: ['web/js/**/*.js'],
+    // Browser code: vanilla ES modules, no build step (the site and the launch countdown page).
+    files: ['web/js/**/*.js', 'infra/launch/**/*.js'],
     languageOptions: { globals: globals.browser, sourceType: 'module' },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
