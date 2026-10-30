@@ -105,8 +105,6 @@ resource "aws_lambda_function" "paygate" {
   source_code_hash = data.archive_file.package.output_base64sha256
   memory_size      = 256
   timeout          = 60
-  # One command at a time keeps LivePay's 5 payouts a minute easy to respect.
-  reserved_concurrent_executions = 2
   environment {
     variables = {
       APP_MODE               = var.app_mode
@@ -124,6 +122,11 @@ resource "aws_lambda_event_source_mapping" "paygate" {
   function_name           = aws_lambda_function.paygate[0].arn
   batch_size              = 1
   function_response_types = ["ReportBatchItemFailures"]
+  # At most two commands at once (the lowest SQS allows) keeps LivePay's 5 payouts a minute easy to respect. Not
+  # reserved concurrency: this account's limit is 10, and AWS refuses to reserve any of it.
+  scaling_config {
+    maximum_concurrency = 2
+  }
 }
 
 resource "aws_cloudwatch_metric_alarm" "paygate_dlq" {
