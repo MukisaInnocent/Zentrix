@@ -85,8 +85,10 @@ module "pexa" {
 
   # Owner, 2026-10-30: try LivePay on staging with real keys. LivePay payments here move REAL money. The keys come
   # from the app secret (docs/LIVEPAY.md, "Staging trial"); turn both off to go back to manual payments.
-  livepay_enabled = true
-  livepay_trial   = true
+  # Owner, 2026-10-30: only LivePay on staging, so payments no longer pass by themselves.
+  test_auto_approve = false
+  livepay_enabled   = true
+  livepay_trial     = true
   # The fixed IP to whitelist in LivePay stays; the NAT gateway (about USD 35 a month, billed by the hour) runs only
   # while LivePay is being tested. Set livepay_nat = false to stop paying for it.
   livepay_fixed_ip = true
