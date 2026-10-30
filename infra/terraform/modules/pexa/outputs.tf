@@ -64,3 +64,8 @@ output "cloudflare_dns_table" {
     format("%-46s %-6s %-8s %-60s %s", r.purpose, r.type, "DNS only", r.name, r.value)],
   ))
 }
+
+output "livepay_fixed_ip" {
+  description = "The address to whitelist in LivePay (Developer Portal, IP Whitelist), or null without livepay_fixed_ip."
+  value       = try(aws_eip.livepay[0].public_ip, null)
+}

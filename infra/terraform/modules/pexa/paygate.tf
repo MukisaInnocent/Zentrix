@@ -74,6 +74,13 @@ resource "aws_iam_role_policy_attachment" "paygate_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Behind the NAT gateway (egress.tf) paygate runs inside the VPC, which needs the network-interface permissions.
+resource "aws_iam_role_policy_attachment" "paygate_vpc" {
+  count      = local.nat
+  role       = aws_iam_role.paygate[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_iam_role_policy" "paygate" {
   count = local.livepay
   name  = "paygate-handoff"
@@ -105,6 +112,14 @@ resource "aws_lambda_function" "paygate" {
   source_code_hash = data.archive_file.package.output_base64sha256
   memory_size      = 256
   timeout          = 60
+  # With livepay_nat, LivePay sees every call from the fixed Elastic IP.
+  dynamic "vpc_config" {
+    for_each = var.livepay_nat ? [1] : []
+    content {
+      subnet_ids         = aws_subnet.egress[*].id
+      security_group_ids = aws_security_group.paygate[*].id
+    }
+  }
   environment {
     variables = {
       APP_MODE               = var.app_mode
@@ -113,7 +128,7 @@ resource "aws_lambda_function" "paygate" {
       LOG_LEVEL              = "info"
     }
   }
-  depends_on = [aws_cloudwatch_log_group.paygate, aws_iam_role_policy_attachment.paygate_logs, terraform_data.livepay_guard]
+  depends_on = [aws_cloudwatch_log_group.paygate, aws_iam_role_policy_attachment.paygate_logs, aws_iam_role_policy_attachment.paygate_vpc, terraform_data.livepay_guard, aws_route_table_association.egress]
 }
 
 resource "aws_lambda_event_source_mapping" "paygate" {

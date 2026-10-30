@@ -38,6 +38,14 @@ The owner wants to try real LivePay on staging first. Staging stays in test mode
 5. Register a member with **your own phone number** (prompts go only to the registered number), activate with a LivePay prompt, and watch it in the staff console. Then try a small payout.
 6. To stop the trial: set `livepay_enabled` and `livepay_trial` to false and deploy again.
 
+## Fixed IP for LivePay (owner, 2026-10-30)
+
+LivePay accepts API calls only from whitelisted IP addresses, even when its whitelist page looks empty (tested 2026-10-30: refused until the address was added). AWS Lambda has no fixed address, so `egress.tf` gives the paygate function one: an Elastic IP behind a NAT gateway, used by paygate only (the API and database stay without internet).
+
+- `livepay_fixed_ip = true` keeps the Elastic IP (about USD 3.60 a month). Whitelist it once in LivePay (Developer Portal, IP Whitelist); `terraform output livepay_fixed_ip` shows it.
+- `livepay_nat = true` runs the NAT gateway (USD 0.048 an hour, about USD 35 a month if always on, plus USD 0.048 per GB). Staging runs it only while LivePay is tested; set it to false and deploy to stop paying.
+- One availability zone: if it fails, commands wait in the queue and are retried.
+
 ## Going live
 
 1. In the LivePay dashboard: verify the business account, create the API key, and set the webhook URL to `https://pexerearn.com/api/webhooks/livepay` (or whatever site address production uses). Note the webhook secret and the account number (LP...).

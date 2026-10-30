@@ -29,6 +29,22 @@ variable "livepay_trial" {
   default     = false
 }
 
+variable "livepay_fixed_ip" {
+  description = "Keep a fixed Elastic IP for LivePay's whitelist (about USD 3.60 a month), even while the NAT gateway is off (egress.tf)."
+  type        = bool
+  default     = false
+}
+
+variable "livepay_nat" {
+  description = "Run the NAT gateway that gives the paygate function the fixed IP (about USD 35 a month, billed by the hour). Needs livepay_enabled."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.livepay_nat || var.livepay_enabled
+    error_message = "livepay_nat is only useful with livepay_enabled = true."
+  }
+}
+
 variable "payments_schedule" {
   description = "How often the payments job reads the status of LivePay requests that got no answer (only while livepay_enabled)."
   type        = string

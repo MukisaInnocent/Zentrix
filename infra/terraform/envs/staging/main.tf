@@ -87,6 +87,10 @@ module "pexa" {
   # from the app secret (docs/LIVEPAY.md, "Staging trial"); turn both off to go back to manual payments.
   livepay_enabled = true
   livepay_trial   = true
+  # The fixed IP to whitelist in LivePay stays; the NAT gateway (about USD 35 a month, billed by the hour) runs only
+  # while LivePay is being tested. Set livepay_nat = false to stop paying for it.
+  livepay_fixed_ip = true
+  livepay_nat      = true
 }
 
 output "site_url" {
@@ -115,6 +119,10 @@ output "email_delivery" {
 
 output "temporary_site_url" {
   value = module.pexa.temporary_site_url
+}
+
+output "livepay_fixed_ip" {
+  value = module.pexa.livepay_fixed_ip
 }
 
 output "api_url" {
