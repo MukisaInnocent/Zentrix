@@ -80,12 +80,6 @@ resource "aws_route_table_association" "egress" {
   route_table_id = aws_route_table.egress[0].id
 }
 
-resource "aws_vpc_endpoint_route_table_association" "egress_s3" {
-  count           = local.nat
-  vpc_endpoint_id = aws_vpc_endpoint.s3.id
-  route_table_id  = aws_route_table.egress[0].id
-}
-
 # paygate may only make HTTPS calls (LivePay, and S3 through the endpoint). Nothing can connect to it.
 resource "aws_security_group" "paygate" {
   count       = local.nat
@@ -102,4 +96,13 @@ resource "aws_vpc_security_group_egress_rule" "paygate_https" {
   from_port         = 443
   to_port           = 443
   description       = "HTTPS to LivePay and S3"
+}
+
+# The S3 endpoint now lists the paygate route table itself (network.tf). Forget the old separate link without
+# deleting it, so the route stays in place.
+removed {
+  from = aws_vpc_endpoint_route_table_association.egress_s3
+  lifecycle {
+    destroy = false
+  }
 }
