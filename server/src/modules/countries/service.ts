@@ -62,6 +62,10 @@ export interface CountryConfig {
   referralLevelsMinor: [string, string, string] | null;
   // Withdrawals below the approval threshold, from established accounts, are paid through LivePay without staff.
   autoPayout: boolean;
+  // The activation fee and referral amounts are in this currency (owner, 2026-10-31: USD outside the owner's table).
+  feeCurrency: string;
+  // Withdrawal charge as basis points of the amount; 0 = the currency's charge table.
+  withdrawalChargeBp: number;
   note: string | null;
   createdAt: Date;
 }
@@ -73,6 +77,7 @@ interface ConfigRow {
   new_account_review_days: number; vat_bp: number; kyc_level_for_withdrawal: number; engagement_tasks_enabled: boolean;
   terms_version: string; privacy_version: string; is_placeholder: boolean; created_at: Date;
   referral_level1_minor: string | null; referral_level2_minor: string | null; referral_level3_minor: string | null; auto_payout: boolean; note: string | null;
+  fee_currency_code: string | null; withdrawal_charge_bp: number;
 }
 
 export const toConfig = (r: ConfigRow): CountryConfig => ({
@@ -84,7 +89,7 @@ export const toConfig = (r: ConfigRow): CountryConfig => ({
   vatBp: r.vat_bp, kycLevelForWithdrawal: r.kyc_level_for_withdrawal, engagementTasksEnabled: r.engagement_tasks_enabled,
   termsVersion: r.terms_version, privacyVersion: r.privacy_version, isPlaceholder: r.is_placeholder,
   referralLevelsMinor: r.referral_level1_minor === null ? null : [r.referral_level1_minor, r.referral_level2_minor!, r.referral_level3_minor!],
-  autoPayout: r.auto_payout, note: r.note, createdAt: r.created_at,
+  autoPayout: r.auto_payout, feeCurrency: r.fee_currency_code ?? r.currency_code, withdrawalChargeBp: r.withdrawal_charge_bp, note: r.note, createdAt: r.created_at,
 });
 
 export async function currentCountryConfig(db: Db, code: string): Promise<CountryConfig | null> {

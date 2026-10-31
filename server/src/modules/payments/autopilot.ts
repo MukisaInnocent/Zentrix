@@ -37,7 +37,8 @@ export async function ensureTestChannel(services: Services, member: { countryCod
     `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, merchant_code, instructions)
      VALUES ($1, 'Test payment', $2, $3, 'PEXEREARN TEST', 'TEST', 'TEST', 'TEST MODE: payments pass automatically. Do not send real money.')
      ON CONFLICT (code) DO NOTHING`,
-    [`test_auto_${member.countryCode.toLowerCase()}`, member.countryCode, member.currency],
+    // A second currency (the USD activation fee) gets its own method, named after the currency.
+    [`test_auto_${member.countryCode.toLowerCase()}${member.currency === 'USD' ? '_usd' : ''}`, member.countryCode, member.currency],
   );
 }
 

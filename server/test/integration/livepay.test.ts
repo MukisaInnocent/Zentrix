@@ -107,6 +107,21 @@ describe('LivePay collections', () => {
     expect((await collect(member)).body.error?.code).toBe('payments.too_many_failed');
   });
 
+  it('deposits any amount the member enters through a prompt, into the deposit balance (owner, 2026-10-31)', async () => {
+    const member = await registerMember(app);
+    // Only an activated member deposits.
+    const early = await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '50000' }, key());
+    expect(early.body.error?.code).toBe('activation.required');
+    expect((await collect(member)).body.deposit.status).toBe('confirmed');
+    // A deposit needs an amount; an activation cannot carry one.
+    expect((await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet' }, key())).body.error?.fields?.amount).toBeDefined();
+    const res = await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '50000' }, key());
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.deposit).toMatchObject({ purpose: 'wallet', method: 'api', status: 'confirmed', claimedAmountMinor: '50000', creditedAmountMinor: '50000' });
+    expect((await member.client.get<Body>('/api/wallet/summary')).body.depositBalanceMinor).toBe('50000');
+    expect(await drift()).toBe(0);
+  });
+
   it('sends prompts only to the member\'s registered number', async () => {
     const member = await registerMember(app);
     const other = await collect(member, '+256772000111');

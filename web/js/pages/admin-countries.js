@@ -23,7 +23,7 @@ function render() {
   $('#rows').replaceChildren(...(list.length ? list.map(c => h('tr', { tabindex: '0', dataset: { open: c.code } },
     h('td', { class: 'zx-td-strong' }, `${c.name} (${c.code})`),
     h('td', {}, c.currency_code),
-    h('td', {}, money(c.membership_fee_minor, c.currency_code)),
+    h('td', {}, money(c.membership_fee_minor, c.fee_currency ?? c.currency_code)),
     h('td', {}, money(c.withdrawal_min_minor, c.currency_code)),
     h('td', {}, money(c.withdrawal_max_minor, c.currency_code)),
     h('td', {}, money(c.withdrawal_daily_max_minor, c.currency_code)),
@@ -49,23 +49,33 @@ function field(name, label, value, { type = 'text', hint, inputmode } = {}) {
     : h('div', { class: 'zx-field' }, h('label', { for: id }, label), input, hint ? h('span', { class: 'zx-hint' }, hint) : null);
 }
 
+// The activation fee's currency: the country's own or USD (owner, 2026-10-31).
+function currencyField(home, value) {
+  const select = h('select', { id: 'cfg-feeCurrency', name: 'feeCurrency', class: 'zx-input' },
+    [home, 'USD'].filter((c, i, list) => list.indexOf(c) === i).map(c => h('option', { value: c, selected: c === value }, c === home ? `${c} (the country's own)` : c)));
+  return h('div', { class: 'zx-field' }, h('label', { for: 'cfg-feeCurrency' }, 'Activation fee currency'), select,
+    h('span', { class: 'zx-hint' }, 'The fee and the referral rewards are in this currency. Balances and withdrawals stay in the country\'s own currency.'));
+}
+
 const showError = (slot, err) => {
   slot.textContent = err instanceof ApiError ? err.message : 'Connection error. Please try again.';
   slot.hidden = false;
 };
 
-function configForm(code, cfg, exp, onSaved) {
-  const dec = minor => (minor === undefined || minor === null ? '' : minorToDecimal(minor, exp));
+function configForm(code, home, cfg, onSaved) {
+  const feeCurrency = cfg?.feeCurrency ?? home;
+  const dec = (minor, currency = home) => (minor === undefined || minor === null ? '' : minorToDecimal(minor, exponents[currency] ?? 0));
   const alert = h('div', { class: 'zx-error', hidden: true, role: 'alert' });
   const form = h('form', { class: 'zx-form' }, alert,
     h('div', { class: 'zx-form-row zx-form-row--2' },
-      field('membershipFee', 'Activation fee', dec(cfg?.membershipFeeMinor), { inputmode: 'decimal' }),
+      field('membershipFee', `Activation fee (${feeCurrency})`, dec(cfg?.membershipFeeMinor, feeCurrency), { inputmode: 'decimal' }),
       field('withdrawalApprovalThreshold', 'Admin approval from', dec(cfg?.withdrawalApprovalThresholdMinor), { inputmode: 'decimal', hint: 'Withdrawals from this amount need an admin.' })),
-    h('p', { class: 'zx-hint' }, 'Referral rewards paid when a member here activates, in this currency. Leave all three empty to use the Uganda amounts in Settings, scaled to this fee. Together they cannot exceed the activation fee.'),
+    currencyField(home, feeCurrency),
+    h('p', { class: 'zx-hint' }, 'Referral rewards paid when a member here activates, in the fee currency. Leave all three empty to use the Uganda amounts in Settings, scaled to this fee. Together they cannot exceed the activation fee.'),
     h('div', { class: 'zx-form-row zx-form-row--3' },
-      field('referralLevel1', 'Level 1 reward', dec(cfg?.referralLevelsMinor?.[0]), { inputmode: 'decimal' }),
-      field('referralLevel2', 'Level 2 reward', dec(cfg?.referralLevelsMinor?.[1]), { inputmode: 'decimal' }),
-      field('referralLevel3', 'Level 3 reward', dec(cfg?.referralLevelsMinor?.[2]), { inputmode: 'decimal' })),
+      field('referralLevel1', 'Level 1 reward', dec(cfg?.referralLevelsMinor?.[0], feeCurrency), { inputmode: 'decimal' }),
+      field('referralLevel2', 'Level 2 reward', dec(cfg?.referralLevelsMinor?.[1], feeCurrency), { inputmode: 'decimal' }),
+      field('referralLevel3', 'Level 3 reward', dec(cfg?.referralLevelsMinor?.[2], feeCurrency), { inputmode: 'decimal' })),
     field('autoPayout', 'Pay withdrawals below the admin approval amount automatically through LivePay', cfg?.autoPayout ?? false, { type: 'checkbox' }),
     h('p', { class: 'zx-hint' }, 'Needs a LivePay payout method for this country. Withdrawals from the approval amount, and from accounts newer than the review days, still wait for an admin.'),
     h('div', { class: 'zx-form-row zx-form-row--2' },
@@ -75,7 +85,9 @@ function configForm(code, cfg, exp, onSaved) {
       field('withdrawalDailyMax', 'Daily maximum', dec(cfg?.withdrawalDailyMaxMinor), { inputmode: 'decimal' }),
       field('withdrawalFeeBp', 'Withdrawal tax (basis points)', cfg?.withdrawalFeeBp ?? 50, { type: 'number', hint: '50 = 0.5% of the amount, added to the charge.' })),
     h('div', { class: 'zx-form-row zx-form-row--2' },
-      field('withdrawalFeeMin', 'Charge when there is no charge table', dec(cfg?.withdrawalFeeMinMinor ?? '0'), { inputmode: 'decimal' }),
+      field('withdrawalChargeBp', 'Withdrawal charge (basis points of the amount)', cfg?.withdrawalChargeBp ?? 0, { type: 'number', hint: '300 = 3% of the amount, before any charge table. 0 = use the charge table below.' }),
+      field('withdrawalFeeMin', 'Minimum charge (and the charge with no table)', dec(cfg?.withdrawalFeeMinMinor ?? '0'), { inputmode: 'decimal' })),
+    h('div', { class: 'zx-form-row zx-form-row--2' },
       field('newAccountReviewDays', 'New-account review days', cfg?.newAccountReviewDays ?? 14, { type: 'number', hint: 'Withdrawals from newer accounts need an admin.' })),
     h('div', { class: 'zx-form-row zx-form-row--2' },
       field('vatBp', 'VAT (basis points)', cfg?.vatBp ?? 0, { type: 'number' }),
@@ -103,6 +115,7 @@ function configForm(code, cfg, exp, onSaved) {
       vatBp: Number(v('vatBp').value), kycLevelForWithdrawal: Number(v('kycLevelForWithdrawal').value), engagementTasksEnabled: v('engagementTasksEnabled').checked,
       termsVersion: v('termsVersion').value.trim(), privacyVersion: v('privacyVersion').value.trim(), isPlaceholder: v('isPlaceholder').checked,
       referralLevels: levels.every(Boolean) ? levels : null, autoPayout: v('autoPayout').checked,
+      feeCurrency: v('feeCurrency').value, withdrawalChargeBp: Number(v('withdrawalChargeBp').value),
       ...(v('note').value.trim() ? { note: v('note').value.trim() } : {}),
     };
     const btn = form.querySelector('button[type=submit]');
@@ -205,7 +218,7 @@ async function openCountry(code) {
     };
     view.body.replaceChildren(
       panel('Fees and limits', cfg ? kv([['Version', `${cfg.version} (${when(cfg.createdAt)})`], ['Status', cfg.isPlaceholder ? 'Placeholder' : 'Confirmed']]) : h('p', { class: 'zx-hint' }, 'Not set yet. Members here cannot activate until it is saved.'),
-        configForm(code, cfg, exp, reload)),
+        configForm(code, country.currencyCode, cfg, reload)),
       panel('Withdrawal charge table', chargesEditor(country.currencyCode, charges.bands, exp, reload)),
       panel('Payment methods', h('p', { class: 'zx-hint' }, 'The numbers and accounts members in this country pay to.'),
         h('a', { class: 'zx-btn zx-btn--secondary zx-btn--sm zx-btn--fit', href: `/admin/payment-methods.html?country=${country.code}` }, 'Manage payment methods')),
@@ -214,12 +227,12 @@ async function openCountry(code) {
         h('thead', {}, h('tr', {}, ['Version', 'Saved', 'Activation fee', 'Referral rewards', 'Automatic payouts', 'Minimum', 'Maximum', 'Daily maximum', 'Tax', 'Note'].map(t => h('th', { scope: 'col' }, t)))),
         h('tbody', {}, configHistory.map(c => h('tr', {},
           h('td', {}, String(c.version)), h('td', { class: 'zx-td-muted' }, when(c.createdAt)),
-          h('td', {}, money(c.membershipFeeMinor, c.currencyCode)),
-          h('td', {}, c.referralLevelsMinor ? c.referralLevelsMinor.map(m => money(m, c.currencyCode)).join(' / ') : 'Uganda amounts, scaled'),
+          h('td', {}, money(c.membershipFeeMinor, c.feeCurrency ?? c.currencyCode)),
+          h('td', {}, c.referralLevelsMinor ? c.referralLevelsMinor.map(m => money(m, c.feeCurrency ?? c.currencyCode)).join(' / ') : 'Uganda amounts, scaled'),
           h('td', {}, c.autoPayout ? 'On' : 'Off'),
           h('td', {}, money(c.withdrawalMinMinor, c.currencyCode)),
           h('td', {}, money(c.withdrawalMaxMinor, c.currencyCode)), h('td', {}, money(c.withdrawalDailyMaxMinor, c.currencyCode)),
-          h('td', {}, pct(c.withdrawalFeeBp)), h('td', { class: 'zx-td-muted' }, c.note ?? '')))))) : h('p', { class: 'zx-hint' }, 'No versions yet.')),
+          h('td', {}, `${c.withdrawalChargeBp ? `${pct(c.withdrawalChargeBp)} charge + ` : ''}${pct(c.withdrawalFeeBp)} tax`), h('td', { class: 'zx-td-muted' }, c.note ?? '')))))) : h('p', { class: 'zx-hint' }, 'No versions yet.')),
     );
   };
   try {

@@ -46,9 +46,14 @@ async function addMethod() {
         options: [{ value: '', label: 'Manual: members send money and enter the transaction ID' }, { value: 'livepay', label: 'LivePay: a payment prompt on the member’s phone (UGX only so far)' }],
         hint: 'Cannot be changed later. With LivePay, enter the LivePay account number below; payouts are sent through LivePay.',
       },
+      {
+        name: 'currency', label: 'Currency', type: 'select', value: '',
+        options: [{ value: '', label: 'The country’s own currency' }, { value: 'USD', label: 'USD (for an activation fee in USD)' }],
+        hint: 'Cannot be changed later. Countries whose activation fee is in USD need a USD method for it; deposits and payouts use the country’s own currency.',
+      },
       ...methodFields(),
     ],
-    submit: v => api.post('/api/admin/payments/channels', { country: v.country, ...toBody(v), ...(v.provider ? { provider: v.provider } : {}) }),
+    submit: v => api.post('/api/admin/payments/channels', { country: v.country, ...toBody(v), ...(v.provider ? { provider: v.provider } : {}), ...(v.currency ? { currency: v.currency } : {}) }),
   });
   if (saved) {
     toast.success('Payment method added.');

@@ -4,6 +4,7 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { randomCode } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
+import { convert } from '../fx/service.js';
 import { accountId, balanceOf, move, post, TASK_MODULES, type Leg, type TaskModule } from '../ledger/ledger.js';
 
 export const BALANCE_SOURCES = ['main', ...TASK_MODULES] as const;
@@ -72,6 +73,8 @@ export interface WalletSummary {
   membershipActive: boolean;
   membershipActivatedAt: Date | null;
   membershipFeeMinor: string | null;
+  // The fee's currency: USD outside the owner's table (owner, 2026-10-31), else the account's currency.
+  membershipFeeCurrency: string | null;
   // Dashboard figures (owner, 2026-10-25). Balance is the main balance, which holds referral money only.
   // Expenses are the activation fee paid. Total earnings are referral rewards plus task rewards. Net earnings
   // are total earnings minus expenses.
@@ -92,15 +95,19 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
       db,
       `SELECT (SELECT coalesce(sum(credited_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'confirmed' AND purpose = 'wallet')::text AS deposited,
               (SELECT coalesce(sum(reward_minor), 0) FROM task_submissions WHERE user_id = $1 AND status = 'approved')::text AS tasks,
-              (SELECT coalesce(sum(claimed_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'pending')::text AS pending,
+              (SELECT coalesce(sum(claimed_amount_minor), 0) FROM deposits WHERE user_id = $1 AND status = 'pending' AND currency_code = $2)::text AS pending,
               (SELECT coalesce(sum(amount_minor), 0) FROM withdrawals WHERE user_id = $1 AND status = 'paid')::text AS withdrawn,
               (SELECT coalesce(sum(amount_minor), 0) FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited')::text AS referral`,
-      [userId],
+      [userId, member.currency],
     ),
-    maybeOne<{ activated_at: Date; fee_minor: string }>(db, 'SELECT activated_at, fee_minor FROM memberships WHERE user_id = $1', [userId]),
+    maybeOne<{ activated_at: Date; fee_minor: string; currency_code: string }>(db, 'SELECT activated_at, fee_minor, currency_code FROM memberships WHERE user_id = $1', [userId]),
     currentCountryConfig(db, member.countryCode),
   ]);
-  const expenses = BigInt(membership?.fee_minor ?? '0');
+  // A fee paid in another currency (USD) shows in the account's currency at the latest rate; display only.
+  let expenses = BigInt(membership?.fee_minor ?? '0');
+  if (membership && membership.currency_code !== member.currency) {
+    expenses = (await convert(db, expenses, membership.currency_code, member.currency))?.amountMinor ?? 0n;
+  }
   const totalEarnings = BigInt(totals.referral) + BigInt(totals.tasks);
   const find = (kind: string, module: string | null = null) =>
     balances.find(b => b.kind === kind && b.module === module)?.balance_minor ?? '0';
@@ -120,6 +127,7 @@ export async function getWalletSummary(db: Db, userId: number): Promise<WalletSu
     membershipActive: membership !== null,
     membershipActivatedAt: membership?.activated_at ?? null,
     membershipFeeMinor: config?.membershipFeeMinor ?? null,
+    membershipFeeCurrency: config?.feeCurrency ?? null,
     expensesMinor: expenses.toString(),
     referralEarningsMinor: totals.referral,
     taskEarningsMinor: totals.tasks,

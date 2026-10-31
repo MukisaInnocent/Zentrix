@@ -52,7 +52,7 @@ export function referenceRouter(services: Services): Router {
     res.json({
       config: {
         country: c.countryCode, currency: c.currencyCode, version: c.version, isPlaceholder: c.isPlaceholder,
-        activationFee: { amountMinor: c.membershipFeeMinor, currency: c.currencyCode },
+        activationFee: { amountMinor: c.membershipFeeMinor, currency: c.feeCurrency },
         withdrawal: {
           feeBasisPoints: c.withdrawalFeeBp,
           minimum: { amountMinor: c.withdrawalMinMinor, currency: c.currencyCode },

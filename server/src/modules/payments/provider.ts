@@ -75,15 +75,17 @@ async function commandFor(db: Db, r: Pick<RequestRow, 'kind' | 'reference' | 'cu
   return {
     op: r.kind, provider: provider as ProviderCommand['provider'], reference: r.reference, currency: r.currency_code, phone: r.phone,
     amount: toDecimalString(BigInt(r.amount_minor), exponent),
-    description: r.kind === 'collect' ? `Pexerearn activation ${r.reference}` : `Pexerearn withdrawal ${r.reference}`,
+    description: r.kind === 'collect' ? `Pexerearn payment ${r.reference}` : `Pexerearn withdrawal ${r.reference}`,
     createdAt: new Date().toISOString(),
   };
 }
 
-// Member: start paying the activation fee through the provider. Runs inside the request's idempotent transaction;
-// the caller sends the returned command after commit (sendCommand), so no money call happens inside a transaction.
+// Member: pay the activation fee, or deposit an amount into the deposit balance (owner, 2026-10-31), through the
+// provider. Runs inside the request's idempotent transaction; the caller sends the returned command after commit
+// (sendCommand), so no money call happens inside a transaction.
 export async function startCollection(
-  db: PoolClient, services: Services, userId: number, input: { channelCode: string; phone?: string | undefined },
+  db: PoolClient, services: Services, userId: number,
+  input: { channelCode: string; phone?: string | undefined; purpose?: 'activation' | 'wallet'; amountMinor?: bigint },
 ): Promise<{ deposit: DepositView; command: ProviderCommand }> {
   const g = gateway(services);
   const member = await memberInfo(db, userId);
@@ -109,7 +111,10 @@ export async function startCollection(
   if (await callsSince(db, g.provider, ['collect', 'status'], '15 minutes') >= BUDGET.readsPer15Min - BUDGET.reserveForStatus) {
     throw serviceUnavailable('payments.provider_busy', 'Mobile money payments are busy right now. Please try again in a few minutes, or use another payment method.');
   }
-  const deposit = await submitDeposit(db, userId, { purpose: 'activation', method: 'api', channelCode: input.channelCode, senderPhone: phone });
+  const deposit = await submitDeposit(db, userId, {
+    purpose: input.purpose ?? 'activation', method: 'api', channelCode: input.channelCode, senderPhone: phone,
+    ...(input.amountMinor === undefined ? {} : { amountMinor: input.amountMinor }),
+  });
   const d = await one<{ id: string; channel_id: string }>(db, 'SELECT id, channel_id FROM deposits WHERE public_id = $1', [deposit.id]);
   const request: RequestRow = await one<RequestRow>(
     db,

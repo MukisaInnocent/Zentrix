@@ -37,6 +37,10 @@ const ConfigBody = z.strictObject({
   referralLevels: z.tuple([Amount, Amount, Amount]).nullable().optional(),
   // Left out = unchanged.
   autoPayout: z.boolean().optional(),
+  // The activation fee's currency: the country's own or USD (owner, 2026-10-31). Left out = unchanged.
+  feeCurrency: z.string().trim().toUpperCase().length(3).optional(),
+  // Withdrawal charge as basis points of the amount (300 = 3%); 0 = the currency's charge table. Left out = unchanged.
+  withdrawalChargeBp: z.int().min(0).max(5000).optional(),
   note: z.string().trim().max(500).optional(),
 });
 const FlagsBody = z.strictObject({
@@ -85,7 +89,8 @@ export function systemRouter(services: Services): Router {
       pool,
       `SELECT c.code, c.name, c.currency_code, c.blocked, c.block_reason, c.live_enabled, cfg.version AS config_version, cfg.is_placeholder,
               cfg.membership_fee_minor::text, cfg.withdrawal_min_minor::text, cfg.withdrawal_max_minor::text, cfg.withdrawal_daily_max_minor::text,
-              cfg.withdrawal_fee_bp, cfg.withdrawal_approval_threshold_minor::text,
+              cfg.withdrawal_fee_bp, cfg.withdrawal_approval_threshold_minor::text, cfg.withdrawal_charge_bp,
+              coalesce(cfg.fee_currency_code, c.currency_code) AS fee_currency,
               (SELECT count(*) FROM users u WHERE u.country_code = c.code)::int AS members
        FROM countries c LEFT JOIN current_country_configs cfg ON cfg.country_code = c.code ORDER BY c.name`,
     );
@@ -104,11 +109,19 @@ export function systemRouter(services: Services): Router {
     const country = await getCountry(pool, String(req.params.code).toUpperCase());
     if (!country) throw notFound();
     const body = parse(ConfigBody, req.body);
-    const { exponent } = await one<{ exponent: number }>(pool, 'SELECT exponent FROM currencies WHERE code = $1', [country.currencyCode]);
+    const current = await currentCountryConfig(pool, country.code);
+    const feeCurrency = body.feeCurrency ?? current?.feeCurrency ?? country.currencyCode;
+    if (feeCurrency !== country.currencyCode && feeCurrency !== 'USD') {
+      throw badRequest('validation_failed', `The fee is in ${country.currencyCode} or USD.`, { feeCurrency: [`Choose ${country.currencyCode} or USD.`] });
+    }
+    const exponentOf = async (code: string) => (await one<{ exponent: number }>(pool, 'SELECT exponent FROM currencies WHERE code = $1', [code])).exponent;
+    const exponent = await exponentOf(country.currencyCode);
+    // The fee and the referral rewards are in the fee's currency; the withdrawal amounts in the country's.
+    const feeExponent = await exponentOf(feeCurrency);
     const amounts = {} as Record<'membershipFee' | 'withdrawalMin' | 'withdrawalMax' | 'withdrawalDailyMax' | 'withdrawalFeeMin' | 'withdrawalApprovalThreshold', bigint>;
     for (const key of ['membershipFee', 'withdrawalMin', 'withdrawalMax', 'withdrawalDailyMax', 'withdrawalFeeMin', 'withdrawalApprovalThreshold'] as const) {
       try {
-        amounts[key] = toMinor(body[key], exponent);
+        amounts[key] = toMinor(body[key], key === 'membershipFee' ? feeExponent : exponent);
       } catch (err) {
         if (err instanceof MoneyFormatError) throw badRequest('validation_failed', err.message, { [key]: [err.message] });
         throw err;
@@ -124,7 +137,7 @@ export function systemRouter(services: Services): Router {
     let levels: bigint[] | null | undefined = body.referralLevels === null ? null : undefined;
     if (body.referralLevels) {
       try {
-        levels = body.referralLevels.map(v => toMinor(v, exponent));
+        levels = body.referralLevels.map(v => toMinor(v, feeExponent));
       } catch (err) {
         if (err instanceof MoneyFormatError) throw badRequest('validation_failed', err.message, { referralLevels: [err.message] });
         throw err;
@@ -132,6 +145,11 @@ export function systemRouter(services: Services): Router {
     }
     const saved = await withTransaction(pool, async db => {
       const before = await currentCountryConfig(db, country.code);
+      // Rewards kept from before are in the old fee's currency: a currency change must set them again (or clear them).
+      if (levels === undefined && before?.referralLevelsMinor && before.feeCurrency !== feeCurrency) {
+        const message = 'The fee currency changed: set the three referral rewards in the new currency, or clear them.';
+        throw badRequest('validation_failed', message, { referralLevels: [message] });
+      }
       const kept = levels === undefined ? (before?.referralLevelsMinor?.map(v => BigInt(v)) ?? null) : levels;
       // A reward is paid from the activation it comes from, so the three together stay within the fee.
       if (kept && kept.reduce((a, b) => a + b, 0n) > amounts.membershipFee) {
@@ -139,20 +157,22 @@ export function systemRouter(services: Services): Router {
         throw badRequest('validation_failed', message, { referralLevels: [message] });
       }
       const autoPayout = body.autoPayout ?? before?.autoPayout ?? false;
+      const chargeBp = body.withdrawalChargeBp ?? before?.withdrawalChargeBp ?? 0;
       const row = await one<{ version: number }>(
         db,
         `INSERT INTO country_configs (country_code, version, currency_code, membership_fee_minor, withdrawal_min_minor, withdrawal_max_minor,
            withdrawal_daily_max_minor, withdrawal_fee_bp, withdrawal_fee_min_minor,
            withdrawal_approval_threshold_minor, new_account_review_days, vat_bp, kyc_level_for_withdrawal, engagement_tasks_enabled,
            terms_version, privacy_version, is_placeholder, note, created_by,
-           referral_level1_minor, referral_level2_minor, referral_level3_minor, auto_payout)
-         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+           referral_level1_minor, referral_level2_minor, referral_level3_minor, auto_payout, fee_currency_code, withdrawal_charge_bp)
+         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
          FROM country_configs WHERE country_code = $1 RETURNING version`,
         [country.code, country.currencyCode, amounts.membershipFee, amounts.withdrawalMin, amounts.withdrawalMax,
           amounts.withdrawalDailyMax, body.withdrawalFeeBp, amounts.withdrawalFeeMin,
           amounts.withdrawalApprovalThreshold, body.newAccountReviewDays, body.vatBp, body.kycLevelForWithdrawal,
           body.engagementTasksEnabled, body.termsVersion, body.privacyVersion, body.isPlaceholder, body.note ?? null, req.auth!.userId,
-          kept?.[0] ?? null, kept?.[1] ?? null, kept?.[2] ?? null, autoPayout],
+          kept?.[0] ?? null, kept?.[1] ?? null, kept?.[2] ?? null, autoPayout,
+          feeCurrency === country.currencyCode ? null : feeCurrency, chargeBp],
       );
       const after = await currentCountryConfig(db, country.code);
       await audit(db, req, { action: 'country.config_changed', targetType: 'country', targetId: country.code, before, after, reason: body.note });

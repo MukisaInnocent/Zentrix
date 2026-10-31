@@ -35,7 +35,7 @@ function renderPaybox() {
       h('a', { class: 'zx-btn zx-btn--secondary zx-btn--fit', href: '/contact.html' }, 'Contact support'));
     return;
   }
-  const fee = formatMoney(info.activation.feeMinor, info.currency);
+  const fee = formatMoney(info.activation.feeMinor, info.activation.feeCurrency);
   renderForm(c);
   if (c.provider) {
     box.replaceChildren(
@@ -78,7 +78,8 @@ function renderForm(c) {
 }
 
 function renderChannels() {
-  const usable = info.channels.filter(c => c.depositsEnabled);
+  // The fee is paid in its own currency (USD in some countries), so only methods in that currency are offered.
+  const usable = info.channels.filter(c => c.depositsEnabled && c.currency === info.activation.feeCurrency);
   if (!usable.find(c => c.code === selected)) selected = usable[0]?.code ?? null;
   $('#channel-pick').replaceChildren(...usable.map(c => {
     const input = h('input', { type: 'radio', name: 'channel-choice', value: c.code, checked: c.code === selected });
@@ -96,7 +97,7 @@ async function refresh() {
   if (info.activation.active) return location.assign('/dashboard.html');
   const list = await api.get('/api/payments/deposits');
   list.deposits = list.deposits.filter(d => d.purpose === 'activation');
-  $('#fee').textContent = info.activation.feeMinor ? formatMoney(info.activation.feeMinor, info.currency) : 'Not set for your country yet';
+  $('#fee').textContent = info.activation.feeMinor ? formatMoney(info.activation.feeMinor, info.activation.feeCurrency) : 'Not set for your country yet';
   $('#paused').hidden = !info.depositsPaused;
   $('#auto-note').hidden = !info.autoApprove;
   $('#livepay-trial').hidden = !info.livepayTrial;
@@ -116,7 +117,7 @@ async function refresh() {
   $('#form-card').hidden = pending;
   $('#waiting').hidden = !pending;
   $('#pay-area').hidden = pending;
-  $('#activate-submit').disabled = info.depositsPaused || !info.channels.some(c => c.depositsEnabled) || !info.activation.feeMinor;
+  $('#activate-submit').disabled = info.depositsPaused || !info.channels.some(c => c.depositsEnabled && c.currency === info.activation.feeCurrency) || !info.activation.feeMinor;
   // The methods are the ones set up for the member's country.
   let country = info.country;
   try {

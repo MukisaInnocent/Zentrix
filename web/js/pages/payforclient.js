@@ -18,7 +18,9 @@ async function refresh() {
   $('#pfc-count').textContent = String(data.payments.length);
   $('#pfc-amount-label').textContent = `Amount (${summary.currency})`;
   if (info.activation.feeMinor) {
-    $('#pfc-activate-hint').textContent = `Pay the ${formatMoney(info.activation.feeMinor, info.currency)} activation fee for a member of your own country who has not activated yet.`;
+    // A USD fee is paid from the balance in the home currency at the latest exchange rate.
+    const converted = info.activation.feeCurrency !== info.currency ? `, paid in ${info.currency} at the latest exchange rate,` : '';
+    $('#pfc-activate-hint').textContent = `Pay the ${formatMoney(info.activation.feeMinor, info.activation.feeCurrency)} activation fee${converted} for a member of your own country who has not activated yet.`;
   }
   const body = $('#pfc-history-body');
   if (!data.payments.length) {

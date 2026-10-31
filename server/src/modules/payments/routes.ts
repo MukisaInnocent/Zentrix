@@ -6,6 +6,7 @@ import { badRequest } from '../../lib/errors.js';
 import { MoneyFormatError, toMinor } from '../../lib/money.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
+import { currentCountryConfig } from '../countries/service.js';
 import { idempotent, moneyTx } from '../ledger/idempotency.js';
 import { BALANCE_SOURCES, getWalletSummary, memberInfo, requireConfig } from '../wallet/service.js';
 import { exponentOf, flagActive, listChannels, publicChannel } from './common.js';
@@ -44,8 +45,14 @@ const DepositBody = z.strictObject({
   providerTxnId: z.string().trim().min(4, { error: 'Enter the transaction ID from your payment message.' }).max(60),
   note: z.string().trim().max(300).optional(),
 });
-// Activation through the provider (LivePay): the member approves a prompt on this phone.
-const CollectBody = z.strictObject({ channel: z.string().trim().min(2).max(40), phone: z.string().trim().min(4).max(32).optional() });
+// Paying through the provider (LivePay): the member approves a prompt on this phone. An activation is the fee; a
+// deposit into the deposit balance carries the amount the member entered (owner, 2026-10-31).
+const CollectBody = z.strictObject({
+  channel: z.string().trim().min(2).max(40),
+  phone: z.string().trim().min(4).max(32).optional(),
+  purpose: z.enum(['activation', 'wallet']).default('activation'),
+  amount: AmountInput.optional(),
+});
 const WithdrawBody = z.strictObject({ source: z.enum(BALANCE_SOURCES).default('main'), amount: AmountInput });
 const QuoteQuery = z.object({ amount: z.string().trim().max(24) });
 const IssueBody = z.strictObject({
@@ -74,9 +81,14 @@ export function paymentsRouter(services: Services): Router {
   // codes), and whether the account is already active.
   router.get('/channels', async (req, res) => {
     const member = await memberInfo(pool, req.auth!.userId);
+    const config = await currentCountryConfig(pool, member.countryCode);
+    // The activation fee may be in another currency than the account (USD outside the owner's table): methods in
+    // either currency are listed, each with its currency, and the pages pick the ones they need.
+    const feeCurrency = config?.feeCurrency ?? member.currency;
     await ensureTestChannel(services, member);
+    if (feeCurrency !== member.currency) await ensureTestChannel(services, { countryCode: member.countryCode, currency: feeCurrency });
     const [channels, deposits, withdrawals, summary] = await Promise.all([
-      listChannels(pool, { currency: member.currency, country: member.countryCode }),
+      listChannels(pool, { country: member.countryCode }).then(list => list.filter(c => c.currency === member.currency || c.currency === feeCurrency)),
       flagActive(pool, 'deposits_paused', member.currency),
       flagActive(pool, 'withdrawals_paused', member.currency),
       getWalletSummary(pool, req.auth!.userId),
@@ -93,7 +105,7 @@ export function paymentsRouter(services: Services): Router {
       autoApprove: services.config.appMode === 'test' && services.config.testAutoApprove,
       // Staging LivePay trial: LivePay prompts take real money although the site is in test mode.
       livepayTrial: services.config.appMode === 'test' && services.config.livepayTrial && services.config.paymentProvider === 'livepay',
-      activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor },
+      activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor, feeCurrency },
       // Provider methods (LivePay) show only while the provider is connected.
       channels: channels.filter(c => (c.depositsEnabled || c.payoutsEnabled) && (!c.provider || services.payments)).map(publicChannel),
     });
@@ -132,7 +144,14 @@ export function paymentsRouter(services: Services): Router {
     const input = parse(CollectBody, req.body);
     let command: ProviderCommand | null = null;
     const result = await idempotent(pool, req, 'deposit.collect', async db => {
-      const started = await startCollection(db, services, req.auth!.userId, { channelCode: input.channel, phone: input.phone });
+      if (input.purpose === 'activation' && input.amount !== undefined) {
+        throw badRequest('validation_failed', 'The activation amount is fixed.', { amount: ['The activation amount is fixed.'] });
+      }
+      const member = await memberInfo(db, req.auth!.userId);
+      const amountMinor = input.purpose === 'wallet' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
+      const started = await startCollection(db, services, req.auth!.userId, {
+        channelCode: input.channel, phone: input.phone, purpose: input.purpose, ...(amountMinor === undefined ? {} : { amountMinor }),
+      });
       command = started.command;
       return { status: 201, body: { deposit: started.deposit } };
     });
@@ -177,7 +196,9 @@ export function paymentsRouter(services: Services): Router {
       minMinor: config.withdrawalMinMinor,
       maxMinor: config.withdrawalMaxMinor,
       taxBasisPoints: config.withdrawalFeeBp,
-      bands: bands.map(b => {
+      // A percentage charge (3% where there is no table) replaces the bands.
+      chargeBasisPoints: config.withdrawalChargeBp,
+      bands: (config.withdrawalChargeBp > 0 ? [] : bands).map(b => {
         const band = { fromMinor: from.toString(), upToMinor: b.upToMinor, chargeMinor: b.chargeMinor };
         from = BigInt(b.upToMinor);
         return band;

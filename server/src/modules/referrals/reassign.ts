@@ -3,7 +3,7 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, conflict } from '../../lib/errors.js';
 import { currentCountryConfig } from '../countries/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post, type Leg } from '../ledger/ledger.js';
-import { MAX_REFERRAL_LEVEL, payReferralReward, rewardAmounts } from './service.js';
+import { MAX_REFERRAL_LEVEL, payReferralReward, rewardsForMembership } from './service.js';
 
 // An admin changes who invited a member (owner, 2026-10-26), and the referral rewards follow the new line:
 // for the member and everyone up to two levels below them (whose level 2 and 3 rewards pass through the old
@@ -75,15 +75,15 @@ async function takeBack(db: PoolClient, reward: PaidReward, memo: string, refId:
 }
 
 async function realign(db: PoolClient, rootId: number, staffId: number): Promise<MovedReward[]> {
-  const affected = await rows<{ id: string; username: string; currency_code: string; country_code: string }>(
+  const affected = await rows<{ id: string; username: string; currency_code: string; country_code: string; fee_minor: string; fee_currency: string }>(
     db,
     `WITH RECURSIVE sub AS (
        SELECT id, 0 AS depth FROM users WHERE id = $1
        UNION ALL
        SELECT u.id, s.depth + 1 FROM users u JOIN sub s ON u.referred_by_user_id = s.id WHERE s.depth < ${MAX_REFERRAL_LEVEL - 1}
      )
-     SELECT u.id, u.username, u.currency_code, u.country_code FROM sub JOIN users u ON u.id = sub.id
-     WHERE EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id)
+     SELECT u.id, u.username, u.currency_code, u.country_code, m.fee_minor, m.currency_code AS fee_currency
+     FROM sub JOIN users u ON u.id = sub.id JOIN memberships m ON m.user_id = u.id
      ORDER BY sub.depth, u.id`,
     [rootId],
   );
@@ -100,7 +100,10 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
       [memberId],
     );
     const config = await currentCountryConfig(db, m.country_code);
-    const amounts: Record<number, bigint> = config ? await rewardAmounts(db, config) : {};
+    // Rewards are in the currency the activation fee was paid in (USD outside the owner's table).
+    const { amounts } = config
+      ? await rewardsForMembership(db, config, { feeMinor: BigInt(m.fee_minor), currency: m.fee_currency })
+      : { amounts: {} as Record<number, bigint> };
     for (let level = 1; level <= MAX_REFERRAL_LEVEL; level++) {
       const due = chain[level - 1];
       const eligible = Boolean(due?.active);
@@ -110,6 +113,7 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
       const amount = current
         ? BigInt(current.source_amount_minor ?? current.amount_minor!)
         : (amounts[level] ?? 0n);
+      const currency = current ? (current.source_currency_code ?? current.currency_code) : m.fee_currency;
       if (amount <= 0n || (!current && !eligible)) continue;
       const refId = `REF-L${level}-${memberId}`;
       let owed = 0n;
@@ -121,13 +125,13 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
       }
       if (eligible) {
         await payReferralReward(db, {
-          referrerId: due!.id, referrerCurrency: due!.currency, referredId: memberId, level, amountMinor: amount, currency: m.currency_code,
+          referrerId: due!.id, referrerCurrency: due!.currency, referredId: memberId, level, amountMinor: amount, currency,
           memo: `Level ${level} referral reward from @${m.username} (inviter changed)`, actorUserId: staffId,
         });
       }
       moved.push({
         member: m.username, level, from: current?.receiver ?? null, to: eligible ? due!.username : null,
-        amountMinor: amount.toString(), currency: m.currency_code, debtMinor: owed.toString(), debtCurrency: current?.currency_code ?? m.currency_code,
+        amountMinor: amount.toString(), currency, debtMinor: owed.toString(), debtCurrency: current?.currency_code ?? currency,
       });
     }
   }

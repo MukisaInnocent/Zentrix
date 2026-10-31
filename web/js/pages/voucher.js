@@ -30,7 +30,10 @@ async function refresh() {
   $('#active-vouchers-count').textContent = String(unused.length);
 
   $('#voucher-value-label').textContent = `Voucher Value (${data.currency})`;
-  $('#buy-hint').textContent = `Each voucher is worth at least the activation fee of ${formatMoney(data.activationFeeMinor, data.currency)}.`;
+  // A fee in another currency (USD) is priced at the latest exchange rate; before the first rate there is no price.
+  $('#buy-hint').textContent = data.activationFeeMinor
+    ? `Each voucher is worth at least the activation fee of ${formatMoney(data.activationFeeMinor, data.currency)}.`
+    : 'The activation fee in your currency is not available yet. Please try again later.';
   fillSelect($('#voucher-value'), data.valueOptions.map(o => h('option', { value: o.amount }, formatMoney(o.amountMinor, data.currency))), 'Not available');
   fillSelect($('#activate-code'), unused.map(v => h('option', { value: v.code }, `${v.code} (${formatMoney(v.amountMinor, v.currency)})`)), 'No unused vouchers. Buy one first.');
   $('#activate-submit').disabled = unused.length === 0;

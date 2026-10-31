@@ -83,6 +83,8 @@ describe('settings and country configuration', () => {
     membershipFee: '1.500', withdrawalMin: '0.300', withdrawalMax: '150.000', withdrawalDailyMax: '300.000',
     withdrawalFeeBp: 50, withdrawalFeeMin: '0', withdrawalApprovalThreshold: '30.000', newAccountReviewDays: 14, vatBp: 0,
     kycLevelForWithdrawal: 0, engagementTasksEnabled: false, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true,
+    // Kuwait's fee is in USD by default since 2026-10-31; these tests use the dinar's three decimals.
+    feeCurrency: 'KWD', referralLevels: null,
   };
 
   it('stores config amounts exactly in minor units using the currency exponent', async () => {
@@ -96,7 +98,7 @@ describe('settings and country configuration', () => {
 
   it('rejects extra decimals and limits that do not rise', async () => {
     expect((await adminClient.post<Body>('/api/admin/countries/KW/config', { ...config, membershipFee: '1.5001' })).body.error?.fields).toHaveProperty('membershipFee');
-    expect((await adminClient.post<Body>('/api/admin/countries/JP/config', { ...config, membershipFee: '750.5' })).status).toBe(400);
+    expect((await adminClient.post<Body>('/api/admin/countries/JP/config', { ...config, feeCurrency: 'JPY', membershipFee: '750.5' })).status).toBe(400);
     expect((await adminClient.post<Body>('/api/admin/countries/KW/config', { ...config, withdrawalMin: '200.000' })).body.error?.fields).toHaveProperty('withdrawalMax');
   });
 

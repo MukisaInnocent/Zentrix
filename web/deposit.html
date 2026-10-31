@@ -28,22 +28,27 @@
     <div id="paybox" class="zx-paybox" aria-live="polite"></div>
   </section>
 
+  <section id="waiting" class="zx-card zx-card--accent" hidden role="status">
+    <h2>Approve the payment on your phone</h2>
+    <p id="waiting-text" class="zx-hint"></p>
+  </section>
+
   <section class="zx-card">
-    <h2>2. Enter your payment details</h2>
+    <h2 id="form-title">2. Enter your payment details</h2>
     <form id="deposit-form" class="zx-form" novalidate>
       <div class="zx-error" data-form-error hidden role="alert"></div>
       <div class="zx-field">
-        <label for="deposit-amount">Amount you sent</label>
+        <label id="deposit-amount-label" for="deposit-amount">Amount you sent</label>
         <input id="deposit-amount" class="zx-input" name="amount" inputmode="decimal" autocomplete="off" required>
         <span id="deposit-amount-error" class="zx-error" hidden></span>
       </div>
-      <div class="zx-field">
+      <div id="txn-field" class="zx-field">
         <label for="deposit-txn">Transaction ID</label>
         <input id="deposit-txn" class="zx-input zx-input--code" name="providerTxnId" autocomplete="off" required minlength="4" maxlength="60">
         <span id="deposit-txn-error" class="zx-error" hidden></span>
       </div>
       <div class="zx-field">
-        <label for="deposit-phone">Number you paid from</label>
+        <label id="deposit-phone-label" for="deposit-phone">Number you paid from</label>
         <input id="deposit-phone" class="zx-input" name="senderPhone" type="tel" inputmode="tel" autocomplete="tel" required>
         <span id="deposit-phone-error" class="zx-error" hidden></span>
       </div>

@@ -77,16 +77,20 @@ export async function submitDeposit(db: PoolClient, userId: number, claim: Depos
   const activated = Boolean(await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [userId]));
   if (purpose === 'activation' && activated) throw badRequest('deposit.already_active', 'Your account is already activated.');
   if (purpose === 'wallet' && !activated) throw forbidden('activation.required', 'Pay the activation fee before making a deposit.');
+  // The activation fee is paid in the fee's currency (USD outside the owner's table, owner 2026-10-31) on a method in
+  // that currency; deposits into the deposit balance are in the member's own currency.
+  const config = purpose === 'activation' ? await requireConfig(db, member.countryCode) : null;
+  const currency = config ? config.feeCurrency : member.currency;
   const channel = await channelByCode(db, claim.channelCode);
-  if (!channel.depositsEnabled || channel.currency !== member.currency || channel.countryCode !== member.countryCode) {
+  if (!channel.depositsEnabled || channel.currency !== currency || channel.countryCode !== member.countryCode) {
     throw badRequest('payments.channel_unavailable', 'That payment method is not available for your country.');
   }
   const method = claim.method ?? 'manual';
   if ((method === 'api') !== Boolean(channel.provider)) {
     throw badRequest('payments.channel_method', channel.provider ? 'Pay with this method from the payment prompt on your phone.' : 'This payment method takes manual payments only.');
   }
-  await assertNotPaused(db, 'deposits_paused', member.currency);
-  const amount = purpose === 'activation' ? BigInt((await requireConfig(db, member.countryCode)).membershipFeeMinor) : claim.amountMinor ?? 0n;
+  await assertNotPaused(db, 'deposits_paused', currency);
+  const amount = config ? BigInt(config.membershipFeeMinor) : claim.amountMinor ?? 0n;
   if (amount <= 0n) throw badRequest('validation_failed', 'Enter the amount you sent.', { amount: ['Enter the amount you sent.'] });
   const senderPhone = normalizePhone(claim.senderPhone);
   const reference = newReference('DP');
@@ -105,7 +109,7 @@ export async function submitDeposit(db: PoolClient, userId: number, claim: Depos
       db,
       `INSERT INTO deposits (reference, user_id, channel_id, claimed_amount_minor, currency_code, sender_phone, provider_txn_id, member_note, purpose, method)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [reference, userId, channel.id, amount.toString(), member.currency, senderPhone, txnId, claim.note ?? null, purpose, method],
+      [reference, userId, channel.id, amount.toString(), currency, senderPhone, txnId, claim.note ?? null, purpose, method],
     )).id;
   } catch (err) {
     if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) {

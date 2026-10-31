@@ -64,6 +64,7 @@ describe('test autopilot', () => {
   it('gives a member in any country a test payment method', async () => {
     const member = await registerMember(app, { country: 'JP', phone: '+819012345679' });
     const info = await member.client.get<Body>('/api/payments/channels');
-    expect(info.body.channels.map((c: Body) => c.code)).toEqual(['test_auto_jp']);
+    // Japan's activation fee is in USD (owner, 2026-10-31), so it also gets a USD method.
+    expect(info.body.channels.map((c: Body) => c.code)).toEqual(['test_auto_jp', 'test_auto_jp_usd']);
   });
 });

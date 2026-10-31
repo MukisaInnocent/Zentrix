@@ -49,9 +49,15 @@ export async function chargeBands(db: Db, currency: string): Promise<ChargeBand[
   return list.map(b => ({ upToMinor: b.up_to_minor, chargeMinor: b.charge_minor }));
 }
 
-// The fixed charge for an amount (owner, 2026-10-26): the smallest band whose upper limit covers it, or the top
-// band above the table. A currency without a table pays the country's minimum fee as its charge.
-export function chargeFor(bands: ChargeBand[], fallbackMinor: bigint, amountMinor: bigint): bigint {
+// The charge for an amount. A country with a percentage charge (owner, 2026-10-31: 3% where there is no table) pays
+// that share of the amount, at least the country's minimum fee; it comes before the currency's table, so Chad pays
+// 3% although Cameroon's XAF table exists. Otherwise (owner, 2026-10-26): the smallest band whose upper limit covers
+// the amount, or the top band above the table; a currency without a table pays the country's minimum fee.
+export function chargeFor(bands: ChargeBand[], fallbackMinor: bigint, amountMinor: bigint, chargeBp = 0): bigint {
+  if (chargeBp > 0) {
+    const share = basisPointsOf(amountMinor, chargeBp);
+    return share > fallbackMinor ? share : fallbackMinor;
+  }
   if (!bands.length) return fallbackMinor;
   const band = bands.find(b => amountMinor <= BigInt(b.upToMinor)) ?? bands[bands.length - 1]!;
   return BigInt(band.chargeMinor);
@@ -60,7 +66,7 @@ export function chargeFor(bands: ChargeBand[], fallbackMinor: bigint, amountMino
 export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigint): Promise<Quote> {
   const member = await memberInfo(db, userId);
   const config = await requireConfig(db, member.countryCode);
-  const charge = chargeFor(await chargeBands(db, member.currency), BigInt(config.withdrawalFeeMinMinor), amountMinor);
+  const charge = chargeFor(await chargeBands(db, member.currency), BigInt(config.withdrawalFeeMinMinor), amountMinor, config.withdrawalChargeBp);
   const tax = basisPointsOf(amountMinor, config.withdrawalFeeBp);
   const fee = charge + tax;
   const used = await usedToday(db, userId);

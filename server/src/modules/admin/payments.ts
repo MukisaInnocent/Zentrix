@@ -72,8 +72,10 @@ const ChannelBody = z.strictObject({
   payoutsEnabled: z.boolean().default(true),
   // 'livepay': members pay with a prompt on their phone and staff send payouts through LivePay. Fixed once created.
   provider: z.enum(['livepay']).optional(),
+  // The country's currency (default), or USD for a country whose activation fee is in USD. Fixed once created.
+  currency: z.string().trim().toUpperCase().length(3).optional(),
 });
-const ChannelPatch = ChannelBody.omit({ code: true, country: true, provider: true }).partial().strict();
+const ChannelPatch = ChannelBody.omit({ code: true, country: true, provider: true, currency: true }).partial().strict();
 const ChannelsQuery = z.object({ country: z.string().trim().toUpperCase().length(2).optional(), removed: z.enum(['0', '1']).default('0') });
 const RemoveBody = z.strictObject({ reason: z.string().trim().min(5, { error: 'Say why the method is removed.' }).max(300) });
 
@@ -543,12 +545,16 @@ export function paymentsAdminRouter(services: Services): Router {
     await withTransaction(pool, async db => {
       const country = await maybeOne<{ currency_code: string }>(db, 'SELECT currency_code FROM countries WHERE code = $1', [body.country.toUpperCase()]);
       if (!country) throw badRequest('validation_failed', 'Unknown country.', { country: ['Unknown country.'] });
+      const currency = body.currency ?? country.currency_code;
+      if (currency !== country.currency_code && currency !== 'USD') {
+        throw badRequest('validation_failed', `Use ${country.currency_code} or USD.`, { currency: [`Use ${country.currency_code} or USD.`] });
+      }
       const code = body.code ?? (await newChannelCode(db, body.name, body.country));
       if (await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [code])) throw conflict('channel.exists', 'A channel with this code already exists.');
       await db.query(
         `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled, provider)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [code, body.name, body.country.toUpperCase(), country.currency_code, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled, body.provider ?? null],
+        [code, body.name, body.country.toUpperCase(), currency, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled, body.provider ?? null],
       );
       await audit(db, req, { action: 'channel.created', targetType: 'payment_channel', targetId: code, after: { ...body, code } });
       return code;

@@ -36,8 +36,9 @@ const scaled = (text: string) => {
 };
 
 // Converts minor units of `from` into minor units of `to` at the latest stored rates, however old (owner,
-// 2026-10-28: members never wait for a fresher rate). Null only when either currency has never had a rate.
-export async function convert(db: Db, amountMinor: bigint, from: string, to: string): Promise<Conversion | null> {
+// 2026-10-28: members never wait for a fresher rate). Null only when either currency has never had a rate. Rounds
+// down (what a member receives); `roundUp` is for prices a member pays, so the platform is never short.
+export async function convert(db: Db, amountMinor: bigint, from: string, to: string, opts: { roundUp?: boolean } = {}): Promise<Conversion | null> {
   const row = await maybeOne<{ f_rate: string; f_exp: number; t_rate: string; t_exp: number; rate_at: Date; rate: string }>(
     db,
     `WITH latest AS (
@@ -54,5 +55,6 @@ export async function convert(db: Db, amountMinor: bigint, from: string, to: str
   if (!row) return null;
   const numerator = amountMinor * scaled(row.t_rate) * 10n ** BigInt(row.t_exp);
   const denominator = scaled(row.f_rate) * 10n ** BigInt(row.f_exp);
-  return { amountMinor: numerator / denominator, rate: row.rate, rateAt: row.rate_at };
+  const amount = opts.roundUp ? (numerator + denominator - 1n) / denominator : numerator / denominator;
+  return { amountMinor: amount, rate: row.rate, rateAt: row.rate_at };
 }

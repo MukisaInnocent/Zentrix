@@ -30,6 +30,19 @@ export async function rewardAmounts(db: Db, config: CountryConfig): Promise<Reco
   return Object.fromEntries(Object.entries(tiers).map(([level, tier]) => [level, (tier * fee) / UGANDA_FEE_UGX]));
 }
 
+// The rewards for one activation, in the currency its fee was paid in (the membership's), which funds them from
+// platform revenue. A fee paid in another currency than the config's (the config changed since) pays the same
+// share of what was actually paid.
+export async function rewardsForMembership(db: Db, config: CountryConfig, membership: { feeMinor: bigint; currency: string }): Promise<{ currency: string; amounts: Record<number, bigint> }> {
+  const amounts = await rewardAmounts(db, config);
+  if (membership.currency === config.feeCurrency) return { currency: membership.currency, amounts };
+  const fee = BigInt(config.membershipFeeMinor);
+  return {
+    currency: membership.currency,
+    amounts: Object.fromEntries(Object.entries(amounts).map(([level, a]) => [level, (a * membership.feeMinor) / fee])),
+  };
+}
+
 /** Referral rewards stop at level 3. Nothing is paid above this level. */
 export const MAX_REFERRAL_LEVEL = 3;
 export const UGANDA_FEE_UGX = 19_000n;
@@ -48,7 +61,8 @@ export interface ReferralOverview {
   currency: string;
   totalRewardsMinor: string;
   levels: Record<1 | 2 | 3, LevelCounts>;
-  tierAmounts: { level: number; amountMinor: string }[];
+  // In the activation fee's currency (USD outside the owner's table).
+  tierAmounts: { level: number; amountMinor: string; currency: string }[];
 }
 
 export interface ReferralMember {
@@ -165,7 +179,8 @@ export async function distributeReferralRewards(
 ): Promise<{ distributedCount: number; totalDistributedMinor: bigint }> {
   const none = { distributedCount: 0, totalDistributedMinor: 0n };
   if (await maybeOne(db, 'SELECT 1 FROM referral_rewards WHERE referred_user_id = $1', [newUserId])) return none;
-  if (!(await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [newUserId]))) return none;
+  const membership = await maybeOne<{ fee_minor: string; currency_code: string }>(db, 'SELECT fee_minor, currency_code FROM memberships WHERE user_id = $1', [newUserId]);
+  if (!membership) return none;
 
   const newUser = await maybeOne<{ id: string; username: string; referred_by_user_id: string | null; currency_code: string; country_code: string }>(
     db, 'SELECT id, username, referred_by_user_id, currency_code, country_code FROM users WHERE id = $1', [newUserId],
@@ -173,7 +188,7 @@ export async function distributeReferralRewards(
   if (!newUser?.referred_by_user_id) return none;
   const config = await currentCountryConfig(db, newUser.country_code);
   if (!config) return none;
-  const amounts = await rewardAmounts(db, config);
+  const { currency, amounts } = await rewardsForMembership(db, config, { feeMinor: BigInt(membership.fee_minor), currency: membership.currency_code });
 
   let currentReferrerId: number | null = Number(newUser.referred_by_user_id);
   let distributedCount = 0;
@@ -187,7 +202,7 @@ export async function distributeReferralRewards(
     if (rewardMinor > 0n && referrer.status === 'active') {
       const outcome = await payReferralReward(db, {
         referrerId: currentReferrerId, referrerCurrency: referrer.currency_code, referredId: newUserId, level,
-        amountMinor: rewardMinor, currency: newUser.currency_code, memo: `Level ${level} referral reward from @${newUser.username}`,
+        amountMinor: rewardMinor, currency, memo: `Level ${level} referral reward from @${newUser.username}`,
       });
       if (outcome !== 'cancelled') {
         distributedCount++;
@@ -236,7 +251,7 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
     currency: user.currency_code,
     totalRewardsMinor: rewards.reduce((sum, r) => sum + BigInt(r.credited), 0n).toString(),
     levels,
-    tierAmounts: Object.entries(amounts).map(([level, amount]) => ({ level: Number(level), amountMinor: amount.toString() })),
+    tierAmounts: Object.entries(amounts).map(([level, amount]) => ({ level: Number(level), amountMinor: amount.toString(), currency: config?.feeCurrency ?? user.currency_code })),
   };
 }
 

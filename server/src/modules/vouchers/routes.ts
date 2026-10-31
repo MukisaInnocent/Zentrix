@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { PoolClient } from '../../db/pool.js';
 import { z } from 'zod';
 import { maybeOne, one, rows, type Db } from '../../db/sql.js';
-import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound, serviceUnavailable } from '../../lib/errors.js';
 import { parse } from '../../http/validate.js';
 import { randomCode } from '../../lib/crypto.js';
 import { toDecimalString } from '../../lib/money.js';
@@ -13,6 +13,7 @@ import { accountId, InsufficientFundsError, move, post, type Leg } from '../ledg
 import { notifyActivatedBy } from '../notifications/notify.js';
 import { exponentOf } from '../payments/common.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
+import { convert } from '../fx/service.js';
 import { distributeReferralRewards } from '../referrals/service.js';
 import { getSetting } from '../settings/registry.js';
 import { memberInfo, newReference, requireActive, requireConfig, spendLegs } from '../wallet/service.js';
@@ -23,9 +24,32 @@ import { memberInfo, newReference, requireActive, requireConfig, spendLegs } fro
 // and referral rewards are paid as for a confirmed activation payment. Full Phase 4 vouchers (expiry, encrypted
 // codes) are still to come. The value choices are multiples of the fee set by an admin (`voucher.value_multiples`).
 
-async function activationFee(db: Db, countryCode: string): Promise<bigint> {
-  return BigInt((await requireConfig(db, countryCode)).membershipFeeMinor);
+// What activating a member of `countryCode` costs in `payCurrency`. The fee may be in another currency (owner,
+// 2026-10-31: USD 10 outside the owner's table); then the price is the fee at the latest rate, rounded up so platform
+// revenue receives the whole fee.
+interface ActivationPrice { feeMinor: bigint; feeCurrency: string; priceMinor: bigint; currency: string; rate: string | null }
+
+async function activationPrice(db: Db, countryCode: string, payCurrency: string): Promise<ActivationPrice> {
+  const config = await requireConfig(db, countryCode);
+  const feeMinor = BigInt(config.membershipFeeMinor);
+  if (config.feeCurrency === payCurrency) return { feeMinor, feeCurrency: payCurrency, priceMinor: feeMinor, currency: payCurrency, rate: null };
+  const fx = await convert(db, feeMinor, config.feeCurrency, payCurrency, { roundUp: true });
+  if (!fx) throw serviceUnavailable('activation.no_rate', 'The activation price in your currency is not available yet. Please try again later.');
+  return { feeMinor, feeCurrency: config.feeCurrency, priceMinor: fx.amountMinor, currency: payCurrency, rate: fx.rate };
 }
+
+// Where the price goes, and the legs that bring the fee into platform revenue. A converted price goes into
+// fx_clearing in the payer's currency and the fee leaves fx_clearing in the fee's currency, as for converted rewards.
+async function feeDestination(db: Db, price: ActivationPrice): Promise<{ to: number; extra: Leg[] }> {
+  const revenue = await accountId(db, { kind: 'platform_revenue', currency: price.feeCurrency });
+  if (!price.rate) return { to: revenue, extra: [] };
+  return {
+    to: await accountId(db, { kind: 'fx_clearing', currency: price.currency }),
+    extra: move(await accountId(db, { kind: 'fx_clearing', currency: price.feeCurrency }), revenue, price.feeMinor),
+  };
+}
+
+const rateNote = (p: ActivationPrice) => (p.rate ? ` (${p.feeCurrency} fee converted at ${p.rate})` : '');
 
 interface ActivationTarget { id: number; username: string; currency: string; country: string }
 
@@ -43,15 +67,15 @@ async function activationTarget(db: PoolClient, username: string): Promise<Activ
 }
 
 // Posts the activation payment, opens the membership with a receipt and pays the referral rewards, exactly as
-// for a confirmed activation payment. `legs` must credit platform revenue with the fee.
+// for a confirmed activation payment. `legs` must credit platform revenue with the fee, in the fee's currency.
 async function openMembership(
-  db: PoolClient, target: ActivationTarget, fee: bigint, payment: { kind: string; memo: string; actorUserId: number; legs: Leg[] },
+  db: PoolClient, target: ActivationTarget, price: ActivationPrice, payment: { kind: string; memo: string; actorUserId: number; legs: Leg[] },
 ): Promise<string> {
   const receiptNo = newReference('MB');
   const txn = await post(db, { ...payment, refType: 'membership', refId: receiptNo });
   await db.query(
     'INSERT INTO memberships (user_id, receipt_no, fee_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5)',
-    [target.id, receiptNo, fee.toString(), target.currency, txn],
+    [target.id, receiptNo, price.feeMinor.toString(), price.feeCurrency, txn],
   );
   await distributeReferralRewards(db, target.id);
   return receiptNo;
@@ -64,7 +88,8 @@ export function vouchersRouter(services: Services): Router {
 
   router.get('/', async (req, res) => {
     const member = await memberInfo(pool, req.auth!.userId);
-    const fee = await activationFee(pool, member.countryCode);
+    // Without an exchange rate yet for a converted fee, the page shows no values to buy.
+    const fee = await activationPrice(pool, member.countryCode, member.currency).then(p => p.priceMinor, () => null);
     const exponent = await exponentOf(pool, member.currency);
     const list = await rows<{ code: string; amount_minor: string; currency_code: string; status: string; created_at: Date; used_by: string | null; used_at: Date | null }>(
       pool,
@@ -74,8 +99,8 @@ export function vouchersRouter(services: Services): Router {
     );
     res.json({
       currency: member.currency,
-      activationFeeMinor: fee.toString(),
-      valueOptions: (await getSetting(pool, 'voucher.value_multiples')).map(BigInt).map(m => ({ amount: toDecimalString(fee * m, exponent), amountMinor: (fee * m).toString() })),
+      activationFeeMinor: fee?.toString() ?? null,
+      valueOptions: fee === null ? [] : (await getSetting(pool, 'voucher.value_multiples')).map(BigInt).map(m => ({ amount: toDecimalString(fee * m, exponent), amountMinor: (fee * m).toString() })),
       vouchers: list.map(v => ({
         code: v.code, amountMinor: v.amount_minor, currency: v.currency_code, status: v.status === 'redeemed' ? 'used' : v.status,
         createdAt: v.created_at, usedBy: v.used_by, usedAt: v.used_at,
@@ -90,7 +115,7 @@ export function vouchersRouter(services: Services): Router {
       const member = await memberInfo(db, userId);
       requireActive(member);
       const each = await amountToMinor(db, member.currency, input.amount);
-      if (each < (await activationFee(db, member.countryCode))) {
+      if (each < (await activationPrice(db, member.countryCode, member.currency)).priceMinor) {
         throw badRequest('validation_failed', 'A voucher must be worth at least the activation fee.', { amount: ['Must be at least the activation fee.'] });
       }
       const liability = await accountId(db, { kind: 'voucher_liability', currency: member.currency });
@@ -135,16 +160,16 @@ export function vouchersRouter(services: Services): Router {
       if (voucher.status !== 'active') throw badRequest('voucher.already_used', 'This voucher has already been used or cancelled.');
       const target = await activationTarget(db, input.username);
       if (target.currency !== voucher.currency_code) throw conflict('voucher.currency', 'That member uses another currency, so this voucher cannot activate their account.');
-      const fee = await activationFee(db, target.country);
+      const price = await activationPrice(db, target.country, voucher.currency_code);
       const value = BigInt(voucher.amount_minor);
-      if (value < fee) throw badRequest('voucher.too_small', 'This voucher is worth less than the activation fee for that account.');
+      if (value < price.priceMinor) throw badRequest('voucher.too_small', 'This voucher is worth less than the activation fee for that account.');
 
       const liability = await accountId(db, { kind: 'voucher_liability', currency: voucher.currency_code });
-      const revenue = await accountId(db, { kind: 'platform_revenue', currency: voucher.currency_code });
-      const legs = move(liability, revenue, fee);
-      if (value > fee) legs.push(...move(liability, await accountId(db, { kind: 'member_deposit', userId: target.id, currency: voucher.currency_code }), value - fee));
-      const receiptNo = await openMembership(db, target, fee, {
-        kind: 'voucher_activation', memo: `Activation of @${target.username} with voucher ${voucher.code}`, actorUserId: userId, legs,
+      const { to, extra } = await feeDestination(db, price);
+      const legs = [...move(liability, to, price.priceMinor), ...extra];
+      if (value > price.priceMinor) legs.push(...move(liability, await accountId(db, { kind: 'member_deposit', userId: target.id, currency: voucher.currency_code }), value - price.priceMinor));
+      const receiptNo = await openMembership(db, target, price, {
+        kind: 'voucher_activation', memo: `Activation of @${target.username} with voucher ${voucher.code}${rateNote(price)}`, actorUserId: userId, legs,
       });
       await db.query(`UPDATE vouchers SET status = 'redeemed', redeemed_by_user_id = $1, redeemed_at = now() WHERE id = $2`, [target.id, voucher.id]);
       return { status: 200, body: { ok: true, username: target.username, code: voucher.code, receiptNo } };
@@ -251,17 +276,17 @@ export function clientPaymentsRouter(services: Services): Router {
       if (target.country !== payer.countryCode) {
         throw badRequest('validation_failed', 'You can only activate members in your own country.', { username: ['That member is in another country.'] });
       }
-      const fee = await activationFee(db, target.country);
-      const revenue = await accountId(db, { kind: 'platform_revenue', currency: payer.currency });
-      const legs = await spendLegs(db, userId, payer.currency, fee, revenue);
+      const price = await activationPrice(db, target.country, payer.currency);
+      const { to, extra } = await feeDestination(db, price);
+      const legs = [...await spendLegs(db, userId, payer.currency, price.priceMinor, to), ...extra];
       let receiptNo: string;
       try {
-        receiptNo = await openMembership(db, target, fee, { kind: 'client_activation', memo: `Activation of @${target.username} paid by @${payer.username}`, actorUserId: userId, legs });
+        receiptNo = await openMembership(db, target, price, { kind: 'client_activation', memo: `Activation of @${target.username} paid by @${payer.username}${rateNote(price)}`, actorUserId: userId, legs });
       } catch (err) {
         if (err instanceof InsufficientFundsError) throw badRequest('insufficient_funds', 'Your deposit and balance together are below the activation fee.');
         throw err;
       }
-      return { status: 201, body: { ok: true, username: target.username, receiptNo, feeMinor: fee.toString(), currency: payer.currency, payer: payer.username } };
+      return { status: 201, body: { ok: true, username: target.username, receiptNo, feeMinor: price.priceMinor.toString(), currency: payer.currency, payer: payer.username } };
     });
     if (!result.replayed) await notifyActivatedBy(services, String(result.body.username), `a payment from @${String(result.body.payer)}`);
     res.status(result.status).json(result.body);
