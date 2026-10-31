@@ -31,7 +31,7 @@ export const SETTING_DEFS = {
       level3: z.int().min(0).max(19_000),
     }).refine(t => t.level1 + t.level2 + t.level3 <= 19_000, { error: 'The three rewards together must not exceed the UGX 19,000 activation fee.' }),
     fallback: { level1: 10_000, level2: 5_000, level3: 2_000 },
-    description: 'Referral rewards in UGX for levels 1, 2 and 3, paid when the invited member activates. Other countries get the same share of their fee.',
+    description: 'Referral rewards in UGX for levels 1, 2 and 3, paid when the invited member activates. Countries without their own amounts (Countries and fees) get the same share of their fee.',
   },
   // Voucher value choices, as multiples of the buyer's activation fee (never below the fee).
   'voucher.value_multiples': {

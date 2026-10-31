@@ -200,7 +200,9 @@ describe('LivePay collections', () => {
 });
 
 describe('LivePay payouts', () => {
-  async function fundedMember(): Promise<{ referrer: Member; withdrawal: Body }> {
+  async function fund(): Promise<Member> {
+    // Each member takes three collections; start from an empty call log so the file stays within LivePay's budget.
+    await app.owner.query('DELETE FROM provider_calls');
     const referrer = await registerMember(app);
     for (let i = 0; i < 2; i++) {
       const invitee = await registerMember(app, { referralCode: referrer.input.username });
@@ -208,10 +210,88 @@ describe('LivePay payouts', () => {
     }
     expect((await collect(referrer)).body.deposit.status).toBe('confirmed');
     await app.owner.query('UPDATE users SET phone_verified_at = now() WHERE username = $1', [referrer.input.username]);
+    return referrer;
+  }
+
+  async function withdraw(referrer: Member): Promise<Body> {
     const w = await referrer.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key());
     expect(w.status, JSON.stringify(w.body)).toBe(201);
-    return { referrer, withdrawal: w.body.withdrawal };
+    return w.body.withdrawal as Body;
   }
+
+  async function fundedMember(): Promise<{ referrer: Member; withdrawal: Body }> {
+    const referrer = await fund();
+    return { referrer, withdrawal: await withdraw(referrer) };
+  }
+
+  // Runs `fn` with Uganda's approval amount or new-account review days changed, then puts them back. Accounts in
+  // these tests are minutes old, so review days 0 stands for an established account.
+  async function withUganda<T>(change: { threshold?: string; reviewDays?: number }, fn: () => Promise<T>): Promise<T> {
+    const admin = await loginStaff(app, await createStaff(app, ['admin']));
+    const cfg = (await admin.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
+    const edit = (threshold: string, reviewDays: number, note: string) => ({
+      membershipFee: '19000', withdrawalMin: '15000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: 50,
+      withdrawalFeeMin: '0', withdrawalApprovalThreshold: threshold, newAccountReviewDays: reviewDays, vatBp: 0, kycLevelForWithdrawal: 0,
+      engagementTasksEnabled: true, termsVersion: cfg.termsVersion, privacyVersion: cfg.privacyVersion, isPlaceholder: cfg.isPlaceholder, note,
+    });
+    const original = String(BigInt(cfg.withdrawalApprovalThresholdMinor));
+    const changed = await admin.post<Body>('/api/admin/countries/UG/config', edit(change.threshold ?? original, change.reviewDays ?? cfg.newAccountReviewDays, 'Test change'));
+    expect(changed.status, JSON.stringify(changed.body)).toBe(201);
+    try {
+      return await fn();
+    } finally {
+      expect((await admin.post<Body>('/api/admin/countries/UG/config', edit(original, cfg.newAccountReviewDays, 'Test change undone'))).status).toBe(201);
+    }
+  }
+
+  const approver = async (reference: string) => (await app.owner.query(
+    'SELECT u.username FROM withdrawals w JOIN users u ON u.id = w.approved_by WHERE w.reference = $1', [reference],
+  )).rows[0]?.username as string | undefined;
+
+  it('Uganda: pays a withdrawal below UGX 200,000 automatically through LivePay (owner, 2026-10-31)', async () => {
+    const { referrer, withdrawal } = await withUganda({ reviewDays: 0 }, fundedMember);
+    expect(withdrawal).toMatchObject({ status: 'paid', payoutMethod: 'api', needsAdminApproval: false, channel: { code: 'livepay_ug' } });
+    expect(withdrawal.payoutTxnId).toMatch(/^SIM-/);
+    expect(await approver(withdrawal.reference)).toBe('zx_livepay');
+    const s = (await referrer.client.get<Body>('/api/wallet/summary')).body;
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3425', '0', '15000']);
+    await new Promise(r => setTimeout(r, 300));
+    expect((await app.outbox(referrer.input.email)).map(m => m.subject)).toEqual(expect.arrayContaining([expect.stringMatching(/paid/i)]));
+    expect(await drift()).toBe(0);
+  });
+
+  it('Uganda: from the approval amount, and for new accounts, the withdrawal waits for an admin', async () => {
+    // A new account: nothing is sent.
+    const fresh = await fundedMember();
+    expect(fresh.withdrawal).toMatchObject({ status: 'requested', needsAdminApproval: true });
+
+    // An established account at or above the approval amount (lowered here to UGX 15,000 to keep the test small).
+    const large = await withUganda({ reviewDays: 0, threshold: '15000' }, fundedMember);
+    expect(large.withdrawal).toMatchObject({ status: 'requested', needsAdminApproval: true });
+  });
+
+  it('Uganda: with LivePay off the withdrawal stays for staff; a payout LivePay has not finished stays processing', async () => {
+    const off = await fund();
+    const member = await fund();
+    const gateway = new HandGateway();
+    const [waiting, pending] = await withUganda({ reviewDays: 0 }, async () => {
+      const saved = app.services.payments;
+      app.services.payments = null;
+      try {
+        return [await withdraw(off), await withGateway(gateway, () => withdraw(member))];
+      } finally {
+        app.services.payments = saved;
+      }
+    });
+    expect(waiting).toMatchObject({ status: 'requested', needsAdminApproval: false });
+    expect(pending).toMatchObject({ status: 'processing', payoutMethod: 'api' });
+    expect(gateway.sent.filter(c => c.op === 'payout').map(c => c.reference)).toEqual([pending.reference]);
+    // LivePay later reports it paid.
+    gateway.status = { status: 'succeeded', rawStatus: 'Success', amount: '15000', currency: 'UGX', providerTxnId: 'MP55667788' };
+    await withGateway(gateway, () => checkRequest(app.services, pending.reference as string));
+    expect((await member.client.get<Body>('/api/payments/withdrawals')).body.withdrawals[0]).toMatchObject({ status: 'paid', payoutTxnId: 'MP55667788' });
+    expect(await drift()).toBe(0);
+  });
 
   it('pays an approved withdrawal through LivePay, with the two-person rule', async () => {
     const { referrer, withdrawal } = await fundedMember();

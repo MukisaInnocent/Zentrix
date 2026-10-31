@@ -61,6 +61,13 @@ function configForm(code, cfg, exp, onSaved) {
     h('div', { class: 'zx-form-row zx-form-row--2' },
       field('membershipFee', 'Activation fee', dec(cfg?.membershipFeeMinor), { inputmode: 'decimal' }),
       field('withdrawalApprovalThreshold', 'Admin approval from', dec(cfg?.withdrawalApprovalThresholdMinor), { inputmode: 'decimal', hint: 'Withdrawals from this amount need an admin.' })),
+    h('p', { class: 'zx-hint' }, 'Referral rewards paid when a member here activates, in this currency. Leave all three empty to use the Uganda amounts in Settings, scaled to this fee. Together they cannot exceed the activation fee.'),
+    h('div', { class: 'zx-form-row zx-form-row--3' },
+      field('referralLevel1', 'Level 1 reward', dec(cfg?.referralLevelsMinor?.[0]), { inputmode: 'decimal' }),
+      field('referralLevel2', 'Level 2 reward', dec(cfg?.referralLevelsMinor?.[1]), { inputmode: 'decimal' }),
+      field('referralLevel3', 'Level 3 reward', dec(cfg?.referralLevelsMinor?.[2]), { inputmode: 'decimal' })),
+    field('autoPayout', 'Pay withdrawals below the admin approval amount automatically through LivePay', cfg?.autoPayout ?? false, { type: 'checkbox' }),
+    h('p', { class: 'zx-hint' }, 'Needs a LivePay payout method for this country. Withdrawals from the approval amount, and from accounts newer than the review days, still wait for an admin.'),
     h('div', { class: 'zx-form-row zx-form-row--2' },
       field('withdrawalMin', 'Minimum withdrawal', dec(cfg?.withdrawalMinMinor), { inputmode: 'decimal' }),
       field('withdrawalMax', 'Maximum per withdrawal', dec(cfg?.withdrawalMaxMinor), { inputmode: 'decimal' })),
@@ -84,12 +91,18 @@ function configForm(code, cfg, exp, onSaved) {
     e.preventDefault();
     alert.hidden = true;
     const v = name => form.elements.namedItem(name);
+    const levels = ['referralLevel1', 'referralLevel2', 'referralLevel3'].map(n => v(n).value.trim());
+    if (levels.some(Boolean) && !levels.every(Boolean)) {
+      showError(alert, new ApiError(400, 'validation_failed', 'Fill in all three referral rewards, or leave all three empty.'));
+      return;
+    }
     const body = {
       membershipFee: v('membershipFee').value.trim(), withdrawalMin: v('withdrawalMin').value.trim(), withdrawalMax: v('withdrawalMax').value.trim(),
       withdrawalDailyMax: v('withdrawalDailyMax').value.trim(), withdrawalFeeBp: Number(v('withdrawalFeeBp').value), withdrawalFeeMin: v('withdrawalFeeMin').value.trim() || '0',
       withdrawalApprovalThreshold: v('withdrawalApprovalThreshold').value.trim(), newAccountReviewDays: Number(v('newAccountReviewDays').value),
       vatBp: Number(v('vatBp').value), kycLevelForWithdrawal: Number(v('kycLevelForWithdrawal').value), engagementTasksEnabled: v('engagementTasksEnabled').checked,
       termsVersion: v('termsVersion').value.trim(), privacyVersion: v('privacyVersion').value.trim(), isPlaceholder: v('isPlaceholder').checked,
+      referralLevels: levels.every(Boolean) ? levels : null, autoPayout: v('autoPayout').checked,
       ...(v('note').value.trim() ? { note: v('note').value.trim() } : {}),
     };
     const btn = form.querySelector('button[type=submit]');
@@ -198,10 +211,13 @@ async function openCountry(code) {
         h('a', { class: 'zx-btn zx-btn--secondary zx-btn--sm zx-btn--fit', href: `/admin/payment-methods.html?country=${country.code}` }, 'Manage payment methods')),
       panel('Switches', flagsForm(country, reload)),
       panel('History', configHistory.length ? h('div', { class: 'zx-table-wrap' }, h('table', { class: 'zx-table' },
-        h('thead', {}, h('tr', {}, ['Version', 'Saved', 'Activation fee', 'Minimum', 'Maximum', 'Daily maximum', 'Tax', 'Note'].map(t => h('th', { scope: 'col' }, t)))),
+        h('thead', {}, h('tr', {}, ['Version', 'Saved', 'Activation fee', 'Referral rewards', 'Automatic payouts', 'Minimum', 'Maximum', 'Daily maximum', 'Tax', 'Note'].map(t => h('th', { scope: 'col' }, t)))),
         h('tbody', {}, configHistory.map(c => h('tr', {},
           h('td', {}, String(c.version)), h('td', { class: 'zx-td-muted' }, when(c.createdAt)),
-          h('td', {}, money(c.membershipFeeMinor, c.currencyCode)), h('td', {}, money(c.withdrawalMinMinor, c.currencyCode)),
+          h('td', {}, money(c.membershipFeeMinor, c.currencyCode)),
+          h('td', {}, c.referralLevelsMinor ? c.referralLevelsMinor.map(m => money(m, c.currencyCode)).join(' / ') : 'Uganda amounts, scaled'),
+          h('td', {}, c.autoPayout ? 'On' : 'Off'),
+          h('td', {}, money(c.withdrawalMinMinor, c.currencyCode)),
           h('td', {}, money(c.withdrawalMaxMinor, c.currencyCode)), h('td', {}, money(c.withdrawalDailyMaxMinor, c.currencyCode)),
           h('td', {}, pct(c.withdrawalFeeBp)), h('td', { class: 'zx-td-muted' }, c.note ?? '')))))) : h('p', { class: 'zx-hint' }, 'No versions yet.')),
     );

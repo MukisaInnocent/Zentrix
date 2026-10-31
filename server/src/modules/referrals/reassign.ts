@@ -3,7 +3,7 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, conflict } from '../../lib/errors.js';
 import { currentCountryConfig } from '../countries/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post, type Leg } from '../ledger/ledger.js';
-import { MAX_REFERRAL_LEVEL, payReferralReward, referralTiersUgx, UGANDA_FEE_UGX } from './service.js';
+import { MAX_REFERRAL_LEVEL, payReferralReward, rewardAmounts } from './service.js';
 
 // An admin changes who invited a member (owner, 2026-10-26), and the referral rewards follow the new line:
 // for the member and everyone up to two levels below them (whose level 2 and 3 rewards pass through the old
@@ -87,7 +87,6 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
      ORDER BY sub.depth, u.id`,
     [rootId],
   );
-  const tiers = await referralTiersUgx(db);
   const moved: MovedReward[] = [];
   for (const m of affected) {
     const memberId = Number(m.id);
@@ -101,7 +100,7 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
       [memberId],
     );
     const config = await currentCountryConfig(db, m.country_code);
-    const fee = config ? BigInt(config.membershipFeeMinor) : 0n;
+    const amounts: Record<number, bigint> = config ? await rewardAmounts(db, config) : {};
     for (let level = 1; level <= MAX_REFERRAL_LEVEL; level++) {
       const due = chain[level - 1];
       const eligible = Boolean(due?.active);
@@ -110,7 +109,7 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
       // The reward in this member's currency: what was paid (before any conversion), or the tier amount.
       const amount = current
         ? BigInt(current.source_amount_minor ?? current.amount_minor!)
-        : ((tiers[level] ?? 0n) * fee) / UGANDA_FEE_UGX;
+        : (amounts[level] ?? 0n);
       if (amount <= 0n || (!current && !eligible)) continue;
       const refId = `REF-L${level}-${memberId}`;
       let owed = 0n;

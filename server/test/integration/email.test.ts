@@ -98,7 +98,7 @@ describe('sending', () => {
     const keenMails = await rewardMails(keen.input.email);
     expect(keenMails).toHaveLength(1);
     expect(keenMails[0]!.subject).toBe('Pexerearn: you earned UGX 10,000');
-    expect(keenMails[0]!.body).toContain(`@${a.input.username} activated their account`);
+    expect(keenMails[0]!.body).toContain(`@${a.input.username} (Uganda) activated their account. Your level 1 referral reward is UGX 10,000.`);
     expect(await rewardMails(quiet.input.email)).toEqual([]);
   });
 });

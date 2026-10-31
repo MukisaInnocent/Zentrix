@@ -95,6 +95,50 @@ describe('countries and vouchers', () => {
     expect([quote.body.quote.limits.minMinor, quote.body.quote.taxMinor]).toEqual(['20000', '200']);
   });
 
+  it('holds each country\'s own fee and referral amounts (owner, 2026-10-31), editable within the fee', async () => {
+    const ke = (await finance.get<Body>('/api/admin/countries/KE')).body.configHistory[0];
+    expect(ke).toMatchObject({ membershipFeeMinor: '55000', withdrawalMinMinor: '70000', withdrawalMaxMinor: '1500000', withdrawalFeeBp: 50, autoPayout: false });
+    expect(ke.referralLevelsMinor).toEqual(['30000', '15000', '5000']);
+    const ug = (await finance.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
+    expect([ug.referralLevelsMinor, ug.autoPayout]).toEqual([null, true]);
+    const charges = (await finance.get<Body>('/api/admin/withdrawal-charges/KES')).body.bands;
+    expect(charges.map((b: Body) => [b.upToMinor, b.chargeMinor])).toEqual([['120000', '11000'], ['220000', '16000'], ['380000', '18000'], ['800000', '20000'], ['1500000', '30000']]);
+
+    const edit = {
+      membershipFee: '550', withdrawalMin: '700', withdrawalMax: '15000', withdrawalDailyMax: '70000', withdrawalFeeBp: 50,
+      withdrawalFeeMin: '0', withdrawalApprovalThreshold: '7000', newAccountReviewDays: 14, vatBp: 0, kycLevelForWithdrawal: 0,
+      engagementTasksEnabled: true, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true,
+    };
+    const tooMuch = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, referralLevels: ['300', '200', '100'] });
+    expect(tooMuch.body.error?.fields?.referralLevels?.[0]).toContain('activation fee');
+    const saved = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, referralLevels: ['250', '150', '50'], note: 'Lower level 1' });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(201);
+    expect(saved.body.config.referralLevelsMinor).toEqual(['25000', '15000', '5000']);
+    // Leaving the fields out keeps them; null goes back to the scaled Uganda setting.
+    const kept = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, note: 'Other change' });
+    expect([kept.body.config.referralLevelsMinor, kept.body.config.autoPayout]).toEqual([['25000', '15000', '5000'], false]);
+    const cleared = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, referralLevels: null, note: 'Back to the default' });
+    expect(cleared.body.config.referralLevelsMinor).toBeNull();
+  });
+
+  it('pays a country\'s own referral amounts when an admin sets them', async () => {
+    const current = (await finance.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
+    const edit = {
+      membershipFee: '19000', withdrawalMin: '15000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: 50,
+      withdrawalFeeMin: '0', withdrawalApprovalThreshold: '200000', newAccountReviewDays: current.newAccountReviewDays, vatBp: 0, kycLevelForWithdrawal: 0,
+      engagementTasksEnabled: true, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true,
+    };
+    expect((await admin.post<Body>('/api/admin/countries/UG/config', { ...edit, referralLevels: ['9000', '4000', '1000'], note: 'Own amounts' })).status).toBe(201);
+    try {
+      const inviter = await member();
+      await member({ referralCode: inviter.input.username });
+      expect((await inviter.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('9000');
+      expect((await inviter.client.get<Body>('/api/referrals')).body.tierAmounts.map((t: Body) => t.amountMinor)).toEqual(['9000', '4000', '1000']);
+    } finally {
+      expect((await admin.post<Body>('/api/admin/countries/UG/config', { ...edit, referralLevels: null, note: 'Back to the setting' })).status).toBe(201);
+    }
+  });
+
   it('lists every voucher for staff with its buyer and the account it activated', async () => {
     const vouchers = await finance.get<Body>('/api/admin/vouchers');
     expect(vouchers.status).toBe(200);

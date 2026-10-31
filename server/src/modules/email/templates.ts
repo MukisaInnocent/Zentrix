@@ -40,6 +40,28 @@ const MONEY = { amount: { about: 'The amount with its currency', sample: 'UGX 19
 const REASON = { reason: { about: 'The reason staff gave (paragraph left out without one)', sample: 'The transaction ID was not found on our statement.' } };
 const NEXT_STEPS = 'Here is what you can do now:\n- Invite people with your username as the referral code; see Referrals for your link.\n- Use Pay For Client or vouchers to help someone else activate.\n- See your balance and history on the dashboard.';
 
+// The referral reward email, one per level so admins word each level on its own (owner, 2026-10-31). {amount} is
+// the reward in the invited member's currency (a Kenyan's activation pays a Ugandan inviter "KES 300"); {credited}
+// is what reached the inviter's balance in their own currency, only when it was converted.
+function rewardTemplate(level: 1 | 2 | 3, who: string, sample: string): TemplateDef {
+  return {
+    title: `Referral reward earned: level ${level}`, group: 'Activation and referrals',
+    when: `To the level ${level} inviter (${who}) when the invited member activates. Members can turn it off.`, category: 'referral',
+    vars: {
+      ...USER, member: { about: 'Username of the member who activated', sample: 'peter' }, country: { about: "The activated member's country", sample: 'Kenya' },
+      amount: { about: "The reward in the activated member's currency", sample },
+      credited: { about: 'What reached the balance in your currency, only when converted (paragraph left out otherwise)', sample: 'UGX 8,604' },
+      level: { about: 'The referral level', sample: String(level) },
+    },
+    button: true,
+    defaults: {
+      subject: 'Pexerearn: you earned {amount}', heading: `You earned a level ${level} referral reward`,
+      body: 'Hello @{username},\n\n@{member} ({country}) activated their account. Your level {level} referral reward is {amount}.\n\nIt was added to your balance as {credited}, converted into your currency at the latest exchange rate.',
+      buttonLabel: 'See your referrals',
+    },
+  };
+}
+
 export const TEMPLATES = {
   email_verification: {
     title: 'Confirm email address', group: 'Sign-up and security', when: 'Right after sign-up, and when a member asks for a new link.', category: 'security',
@@ -111,16 +133,9 @@ export const TEMPLATES = {
     vars: { ...USER, member: { about: 'Username of the new member', sample: 'peter' }, country: { about: "The new member's country", sample: 'Uganda' } }, button: true,
     defaults: { subject: 'Pexerearn: @{member} joined with your link', heading: 'Someone joined with your link', body: 'Hello @{username},\n\n@{member} ({country}) just created a Pexerearn account with your username as the referral code.\n\nYour referral reward is paid when they activate their account, and we will email you then.', buttonLabel: 'See your referrals' },
   },
-  referral_reward: {
-    title: 'Referral reward earned', group: 'Activation and referrals', when: 'To each inviter (levels 1 to 3) when an invited member activates. Members can turn it off.', category: 'referral',
-    vars: {
-      ...USER, member: { about: 'Username of the member who activated', sample: 'peter' }, amount: { about: 'The reward with its currency', sample: 'UGX 10,000' },
-      level: { about: 'The referral level (1 to 3)', sample: '1' },
-      conversion: { about: 'A sentence about the currency conversion, only for members in another country', sample: '@peter paid in KES, so the reward of KES 348.83 was converted into your currency at the latest exchange rate.' },
-    },
-    button: true,
-    defaults: { subject: 'Pexerearn: you earned {amount}', heading: 'You earned a referral reward', body: 'Hello @{username},\n\n@{member} activated their account, and {amount} (level {level}) was added to your balance.\n\n{conversion}', buttonLabel: 'See your referrals' },
-  },
+  referral_reward_level_one: rewardTemplate(1, 'invited directly', 'KES 300.00'),
+  referral_reward_level_two: rewardTemplate(2, 'invited by someone you invited', 'KES 150.00'),
+  referral_reward_level_three: rewardTemplate(3, 'two steps below you', 'KES 50.00'),
   payment_wallet_deposit_submitted: {
     title: 'Deposit received', group: 'Payments', when: 'When an activated member submits a deposit.', category: 'payment',
     vars: { ...USER, ...MONEY }, button: false,

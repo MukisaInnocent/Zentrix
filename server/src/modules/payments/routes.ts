@@ -11,11 +11,11 @@ import { BALANCE_SOURCES, getWalletSummary, memberInfo, requireConfig } from '..
 import { exponentOf, flagActive, listChannels, publicChannel } from './common.js';
 import { cancelDeposit, DEPOSIT_SELECT, depositView, listMemberDeposits, submitDeposit, type DepositRow } from './deposits.js';
 import { addMessage, findIssue, ISSUE_CATEGORIES, ISSUE_SELECT, issueView, messagesOf, openIssue, type IssueRow } from './issues.js';
-import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal } from './withdrawals.js';
+import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdrawal, requestWithdrawal, WITHDRAWAL_SELECT, withdrawalView, type WithdrawalRow } from './withdrawals.js';
 import { maybeOne, rows } from '../../db/sql.js';
 import { notifyPayment, notifyStaffOfPayment } from '../notifications/notify.js';
 import { autoConfirmDeposit, autoPayWithdrawal, autopilotEnabled, ensureTestChannel } from './autopilot.js';
-import { sendCommand, startCollection } from './provider.js';
+import { autoPayout, sendCommand, startCollection } from './provider.js';
 import type { ProviderCommand } from '../../providers/livepay.js';
 
 const HOUR = 3_600_000;
@@ -193,18 +193,23 @@ export function paymentsRouter(services: Services): Router {
       const { withdrawal, quote } = await requestWithdrawal(db, req.auth!.userId, { source: input.source, amountMinor }, { skipPhoneCheck: autopilotEnabled(services) });
       return { status: 201, body: { withdrawal, quote } };
     });
-    if (!result.replayed) {
-      const withdrawal = result.body.withdrawal as { id: string; reference: string; currency: string };
-      await notifyPayment(services, 'withdrawal_requested', withdrawal.reference);
-      if (await autoPayWithdrawal(services, withdrawal.id, withdrawal.currency)) await notifyPayment(services, 'withdrawal_paid', withdrawal.reference, 'test mode');
-      else {
-        // Test auto-approve may have approved it and then found no channel holding enough: staff finish it.
-        const now = await maybeOne<{ status: string }>(pool, 'SELECT status FROM withdrawals WHERE public_id = $1', [withdrawal.id]);
-        if (now && now.status !== 'requested') await notifyPayment(services, 'withdrawal_approved', withdrawal.reference);
-        await notifyStaffOfPayment(services, 'withdrawal', withdrawal.reference);
-      }
+    if (result.replayed) return void res.status(result.status).json(result.body);
+    const withdrawal = result.body.withdrawal as { id: string; reference: string; currency: string };
+    await notifyPayment(services, 'withdrawal_requested', withdrawal.reference);
+    if (await autoPayWithdrawal(services, withdrawal.id, withdrawal.currency)) await notifyPayment(services, 'withdrawal_paid', withdrawal.reference, 'test mode');
+    else if (await autoPayout(services, withdrawal.id)) {
+      // Sent through LivePay without staff. A result that came straight back already emailed the member.
+      const now = await maybeOne<{ status: string }>(pool, 'SELECT status FROM withdrawals WHERE public_id = $1', [withdrawal.id]);
+      if (now?.status === 'processing') await notifyPayment(services, 'withdrawal_approved', withdrawal.reference);
+    } else {
+      // Test auto-approve may have approved it and then found no channel holding enough: staff finish it.
+      const now = await maybeOne<{ status: string }>(pool, 'SELECT status FROM withdrawals WHERE public_id = $1', [withdrawal.id]);
+      if (now && now.status !== 'requested') await notifyPayment(services, 'withdrawal_approved', withdrawal.reference);
+      await notifyStaffOfPayment(services, 'withdrawal', withdrawal.reference);
     }
-    res.status(result.status).json(result.body);
+    // The member sees where the request stands now (approved, sent or paid), not only that it was received.
+    const latest = await maybeOne<WithdrawalRow>(pool, `${WITHDRAWAL_SELECT} WHERE w.public_id = $1`, [withdrawal.id]);
+    res.status(result.status).json(latest ? { ...result.body, withdrawal: withdrawalView(latest) } : result.body);
   });
 
   router.post('/withdrawals/:id/cancel', async (req, res) => {

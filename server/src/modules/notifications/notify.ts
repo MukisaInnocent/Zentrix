@@ -147,32 +147,39 @@ export async function notifyReferralSignup(services: Services, userId: number): 
   }
 }
 
+const REWARD_KIND: Record<number, TemplateKind> = { 1: 'referral_reward_level_one', 2: 'referral_reward_level_two', 3: 'referral_reward_level_three' };
+
 // Emails each referrer about referral rewards credited in the last 14 days that have no email yet: after an
 // activation, and after the exchange-rate job pays rewards that waited for a rate. Each reward is emailed once
 // (email_messages kind + ref); members can turn these off.
 export async function notifyReferralRewards(services: Services): Promise<number> {
   const due = await rows<{
-    id: string; referrer_id: string; email: string | null; username: string; member: string; level: number;
+    id: string; referrer_id: string; email: string | null; username: string; member: string; country: string; level: number;
     amount_minor: string; currency_code: string; source_amount_minor: string | null; source_currency_code: string | null;
   }>(
     services.pool,
-    `SELECT r.id, r.referrer_user_id AS referrer_id, u.email, u.username, m.username AS member, r.level, r.amount_minor::text,
+    // 'referral_reward' is the single kind used before the per-level emails; those rewards were already emailed.
+    `SELECT r.id, r.referrer_user_id AS referrer_id, u.email, u.username, m.username AS member, c.name AS country, r.level, r.amount_minor::text,
             r.currency_code, r.source_amount_minor::text, r.source_currency_code
-     FROM referral_rewards r JOIN users u ON u.id = r.referrer_user_id JOIN users m ON m.id = r.referred_user_id
+     FROM referral_rewards r JOIN users u ON u.id = r.referrer_user_id JOIN users m ON m.id = r.referred_user_id JOIN countries c ON c.code = m.country_code
      WHERE r.status = 'credited' AND r.created_at > now() - interval '14 days' AND u.email IS NOT NULL
-       AND NOT EXISTS (SELECT 1 FROM email_messages e WHERE e.kind = 'referral_reward' AND e.ref = 'reward:' || r.id)
+       AND NOT EXISTS (SELECT 1 FROM email_messages e WHERE e.kind LIKE 'referral\\_reward%' AND e.ref = 'reward:' || r.id)
      ORDER BY r.id LIMIT 200`,
     [],
   );
   let sent = 0;
   for (const r of due) {
-    const money = await formatAmount(services, r.currency_code, r.amount_minor);
-    const conversion = r.source_amount_minor && r.source_currency_code && r.source_currency_code !== r.currency_code
-      ? `@${r.member} paid in ${r.source_currency_code}, so the reward of ${await formatAmount(services, r.source_currency_code, r.source_amount_minor)} was converted into your currency at the latest exchange rate.`
-      : null;
+    const kind = REWARD_KIND[r.level];
+    if (!kind) continue;
+    // The reward in the activated member's currency; when it was converted, also what reached the balance.
+    const converted = r.source_amount_minor !== null && r.source_currency_code !== null && r.source_currency_code !== r.currency_code;
+    const amount = converted
+      ? await formatAmount(services, r.source_currency_code!, r.source_amount_minor!)
+      : await formatAmount(services, r.currency_code, r.amount_minor);
+    const credited = converted ? await formatAmount(services, r.currency_code, r.amount_minor) : null;
     const outcome = await sendTemplated(services, {
-      kind: 'referral_reward', to: r.email!, userId: Number(r.referrer_id), ref: `reward:${r.id}`,
-      values: { username: r.username, member: r.member, amount: money, level: String(r.level), conversion },
+      kind, to: r.email!, userId: Number(r.referrer_id), ref: `reward:${r.id}`,
+      values: { username: r.username, member: r.member, country: r.country, amount, credited, level: String(r.level) },
       buttonUrl: `${services.config.publicOrigin}/referrals.html?level=${r.level}&view=overview`,
     });
     if (outcome === 'queued' || outcome === 'sent') sent++;

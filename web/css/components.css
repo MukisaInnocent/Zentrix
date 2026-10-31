@@ -56,7 +56,7 @@
 .zx-check { display: flex; align-items: flex-start; gap: var(--zx-space-3); font-size: .9rem; }
 .zx-check input { inline-size: 20px; block-size: 20px; margin-block-start: 1px; accent-color: var(--zx-brand); flex: none; }
 .zx-form-row { display: grid; gap: var(--zx-space-4); }
-@media (min-width: 640px) { .zx-form-row--2 { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 640px) { .zx-form-row--2 { grid-template-columns: 1fr 1fr; } .zx-form-row--3 { grid-template-columns: 1fr 1fr 1fr; } }
 .zx-code-input { letter-spacing: .4em; font-size: 1.3rem; text-align: center; font-variant-numeric: tabular-nums; }
 .zx-chips { display: flex; flex-wrap: wrap; gap: var(--zx-space-2); }
 .zx-chip { padding: 6px 14px; border: 1px solid var(--zx-border); border-radius: var(--zx-radius-pill); background: var(--zx-surface); color: var(--zx-brand); font-weight: 700; font-size: .8125rem; transition: all .15s; }

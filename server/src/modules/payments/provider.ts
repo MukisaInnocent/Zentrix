@@ -9,6 +9,7 @@ import { toDecimalString } from '../../lib/money.js';
 import { providerAmountToMinor, scalar, verifyLivePaySignature, type ProviderCommand, type ProviderOutcome } from '../../providers/livepay.js';
 import type { Services } from '../../services.js';
 import type { Role } from '../auth/context.js';
+import { currentCountryConfig } from '../countries/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
 import { moneyTx } from '../ledger/idempotency.js';
 import { notifyPayment, type PaymentEvent } from '../notifications/notify.js';
@@ -157,6 +158,45 @@ export async function startPayout(
   await recordCall(db, g.provider, 'payout', request.reference);
   const after = withdrawalView(await one<WithdrawalRow>(db, `${WITHDRAWAL_SELECT} WHERE w.id = $1`, [w.id]));
   return { withdrawal: after, command: await commandFor(db, request, g.provider), before };
+}
+
+// Automatic payout (owner, 2026-10-31: Uganda). A withdrawal below the country's approval threshold, from an
+// account past its review days (needs_two_people false), in a country with auto_payout on, is approved and sent
+// through LivePay by zx_livepay right after the request, through the same steps staff use. Anything that stops it
+// (LivePay off or busy, no LivePay method, the ledger short on the LivePay account, withdrawals paused) leaves the
+// whole request untouched for staff. Returns whether a payout was sent.
+export async function autoPayout(services: Services, publicId: string): Promise<boolean> {
+  if (!services.payments) return false;
+  let command: ProviderCommand | null;
+  try {
+    command = await moneyTx(services.pool, async db => {
+      const w = await maybeOne<{ status: string; needs_two_people: boolean; country_code: string }>(
+        db,
+        `SELECT w.status, w.needs_two_people, u.country_code FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.public_id = $1 FOR UPDATE OF w`,
+        [publicId],
+      );
+      if (!w || w.status !== 'requested' || w.needs_two_people) return null;
+      const config = await currentCountryConfig(db, w.country_code);
+      if (!config?.autoPayout) return null;
+      const actor = await systemUser(db, services, PROVIDER_ACTOR);
+      const note = 'Below the approval amount: paid automatically through LivePay';
+      await staffWithdrawalAction(db, publicId, { action: 'approve', staffId: actor, roles: ['finance'], note });
+      return (await startPayout(db, services, publicId, { id: actor, roles: ['finance'], note })).command;
+    });
+  } catch (err) {
+    // The withdrawal request itself is already saved; whatever stopped the payout, staff finish it.
+    if (err instanceof AppError) services.logger.warn({ withdrawalId: publicId, code: err.code }, 'automatic payout not sent; left for staff');
+    else services.logger.error({ err, withdrawalId: publicId }, 'automatic payout failed; left for staff');
+    return false;
+  }
+  if (!command) return false;
+  try {
+    await sendCommand(services, command);
+  } catch (err) {
+    // The polling job reads its status; nothing is lost.
+    services.logger.error({ err, reference: command.reference }, 'automatic payout could not be sent now');
+  }
+  return true;
 }
 
 // Staff or the polling job: ask the provider for the latest status of a request.

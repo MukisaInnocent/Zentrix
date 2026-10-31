@@ -33,6 +33,10 @@ const ConfigBody = z.strictObject({
   termsVersion: z.string().trim().min(1).max(40),
   privacyVersion: z.string().trim().min(1).max(40),
   isPlaceholder: z.boolean(),
+  // Levels 1 to 3 in this currency; null goes back to the UGX setting scaled by the fee. Left out = unchanged.
+  referralLevels: z.tuple([Amount, Amount, Amount]).nullable().optional(),
+  // Left out = unchanged.
+  autoPayout: z.boolean().optional(),
   note: z.string().trim().max(500).optional(),
 });
 const FlagsBody = z.strictObject({
@@ -117,20 +121,38 @@ export function systemRouter(services: Services): Router {
     if (amounts.membershipFee <= 0n || amounts.withdrawalMin <= 0n || amounts.withdrawalApprovalThreshold <= 0n) {
       throw badRequest('validation_failed', 'Fee, minimum and approval threshold must be above zero.', { membershipFee: ['Must be above zero.'] });
     }
+    let levels: bigint[] | null | undefined = body.referralLevels === null ? null : undefined;
+    if (body.referralLevels) {
+      try {
+        levels = body.referralLevels.map(v => toMinor(v, exponent));
+      } catch (err) {
+        if (err instanceof MoneyFormatError) throw badRequest('validation_failed', err.message, { referralLevels: [err.message] });
+        throw err;
+      }
+    }
     const saved = await withTransaction(pool, async db => {
       const before = await currentCountryConfig(db, country.code);
+      const kept = levels === undefined ? (before?.referralLevelsMinor?.map(v => BigInt(v)) ?? null) : levels;
+      // A reward is paid from the activation it comes from, so the three together stay within the fee.
+      if (kept && kept.reduce((a, b) => a + b, 0n) > amounts.membershipFee) {
+        const message = 'The three referral rewards together must not exceed the activation fee.';
+        throw badRequest('validation_failed', message, { referralLevels: [message] });
+      }
+      const autoPayout = body.autoPayout ?? before?.autoPayout ?? false;
       const row = await one<{ version: number }>(
         db,
         `INSERT INTO country_configs (country_code, version, currency_code, membership_fee_minor, withdrawal_min_minor, withdrawal_max_minor,
            withdrawal_daily_max_minor, withdrawal_fee_bp, withdrawal_fee_min_minor,
            withdrawal_approval_threshold_minor, new_account_review_days, vat_bp, kyc_level_for_withdrawal, engagement_tasks_enabled,
-           terms_version, privacy_version, is_placeholder, note, created_by)
-         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+           terms_version, privacy_version, is_placeholder, note, created_by,
+           referral_level1_minor, referral_level2_minor, referral_level3_minor, auto_payout)
+         SELECT $1, coalesce(max(version), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
          FROM country_configs WHERE country_code = $1 RETURNING version`,
         [country.code, country.currencyCode, amounts.membershipFee, amounts.withdrawalMin, amounts.withdrawalMax,
           amounts.withdrawalDailyMax, body.withdrawalFeeBp, amounts.withdrawalFeeMin,
           amounts.withdrawalApprovalThreshold, body.newAccountReviewDays, body.vatBp, body.kycLevelForWithdrawal,
-          body.engagementTasksEnabled, body.termsVersion, body.privacyVersion, body.isPlaceholder, body.note ?? null, req.auth!.userId],
+          body.engagementTasksEnabled, body.termsVersion, body.privacyVersion, body.isPlaceholder, body.note ?? null, req.auth!.userId,
+          kept?.[0] ?? null, kept?.[1] ?? null, kept?.[2] ?? null, autoPayout],
       );
       const after = await currentCountryConfig(db, country.code);
       await audit(db, req, { action: 'country.config_changed', targetType: 'country', targetId: country.code, before, after, reason: body.note });

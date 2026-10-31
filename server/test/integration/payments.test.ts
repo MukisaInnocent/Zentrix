@@ -275,7 +275,7 @@ describe('referral rewards', () => {
     expect([topLevels['1'], topLevels['3']]).toEqual([{ total: 1, active: 0, inactive: 1, rewardsMinor: '0' }, { total: 1, active: 1, inactive: 0, rewardsMinor: '2000' }]);
   });
 
-  it('scale to the invited member country and pay a referrer in another country in their own currency at the latest rate', async () => {
+  it('use the invited member country amounts and pay a referrer in another country in their own currency at the latest rate', async () => {
     const ugandan = await verifiedMember();
     await activate(ugandan); // the referral pages need an activated account
     await app.owner.query(
@@ -295,9 +295,10 @@ describe('referral rewards', () => {
        FROM referral_rewards r JOIN users u ON u.id = r.referrer_user_id WHERE u.public_id = $1 ORDER BY r.id`, [ugandan.user.id],
     );
 
-    // No exchange rate yet: the level 1 reward (10,000 scaled to Kenya's fee, in KES cents) waits.
+    // No exchange rate yet: Kenya's level 1 reward (owner, 2026-10-31: KES 300 on the KES 550 fee, in cents) waits.
     const feeKes = await activateKenyan();
-    const rewardKes = (10_000n * feeKes) / 19_000n;
+    expect(feeKes).toBe(55_000n);
+    const rewardKes = 30_000n;
     expect((await summary(ugandan)).availableBalanceMinor).toBe('0');
     expect((await rewards()).rows).toEqual([
       { status: 'pending', amount_minor: null, currency_code: 'UGX', source_amount_minor: rewardKes.toString(), source_currency_code: 'KES', fx_rate: null },
@@ -310,6 +311,12 @@ describe('referral rewards', () => {
     const rewardUgx = (rewardKes * 3700n) / (129n * 100n);
     expect((await summary(ugandan)).availableBalanceMinor).toBe(rewardUgx.toString());
     expect((await rewards()).rows[0]).toMatchObject({ status: 'credited', amount_minor: rewardUgx.toString(), currency_code: 'UGX', fx_rate: '28.682170542636' });
+    // The email names the reward in the invited member's currency (KES) and what reached the balance in UGX.
+    await new Promise(r => setTimeout(r, 300));
+    const mail = (await app.outbox(ugandan.input.email)).find(m => m.subject === 'Pexerearn: you earned KES 300.00');
+    expect(mail, JSON.stringify((await app.outbox(ugandan.input.email)).map(m => m.subject))).toBeDefined();
+    expect(mail!.body).toContain(`UGX ${rewardUgx.toLocaleString('en-US')}`);
+    expect(mail!.body).toContain('level 1');
 
     // With a rate on file, even a month-old one, the next reward is paid at once: nobody waits.
     await activateKenyan();

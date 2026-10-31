@@ -2,21 +2,32 @@ import type { Pool, PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
-import { currentCountryConfig } from '../countries/service.js';
+import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
 import { convert } from '../fx/service.js';
 import { accountId, move, post } from '../ledger/ledger.js';
 import { getSetting } from '../settings/registry.js';
 import { settleDebt } from '../wallet/service.js';
 
-// Referral rewards (owner decision: levels 1 to 3, left as the owner built them). The amounts are the Uganda
-// ones, set by an admin in the `referral.tier_amounts_ugx` setting (UGX 10,000 / 5,000 / 2,000 until changed);
-// for another country each amount is scaled by that country's activation fee against UGX 19,000, so the
-// reward is the same share of the fee everywhere (TODO(owner): confirm). Rewards are paid from platform revenue
+// Referral rewards (owner decision: levels 1 to 3, left as the owner built them). A country with its own amounts
+// in its config (owner, 2026-10-31: Kenya KES 300 / 150 / 50, and so on) pays those, in the invited member's
+// currency. Any other country uses the `referral.tier_amounts_ugx` setting (UGX 10,000 / 5,000 / 2,000 until
+// changed), scaled by that country's activation fee against UGX 19,000. Rewards are paid from platform revenue
 // when the invited member's activation fee is confirmed, never at sign-up. A referrer in another country receives
 // the reward converted into their own currency at the latest exchange rate (owner, 2026-10-28).
 export async function referralTiersUgx(db: Db): Promise<Record<number, bigint>> {
   const t = await getSetting(db, 'referral.tier_amounts_ugx');
   return { 1: BigInt(t.level1), 2: BigInt(t.level2), 3: BigInt(t.level3) };
+}
+
+// The level 1 to 3 rewards for a member who activates in a country with this config, in its currency.
+export async function rewardAmounts(db: Db, config: CountryConfig): Promise<Record<number, bigint>> {
+  if (config.referralLevelsMinor) {
+    const [l1, l2, l3] = config.referralLevelsMinor;
+    return { 1: BigInt(l1), 2: BigInt(l2), 3: BigInt(l3) };
+  }
+  const fee = BigInt(config.membershipFeeMinor);
+  const tiers = await referralTiersUgx(db);
+  return Object.fromEntries(Object.entries(tiers).map(([level, tier]) => [level, (tier * fee) / UGANDA_FEE_UGX]));
 }
 
 /** Referral rewards stop at level 3. Nothing is paid above this level. */
@@ -162,19 +173,17 @@ export async function distributeReferralRewards(
   if (!newUser?.referred_by_user_id) return none;
   const config = await currentCountryConfig(db, newUser.country_code);
   if (!config) return none;
-  const fee = BigInt(config.membershipFeeMinor);
-  const tiers = await referralTiersUgx(db);
+  const amounts = await rewardAmounts(db, config);
 
   let currentReferrerId: number | null = Number(newUser.referred_by_user_id);
   let distributedCount = 0;
   let totalDistributedMinor = 0n;
   for (let level = 1; currentReferrerId !== null && level <= MAX_REFERRAL_LEVEL; level++) {
-    const tier = tiers[level];
+    const rewardMinor = amounts[level];
     const referrer: { currency_code: string; status: string; referred_by_user_id: string | null } | null = await maybeOne(
       db, 'SELECT currency_code, status, referred_by_user_id FROM users WHERE id = $1', [currentReferrerId],
     );
-    if (!referrer || tier === undefined) break;
-    const rewardMinor = (tier * fee) / UGANDA_FEE_UGX;
+    if (!referrer || rewardMinor === undefined) break;
     if (rewardMinor > 0n && referrer.status === 'active') {
       const outcome = await payReferralReward(db, {
         referrerId: currentReferrerId, referrerCurrency: referrer.currency_code, referredId: newUserId, level,
@@ -212,7 +221,7 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
     db, `SELECT level, sum(amount_minor)::text AS credited FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited' GROUP BY level`, [userId],
   );
   const config = await currentCountryConfig(db, user.country_code);
-  const fee = config ? BigInt(config.membershipFeeMinor) : 0n;
+  const amounts = config ? await rewardAmounts(db, config) : { 1: 0n, 2: 0n, 3: 0n };
   const rewardsAt = (level: number) => rewards.find(r => r.level === level)?.credited ?? '0';
   const levels = {} as ReferralOverview['levels'];
   for (const level of [1, 2, 3] as const) {
@@ -227,7 +236,7 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
     currency: user.currency_code,
     totalRewardsMinor: rewards.reduce((sum, r) => sum + BigInt(r.credited), 0n).toString(),
     levels,
-    tierAmounts: Object.entries(await referralTiersUgx(db)).map(([level, tier]) => ({ level: Number(level), amountMinor: ((tier * fee) / UGANDA_FEE_UGX).toString() })),
+    tierAmounts: Object.entries(amounts).map(([level, amount]) => ({ level: Number(level), amountMinor: amount.toString() })),
   };
 }
 

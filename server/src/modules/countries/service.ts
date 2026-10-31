@@ -58,6 +58,11 @@ export interface CountryConfig {
   termsVersion: string;
   privacyVersion: string;
   isPlaceholder: boolean;
+  // Referral rewards for levels 1 to 3 in this currency (owner, 2026-10-31); null = the UGX setting scaled by the fee.
+  referralLevelsMinor: [string, string, string] | null;
+  // Withdrawals below the approval threshold, from established accounts, are paid through LivePay without staff.
+  autoPayout: boolean;
+  note: string | null;
   createdAt: Date;
 }
 
@@ -67,6 +72,7 @@ interface ConfigRow {
   withdrawal_fee_bp: number; withdrawal_fee_min_minor: string; withdrawal_approval_threshold_minor: string;
   new_account_review_days: number; vat_bp: number; kyc_level_for_withdrawal: number; engagement_tasks_enabled: boolean;
   terms_version: string; privacy_version: string; is_placeholder: boolean; created_at: Date;
+  referral_level1_minor: string | null; referral_level2_minor: string | null; referral_level3_minor: string | null; auto_payout: boolean; note: string | null;
 }
 
 export const toConfig = (r: ConfigRow): CountryConfig => ({
@@ -76,7 +82,9 @@ export const toConfig = (r: ConfigRow): CountryConfig => ({
   withdrawalFeeBp: r.withdrawal_fee_bp, withdrawalFeeMinMinor: r.withdrawal_fee_min_minor,
   withdrawalApprovalThresholdMinor: r.withdrawal_approval_threshold_minor, newAccountReviewDays: r.new_account_review_days,
   vatBp: r.vat_bp, kycLevelForWithdrawal: r.kyc_level_for_withdrawal, engagementTasksEnabled: r.engagement_tasks_enabled,
-  termsVersion: r.terms_version, privacyVersion: r.privacy_version, isPlaceholder: r.is_placeholder, createdAt: r.created_at,
+  termsVersion: r.terms_version, privacyVersion: r.privacy_version, isPlaceholder: r.is_placeholder,
+  referralLevelsMinor: r.referral_level1_minor === null ? null : [r.referral_level1_minor, r.referral_level2_minor!, r.referral_level3_minor!],
+  autoPayout: r.auto_payout, note: r.note, createdAt: r.created_at,
 });
 
 export async function currentCountryConfig(db: Db, code: string): Promise<CountryConfig | null> {
