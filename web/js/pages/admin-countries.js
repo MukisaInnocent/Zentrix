@@ -83,7 +83,7 @@ function configForm(code, home, cfg, onSaved) {
       field('withdrawalMax', 'Maximum per withdrawal', dec(cfg?.withdrawalMaxMinor), { inputmode: 'decimal' })),
     h('div', { class: 'zx-form-row zx-form-row--2' },
       field('withdrawalDailyMax', 'Daily maximum', dec(cfg?.withdrawalDailyMaxMinor), { inputmode: 'decimal' }),
-      field('withdrawalFeeBp', 'Withdrawal tax (basis points)', cfg?.withdrawalFeeBp ?? 50, { type: 'number', hint: '50 = 0.5% of the amount, added to the charge.' })),
+      field('withdrawalFeeBp', 'Withdrawal tax (basis points)', cfg?.withdrawalFeeBp ?? 70, { type: 'number', hint: '70 = 0.7% of the amount, added to the charge.' })),
     h('div', { class: 'zx-form-row zx-form-row--2' },
       field('withdrawalChargeBp', 'Withdrawal charge (basis points of the amount)', cfg?.withdrawalChargeBp ?? 0, { type: 'number', hint: '300 = 3% of the amount, before any charge table. 0 = use the charge table below.' }),
       field('withdrawalFeeMin', 'Minimum charge (and the charge with no table)', dec(cfg?.withdrawalFeeMinMinor ?? '0'), { inputmode: 'decimal' })),

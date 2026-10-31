@@ -342,11 +342,11 @@ describe('manual withdrawals', () => {
     expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key())).body.error?.code).toBe('activation.required');
   });
 
-  it('holds amount plus the table charge and 0.5% tax; below the approval amount finance approves, however new the account is', async () => {
+  it('holds amount plus the table charge and 0.7% tax; below the approval amount finance approves, however new the account is', async () => {
     const member = await verifiedMember();
     await fund(member, '50000');
     const quote = await member.client.get<Body>('/api/payments/withdrawals/quote?amount=20000');
-    expect([quote.body.quote.chargeMinor, quote.body.quote.taxMinor, quote.body.quote.feeMinor]).toEqual(['1500', '100', '1600']);
+    expect([quote.body.quote.chargeMinor, quote.body.quote.taxMinor, quote.body.quote.feeMinor]).toEqual(['1500', '140', '1640']);
     // A minutes-old account below UGX 200,000: no admin needed (owner, 2026-10-31: no rule on the account's age).
     expect(quote.body.quote.needsAdminApproval).toBe(false);
 
@@ -358,7 +358,7 @@ describe('manual withdrawals', () => {
     expect(res.body.withdrawal.payoutPhone).toBe(member.input.phone);
     expect(res.body.withdrawal.channel.code).toBe(CHANNEL);
     let s = await summary(member);
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['28400', '21600']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['28360', '21640']);
 
     expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/approve`, {}, key())).status).toBe(200);
     expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/paid`, { payoutTxnId: 'PAY1' }, key())).body.error?.code).toBe('withdrawal.wrong_state');
@@ -375,7 +375,7 @@ describe('manual withdrawals', () => {
     const paidMail = (await app.outbox(member.input.email)).find(m => m.subject?.endsWith(`${res.body.withdrawal.reference} paid`));
     expect(paidMail?.body).toContain('UGX 20,000');
     s = await summary(member);
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['28400', '0', '20000']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['28360', '0', '20000']);
     const fees = await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'fees' AND currency_code = 'UGX'`);
     expect(BigInt(fees.rows[0]!.balance_minor)).toBeGreaterThanOrEqual(1600n);
     await expect(app.owner.query(`UPDATE withdrawals SET status = 'requested' WHERE public_id = $1`, [id])).rejects.toSatisfy(e => (e as { code?: string }).code === 'ZX012');
@@ -405,12 +405,12 @@ describe('manual withdrawals', () => {
       Array.from({ length: 4 }, () => member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key())),
     );
     expect(results.filter(r => r.status === 201)).toHaveLength(1);
-    expect((await summary(member)).availableBalanceMinor).toBe('8400');
+    expect((await summary(member)).availableBalanceMinor).toBe('8360');
     // Withdrawals run from UGX 15,000 to UGX 5,000,000.
     const tooSmall = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '14999' }, key());
     expect(tooSmall.body.error?.fields?.amount).toEqual(['This is below the minimum withdrawal.']);
     const table = await member.client.get<Body>('/api/payments/withdrawals/charges');
-    expect([table.body.minMinor, table.body.maxMinor, table.body.taxBasisPoints, table.body.bands.length]).toEqual(['15000', '5000000', 50, 17]);
+    expect([table.body.minMinor, table.body.maxMinor, table.body.taxBasisPoints, table.body.bands.length]).toEqual(['15000', '5000000', 70, 17]);
     expect(table.body.bands[0]).toEqual({ fromMinor: '15000', upToMinor: '50000', chargeMinor: '1500' });
     expect(table.body.bands[16]).toEqual({ fromMinor: '3000000', upToMinor: '5000000', chargeMinor: '26500' });
 

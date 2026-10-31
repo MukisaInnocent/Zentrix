@@ -116,15 +116,15 @@ describe('USD activation fee for countries outside the owner\'s table', () => {
 });
 
 describe('3% withdrawal charge where there is no charge table', () => {
-  it('charges 3% plus the 0.5% tax, before the currency table; Cameroon keeps its XAF table', async () => {
+  it('charges 3% plus the 0.7% tax, before the currency table; Cameroon keeps its XAF table', async () => {
     const quote = async (m: Member, amount: string) => (await m.client.get<Body>(`/api/payments/withdrawals/quote?amount=${amount}`)).body.quote;
     const ng = await member('NG');
-    expect(await quote(ng, '1000')).toMatchObject({ chargeMinor: '3000', taxMinor: '500', currency: 'NGN' });
+    expect(await quote(ng, '1000')).toMatchObject({ chargeMinor: '3000', taxMinor: '700', currency: 'NGN' });
     const et = await member('ET');
-    expect(await quote(et, '1000')).toMatchObject({ chargeMinor: '3000', taxMinor: '500', currency: 'ETB' });
+    expect(await quote(et, '1000')).toMatchObject({ chargeMinor: '3000', taxMinor: '700', currency: 'ETB' });
     const td = await member('TD');
-    expect(await quote(td, '10000')).toMatchObject({ chargeMinor: '300', taxMinor: '50', currency: 'XAF' });
+    expect(await quote(td, '10000')).toMatchObject({ chargeMinor: '300', taxMinor: '70', currency: 'XAF' });
     const cm = await member('CM');
-    expect(await quote(cm, '10000')).toMatchObject({ chargeMinor: '950', taxMinor: '50', currency: 'XAF' });
+    expect(await quote(cm, '10000')).toMatchObject({ chargeMinor: '950', taxMinor: '70', currency: 'XAF' });
   });
 });

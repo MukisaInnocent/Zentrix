@@ -45,7 +45,7 @@ describe('withdrawal charges', () => {
 
     const m = await member();
     const quote = await m.client.get<Body>('/api/payments/withdrawals/quote?amount=20000');
-    expect([quote.body.quote.chargeMinor, quote.body.quote.taxMinor]).toEqual(['1000', '100']);
+    expect([quote.body.quote.chargeMinor, quote.body.quote.taxMinor]).toEqual(['1000', '140']);
     const audited = await app.owner.query(`SELECT reason FROM audit_log WHERE action = 'withdrawal_charges.changed' AND target_id = 'UGX'`);
     expect(audited.rows).toEqual([{ reason: 'Cheaper charges' }]);
   });
@@ -81,7 +81,7 @@ describe('countries and vouchers', () => {
   it('lists each country with its fee and limits, and an admin config edit applies to the next quote', async () => {
     const list = await finance.get<Body>('/api/admin/countries');
     const ug = list.body.countries.find((c: Body) => c.code === 'UG');
-    expect(ug).toMatchObject({ membership_fee_minor: '19000', withdrawal_min_minor: '15000', withdrawal_max_minor: '5000000', withdrawal_fee_bp: 50 });
+    expect(ug).toMatchObject({ membership_fee_minor: '19000', withdrawal_min_minor: '15000', withdrawal_max_minor: '5000000', withdrawal_fee_bp: 70 });
 
     const edit = {
       membershipFee: '19000', withdrawalMin: '20000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: 100,
@@ -97,7 +97,7 @@ describe('countries and vouchers', () => {
 
   it('holds each country\'s own fee and referral amounts (owner, 2026-10-31), editable within the fee', async () => {
     const ke = (await finance.get<Body>('/api/admin/countries/KE')).body.configHistory[0];
-    expect(ke).toMatchObject({ membershipFeeMinor: '55000', withdrawalMinMinor: '70000', withdrawalMaxMinor: '1500000', withdrawalFeeBp: 50, autoPayout: false });
+    expect(ke).toMatchObject({ membershipFeeMinor: '55000', withdrawalMinMinor: '70000', withdrawalMaxMinor: '1500000', withdrawalFeeBp: 70, autoPayout: false });
     expect(ke.referralLevelsMinor).toEqual(['30000', '15000', '5000']);
     const ug = (await finance.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
     expect([ug.referralLevelsMinor, ug.autoPayout]).toEqual([null, true]);

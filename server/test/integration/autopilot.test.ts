@@ -40,14 +40,14 @@ describe('test autopilot', () => {
     expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
     expect((await referrer.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('20000');
 
-    // UGX 15,000 pays the UGX 1,500 charge plus the 0.5% tax (75).
+    // UGX 15,000 pays the UGX 1,500 charge plus the 0.7% tax (105).
     const w = await referrer.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key());
     expect(w.status, JSON.stringify(w.body)).toBe(201);
     const list = await referrer.client.get<Body>('/api/payments/withdrawals');
     expect(list.body.withdrawals[0]).toMatchObject({ status: 'paid' });
     expect(list.body.withdrawals[0].payoutTxnId).toMatch(/^AUTO-/);
     const s = (await referrer.client.get<Body>('/api/wallet/summary')).body;
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3425', '0', '15000']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3395', '0', '15000']);
 
     // The approver and the payer are different system accounts, so the two-person rule still holds.
     const row = (await app.owner.query<{ approver: string; payer: string }>(

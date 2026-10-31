@@ -22,7 +22,7 @@ async function updateQuote(amount) {
     if (seq !== quoteSeq) return;
     box.replaceChildren(
       h('div', {}, h('span', {}, 'Charge'), h('span', {}, formatMoney(q.chargeMinor, q.currency))),
-      h('div', {}, h('span', {}, 'Tax (0.5%)'), h('span', {}, formatMoney(q.taxMinor, q.currency))),
+      h('div', {}, h('span', {}, `Tax (${q.taxBasisPoints / 100}%)`), h('span', {}, formatMoney(q.taxMinor, q.currency))),
       h('div', {}, h('span', {}, 'Total fee'), h('span', {}, formatMoney(q.feeMinor, q.currency))),
       h('div', {}, h('span', {}, 'Total taken'), h('span', {}, formatMoney(q.totalMinor, q.currency))));
     box.hidden = false;

@@ -16,10 +16,12 @@ import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor,
 
 export interface Quote {
   amountMinor: string;
-  // feeMinor = chargeMinor (fixed, from the charge table) + taxMinor (0.5% of the amount).
+  // feeMinor = chargeMinor (from the charge table, or a percentage) + taxMinor (taxBasisPoints of the amount; 0.7%,
+  // owner 2026-11-01).
   feeMinor: string;
   chargeMinor: string;
   taxMinor: string;
+  taxBasisPoints: number;
   totalMinor: string;
   currency: string;
   needsAdminApproval: boolean;
@@ -75,6 +77,7 @@ export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigin
     feeMinor: fee.toString(),
     chargeMinor: charge.toString(),
     taxMinor: tax.toString(),
+    taxBasisPoints: config.withdrawalFeeBp,
     totalMinor: (amountMinor + fee).toString(),
     currency: member.currency,
     needsAdminApproval: amountMinor >= BigInt(config.withdrawalApprovalThresholdMinor),

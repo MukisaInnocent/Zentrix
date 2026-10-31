@@ -244,7 +244,7 @@ describe('LivePay payouts', () => {
     const admin = await loginStaff(app, await createStaff(app, ['admin']));
     const cfg = (await admin.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
     const edit = (threshold: string, note: string) => ({
-      membershipFee: '19000', withdrawalMin: '15000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: 50,
+      membershipFee: '19000', withdrawalMin: '15000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: cfg.withdrawalFeeBp,
       withdrawalFeeMin: '0', withdrawalApprovalThreshold: threshold, vatBp: 0, kycLevelForWithdrawal: 0,
       engagementTasksEnabled: true, termsVersion: cfg.termsVersion, privacyVersion: cfg.privacyVersion, isPlaceholder: cfg.isPlaceholder, note,
     });
@@ -268,7 +268,7 @@ describe('LivePay payouts', () => {
     expect(withdrawal.payoutTxnId).toMatch(/^SIM-/);
     expect(await approver(withdrawal.reference)).toBe('zx_livepay');
     const s = (await referrer.client.get<Body>('/api/wallet/summary')).body;
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3425', '0', '15000']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3395', '0', '15000']);
     await new Promise(r => setTimeout(r, 300));
     expect((await app.outbox(referrer.input.email)).map(m => m.subject)).toEqual(expect.arrayContaining([expect.stringMatching(/paid/i)]));
     expect(await drift()).toBe(0);
@@ -321,7 +321,7 @@ describe('LivePay payouts', () => {
     expect(sent.body.withdrawal).toMatchObject({ status: 'paid', payoutMethod: 'api', channel: { code: 'livepay_ug' } });
     expect(sent.body.withdrawal.payoutTxnId).toMatch(/^SIM-/);
     const s = (await referrer.client.get<Body>('/api/wallet/summary')).body;
-    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3425', '0', '15000']);
+    expect([s.availableBalanceMinor, s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['3395', '0', '15000']);
     expect(await drift()).toBe(0);
   });
 
