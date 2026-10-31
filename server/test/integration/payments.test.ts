@@ -342,12 +342,13 @@ describe('manual withdrawals', () => {
     expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key())).body.error?.code).toBe('activation.required');
   });
 
-  it('holds amount plus the table charge and 0.5% tax, needs an admin approval and a second person to record the payout', async () => {
+  it('holds amount plus the table charge and 0.5% tax; below the approval amount finance approves, however new the account is', async () => {
     const member = await verifiedMember();
     await fund(member, '50000');
     const quote = await member.client.get<Body>('/api/payments/withdrawals/quote?amount=20000');
     expect([quote.body.quote.chargeMinor, quote.body.quote.taxMinor, quote.body.quote.feeMinor]).toEqual(['1500', '100', '1600']);
-    expect(quote.body.quote.needsAdminApproval).toBe(true); // new account
+    // A minutes-old account below UGX 200,000: no admin needed (owner, 2026-10-31: no rule on the account's age).
+    expect(quote.body.quote.needsAdminApproval).toBe(false);
 
     // The member picks no network: the request is assigned one automatically.
     expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000', channel: CHANNEL }, key())).status).toBe(400);
@@ -359,9 +360,7 @@ describe('manual withdrawals', () => {
     let s = await summary(member);
     expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['28400', '21600']);
 
-    expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/approve`, {}, key())).body.error?.code).toBe('withdrawal.admin_required');
-    expect((await adminClient.post<Body>(`/api/admin/payments/withdrawals/${id}/approve`, {}, key())).status).toBe(200);
-    expect((await adminClient.post<Body>(`/api/admin/payments/withdrawals/${id}/start`, {}, key())).body.error?.code).toBe('withdrawal.two_people');
+    expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/approve`, {}, key())).status).toBe(200);
     expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/paid`, { payoutTxnId: 'PAY1' }, key())).body.error?.code).toBe('withdrawal.wrong_state');
     expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${id}/start`, {}, key())).status).toBe(200);
     expect((await member.client.post<Body>(`/api/payments/withdrawals/${id}/cancel`, {}, key())).body.error?.code).toBe('withdrawal.not_cancellable');

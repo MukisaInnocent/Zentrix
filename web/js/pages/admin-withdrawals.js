@@ -2,7 +2,7 @@ import { api } from '../core/api.js';
 import { $, h, on } from '../core/dom.js';
 import { act, ago, askForm, checkProvider, copyable, debounce, emptyRow, kv, live, money, moneyPost, pager, panel, providerPanel, queryParam, segmented, sheet, statusBadge, timeline, when } from '../admin/kit.js';
 
-// Withdrawal queue. Approve (an admin for large amounts or new accounts), Start payout (claims it so two
+// Withdrawal queue. Approve (an admin for large amounts), Start payout (claims it so two
 // people never pay the same request), send the money from the business channel to the member's verified
 // phone, then Mark paid with the payout transaction ID. Failed or cancelled requests return the funds. Where LivePay
 // is set up, Send with LivePay replaces the manual steps: LivePay sends the money and the result is recorded by itself.
@@ -52,7 +52,7 @@ async function openWithdrawal(id) {
   if (m.status !== 'active') warnings.push(`The member account is ${m.status}. Do not pay; cancel instead.`);
   if (m.openFlags) warnings.push(`The member has ${m.openFlags} open fraud flag(s).`);
   if (m.lifetime.depositedMinor === '0') warnings.push('This member has never made a confirmed deposit. The balance comes only from earnings.');
-  if (w.needsAdminApproval) warnings.push('Large amount or new account: an admin approves, and a different staff member sends and records the payout.');
+  if (w.needsAdminApproval) warnings.push('Large amount: an admin approves, and a different staff member sends and records the payout.');
 
   view.body.replaceChildren(
     panel('Payout',

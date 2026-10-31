@@ -26,7 +26,8 @@ const ConfigBody = z.strictObject({
   withdrawalFeeBp: z.int().min(0).max(2000),
   withdrawalFeeMin: Amount,
   withdrawalApprovalThreshold: Amount,
-  newAccountReviewDays: z.int().min(0).max(365),
+  // No longer used: withdrawals do not depend on the account's age (owner, 2026-10-31). Left out = unchanged.
+  newAccountReviewDays: z.int().min(0).max(365).optional(),
   vatBp: z.int().min(0).max(5000),
   kycLevelForWithdrawal: z.int().min(0).max(3),
   engagementTasksEnabled: z.boolean(),
@@ -169,7 +170,7 @@ export function systemRouter(services: Services): Router {
          FROM country_configs WHERE country_code = $1 RETURNING version`,
         [country.code, country.currencyCode, amounts.membershipFee, amounts.withdrawalMin, amounts.withdrawalMax,
           amounts.withdrawalDailyMax, body.withdrawalFeeBp, amounts.withdrawalFeeMin,
-          amounts.withdrawalApprovalThreshold, body.newAccountReviewDays, body.vatBp, body.kycLevelForWithdrawal,
+          amounts.withdrawalApprovalThreshold, body.newAccountReviewDays ?? current?.newAccountReviewDays ?? 0, body.vatBp, body.kycLevelForWithdrawal,
           body.engagementTasksEnabled, body.termsVersion, body.privacyVersion, body.isPlaceholder, body.note ?? null, req.auth!.userId,
           kept?.[0] ?? null, kept?.[1] ?? null, kept?.[2] ?? null, autoPayout,
           feeCurrency === country.currencyCode ? null : feeCurrency, chargeBp],

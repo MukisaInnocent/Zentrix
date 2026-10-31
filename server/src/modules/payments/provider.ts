@@ -165,8 +165,8 @@ export async function startPayout(
   return { withdrawal: after, command: await commandFor(db, request, g.provider), before };
 }
 
-// Automatic payout (owner, 2026-10-31: Uganda). A withdrawal below the country's approval threshold, from an
-// account past its review days (needs_two_people false), in a country with auto_payout on, is approved and sent
+// Automatic payout (owner, 2026-10-31: Uganda). A withdrawal below the country's approval threshold
+// (needs_two_people false), in a country with auto_payout on, is approved and sent
 // through LivePay by zx_livepay right after the request, through the same steps staff use. Anything that stops it
 // (LivePay off or busy, no LivePay method, the ledger short on the LivePay account, withdrawals paused) leaves the
 // whole request untouched for staff. Returns whether a payout was sent.

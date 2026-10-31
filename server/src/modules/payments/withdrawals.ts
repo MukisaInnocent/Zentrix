@@ -11,8 +11,8 @@ import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor,
 // Manual payouts. On request the amount plus fee moves from the chosen balance to the member's withdrawal
 // hold. Staff approve, start the payout (claiming it so nobody pays twice), send the money from the business
 // channel to the member's verified phone, and record the payout transaction ID. Failed or cancelled requests
-// return the full hold to the balance it came from. From the approval threshold, and for new accounts, an
-// admin approves and a different staff member records the payout (maker-checker).
+// return the full hold to the balance it came from. From the approval threshold an admin approves and a different
+// staff member records the payout (maker-checker). The account's age plays no part (owner, 2026-10-31).
 
 export interface Quote {
   amountMinor: string;
@@ -70,7 +70,6 @@ export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigin
   const tax = basisPointsOf(amountMinor, config.withdrawalFeeBp);
   const fee = charge + tax;
   const used = await usedToday(db, userId);
-  const ageDays = (Date.now() - member.createdAt.getTime()) / 86_400_000;
   return {
     amountMinor: amountMinor.toString(),
     feeMinor: fee.toString(),
@@ -78,7 +77,7 @@ export async function quoteWithdrawal(db: Db, userId: number, amountMinor: bigin
     taxMinor: tax.toString(),
     totalMinor: (amountMinor + fee).toString(),
     currency: member.currency,
-    needsAdminApproval: amountMinor >= BigInt(config.withdrawalApprovalThresholdMinor) || ageDays < config.newAccountReviewDays,
+    needsAdminApproval: amountMinor >= BigInt(config.withdrawalApprovalThresholdMinor),
     limits: {
       minMinor: config.withdrawalMinMinor, maxMinor: config.withdrawalMaxMinor, dailyMaxMinor: config.withdrawalDailyMaxMinor,
       usedTodayMinor: used.toString(),
@@ -244,7 +243,7 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
     case 'approve': {
       expect('requested');
       if (w.needs_two_people && !input.roles.includes('admin')) {
-        throw forbidden('withdrawal.admin_required', 'An admin must approve this withdrawal (large amount or new account).');
+        throw forbidden('withdrawal.admin_required', 'An admin must approve this withdrawal (large amount).');
       }
       await assertNotPaused(db, 'withdrawals_paused', w.currency_code);
       await setActor(db, staffId, input.note ?? 'Approved');
