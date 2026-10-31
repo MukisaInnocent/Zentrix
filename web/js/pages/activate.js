@@ -41,7 +41,7 @@ function renderPaybox() {
     box.replaceChildren(
       h('div', { class: 'zx-paybox__row' }, h('span', { class: 'zx-hint' }, 'Amount'), h('strong', { class: 'zx-paybox__value' }, fee)),
       h('ol', { class: 'zx-steps-list' }, [
-        `Press Send payment prompt. It goes to your registered number${info.phone ? ` ${info.phone}` : ''} (MTN or Airtel).`,
+        `Press Activate now. A payment prompt goes to your registered number${info.phone ? ` ${info.phone}` : ''} (MTN or Airtel).`,
         `A prompt for ${fee} appears on that phone.`,
         'Check the amount and approve it with your PIN. Your account opens by itself.',
       ].map(x => h('li', {}, x))),
@@ -74,7 +74,7 @@ function renderForm(c) {
   // Prompts go only to the registered number; to pay from another phone, a manual method is used.
   $('#activate-phone').readOnly = prompt;
   if (prompt && info?.phone) $('#activate-phone').value = info.phone;
-  $('#activate-submit').textContent = prompt ? 'Send payment prompt' : 'Submit payment';
+  $('#activate-submit').textContent = prompt ? 'Activate now' : 'Submit payment';
 }
 
 function renderChannels() {
