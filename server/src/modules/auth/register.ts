@@ -11,8 +11,7 @@ import { raiseFlag } from '../fraud/flags.js';
 import { getSetting } from '../settings/registry.js';
 import { hashPassword, passwordProblems } from './passwords.js';
 import { createSession, type IssuedSession } from './sessions.js';
-import { notifyReferralSignup } from '../notifications/notify.js';
-import { issueEmailVerification, issuePhoneCode, sendEmailVerification, sendPhoneCode } from './verification.js';
+import { issuePhoneCode, sendPhoneCode } from './verification.js';
 
 export const RegisterSchema = z.strictObject({
   username: z
@@ -77,7 +76,7 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
   const timezone = validTimezone(input.timezone) ? input.timezone : country.defaultTimezone;
   const passwordHash = await hashPassword(input.password);
 
-  let registration: Registration & { email: string; emailToken: string; phoneE164: string; phoneCode: string };
+  let registration: Registration & { email: string; phoneE164: string; phoneCode: string };
   try {
     registration = await withTransaction(pool, async db => {
       let referrerId: number | null = null;
@@ -128,12 +127,11 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
         if (Number(recent.n) > 3) await raiseFlag(db, userId, 'signup_velocity', 'medium', { signupsFromIpIn24h: Number(recent.n) });
       }
 
-      const emailToken = await issueEmailVerification(db, userId, input.email, now);
       const phoneCode = await issuePhoneCode(db, config.dataEncryptionKey, userId, phone.number, now);
       const session = await createSession(db, config.csrfSecret, {
         userId, staff: false, mfaVerified: false, ip: meta.ip, userAgent: meta.userAgent, now,
       });
-      return { userId, session, email: input.email, emailToken, phoneE164: phone.number, phoneCode };
+      return { userId, session, email: input.email, phoneE164: phone.number, phoneCode };
     });
   } catch (err) {
     if (err instanceof AppError) throw err;
@@ -148,8 +146,6 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
     throw err;
   }
 
-  await sendEmailVerification(services, registration.email, registration.emailToken, registration.userId);
-  await notifyReferralSignup(services, registration.userId);
   await sendPhoneCode(services, registration.phoneE164, registration.phoneCode);
   return { userId: registration.userId, session: registration.session };
 }

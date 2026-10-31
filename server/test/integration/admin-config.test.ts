@@ -65,6 +65,18 @@ describe('settings', () => {
     expect(overview.body.tierAmounts.map((t: Body) => t.amountMinor)).toEqual(['8000', '3000', '1000']);
   });
 
+  it('lets an admin change the support contact, shown to the public site (owner, 2026-11-01)', async () => {
+    const value = { email: 'help@pexerearn.com', phone: '+256 700 111 222', whatsapp: '+256 700 333 444', hours: 'Every day, 08:00 to 20:00 EAT' };
+    expect((await finance.put<Body>('/api/admin/settings/support.contact', { value })).status).toBe(403);
+    expect((await admin.put<Body>('/api/admin/settings/support.contact', { value: { ...value, email: 'not-an-email' } })).status).toBe(400);
+    expect((await admin.put<Body>('/api/admin/settings/support.contact', { value, note: 'Real details' })).status).toBe(200);
+    expect((await app.client().get<Body>('/api/meta')).body.support).toEqual(value);
+    // WhatsApp is optional.
+    const { whatsapp: _w, ...noWhatsapp } = value;
+    expect((await admin.put<Body>('/api/admin/settings/support.contact', { value: noWhatsapp, note: 'No WhatsApp' })).status).toBe(200);
+    expect((await app.client().get<Body>('/api/meta')).body.support).toEqual(noWhatsapp);
+  });
+
   it('lets an admin change the voucher values, never below the fee', async () => {
     expect((await admin.put<Body>('/api/admin/settings/voucher.value_multiples', { value: [2, 1] })).status).toBe(400);
     expect((await admin.put<Body>('/api/admin/settings/voucher.value_multiples', { value: [0, 1] })).status).toBe(400);

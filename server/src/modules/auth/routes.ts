@@ -6,15 +6,14 @@ import { hashKey, limiter } from '../../http/rate-limit.js';
 import { parse } from '../../http/validate.js';
 import { notFound, unauthorized } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
-import { notifySignIn } from '../notifications/notify.js';
 import { loadProfile } from '../users/profile.js';
 import { login, loginWithMfa } from './login.js';
 import { requireAuth } from './middleware.js';
 import { changePassword, requestPasswordReset, resetPassword } from './password.js';
 import { register, type RequestMeta } from './register.js';
-import { csrfTokenFor, revokeSession, revokeUserSessions, SESSION_POLICY, TOKEN_PATTERN, type IssuedSession } from './sessions.js';
+import { csrfTokenFor, revokeSession, revokeUserSessions, SESSION_POLICY, type IssuedSession } from './sessions.js';
 import { disableTotp, enableTotp, regenerateRecoveryCodes, setupTotp, totpStatus, verifySessionTotp } from './totp-service.js';
-import { issueEmailVerification, issuePhoneCode, sendEmailVerification, sendPhoneCode, verifyEmailToken, verifyPhoneCode } from './verification.js';
+import { issuePhoneCode, sendPhoneCode, verifyPhoneCode } from './verification.js';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -48,35 +47,18 @@ export function authRouter(services: Services): Router {
     async (req, res) => {
       const result = await login(services, req.body, meta(req));
       if (result.kind === 'mfa') return void res.json({ mfaRequired: true, challengeToken: result.challengeToken, emailSent: result.emailSent });
-      await notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
       await startSession(req, res, result.session, result.userId, { mfaEnrollmentRequired: result.mfaEnrollmentRequired });
     },
   );
 
   router.post('/login/mfa', limiter(pool, { name: 'login-mfa', windowMs: 15 * MINUTE, limit: 10 }), async (req, res) => {
     const result = await loginWithMfa(services, req.body, meta(req));
-    await notifySignIn(services, result.userId, req.ip, req.get('user-agent'));
     await startSession(req, res, result.session, result.userId);
   });
 
   router.post('/logout', async (req, res) => {
     if (req.auth) await revokeSession(pool, req.auth.sessionId, 'logout');
     clearAuthCookies(res, config);
-    res.json({ ok: true });
-  });
-
-  router.post('/verify/email', limiter(pool, { name: 'verify-email', windowMs: HOUR, limit: 20 }), async (req, res) => {
-    const { token } = parse(z.strictObject({ token: z.string().regex(TOKEN_PATTERN) }), req.body);
-    await verifyEmailToken(services, token);
-    res.json({ ok: true });
-  });
-
-  router.post('/verify/email/resend', requireAuth, limiter(pool, { name: 'verify-email-resend', windowMs: HOUR, limit: 3, key: byUser }), async (req, res) => {
-    const auth = req.auth!;
-    const profile = await loadProfile(pool, auth.userId);
-    if (!profile || profile.emailVerified) return void res.json({ ok: true, alreadyVerified: true });
-    const token = await issueEmailVerification(pool, auth.userId, profile.email, services.now());
-    await sendEmailVerification(services, profile.email, token, auth.userId);
     res.json({ ok: true });
   });
 

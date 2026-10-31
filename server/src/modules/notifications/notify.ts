@@ -19,14 +19,15 @@ export async function formatAmount(services: Pick<Services, 'pool'>, currency: s
 }
 
 // Each payment event has its own email kind (wording editable in the staff console). Activation payments and
-// deposits into the balance (purpose 'wallet') have separate wording.
+// deposits into the balance (purpose 'wallet') have separate wording; null = no email (owner, 2026-11-01: no
+// "Deposit received" email).
 const PAYMENT_KIND: Record<PaymentEvent, TemplateKind> = {
   deposit_submitted: 'payment_deposit_submitted', deposit_confirmed: 'payment_deposit_confirmed', deposit_rejected: 'payment_deposit_rejected', deposit_cancelled: 'payment_deposit_cancelled',
   withdrawal_requested: 'payment_withdrawal_requested', withdrawal_approved: 'payment_withdrawal_approved', withdrawal_paid: 'payment_withdrawal_paid',
   withdrawal_failed: 'payment_withdrawal_failed', withdrawal_cancelled: 'payment_withdrawal_cancelled',
 };
-const WALLET_KIND: Partial<Record<PaymentEvent, TemplateKind>> = {
-  deposit_submitted: 'payment_wallet_deposit_submitted', deposit_confirmed: 'payment_wallet_deposit_confirmed', deposit_rejected: 'payment_wallet_deposit_rejected', deposit_cancelled: 'payment_wallet_deposit_cancelled',
+const WALLET_KIND: Partial<Record<PaymentEvent, TemplateKind | null>> = {
+  deposit_submitted: null, deposit_confirmed: 'payment_wallet_deposit_confirmed', deposit_rejected: 'payment_wallet_deposit_rejected', deposit_cancelled: 'payment_wallet_deposit_cancelled',
 };
 const BUTTON_PATH: Partial<Record<TemplateKind, string>> = {
   payment_deposit_confirmed: '/dashboard.html', payment_deposit_rejected: '/activate.html', payment_deposit_cancelled: '/activate.html', payment_wallet_deposit_confirmed: '/dashboard.html', payment_withdrawal_paid: '/withdraw.html',
@@ -47,8 +48,8 @@ export async function notifyPayment(services: Services, event: PaymentEvent, ref
       [reference],
     );
     if (!row) return;
-    if (row.email) {
-      const kind = (row.purpose === 'wallet' ? WALLET_KIND[event] : undefined) ?? PAYMENT_KIND[event];
+    const kind = row.purpose === 'wallet' && event in WALLET_KIND ? WALLET_KIND[event]! : PAYMENT_KIND[event];
+    if (row.email && kind) {
       const path = BUTTON_PATH[kind];
       await sendTemplated(services, {
         kind, to: row.email, userId: Number(row.user_id), ref: `${event}:${reference}`,
@@ -126,27 +127,6 @@ export async function notifyActivatedBy(services: Services, username: string, ho
   }
 }
 
-// Tells the direct inviter, right away, that someone signed up with their link (owner, 2026-10-28). The reward
-// itself comes with the activation and has its own email.
-export async function notifyReferralSignup(services: Services, userId: number): Promise<void> {
-  try {
-    const r = await maybeOne<{ id: string; email: string | null; username: string; member: string; country: string }>(
-      services.pool,
-      `SELECT i.id, i.email, i.username, m.username AS member, c.name AS country
-       FROM users m JOIN users i ON i.id = m.referred_by_user_id JOIN countries c ON c.code = m.country_code WHERE m.id = $1`,
-      [userId],
-    );
-    if (!r?.email) return;
-    await sendTemplated(services, {
-      kind: 'referral_signup', to: r.email, userId: Number(r.id), ref: `signup:${userId}`,
-      values: { username: r.username, member: r.member, country: r.country },
-      buttonUrl: `${services.config.publicOrigin}/referrals.html?level=1&view=inactive`,
-    });
-  } catch (err) {
-    services.logger.error({ err, userId }, 'referral sign-up email failed');
-  }
-}
-
 const REWARD_KIND: Record<number, TemplateKind> = { 1: 'referral_reward_level_one', 2: 'referral_reward_level_two', 3: 'referral_reward_level_three' };
 
 // Emails each referrer about referral rewards credited in the last 14 days that have no email yet: after an
@@ -187,25 +167,3 @@ export async function notifyReferralRewards(services: Services): Promise<number>
   return sent;
 }
 
-// Warns a member when their account is signed in from a device or network not seen in the last 90 days. The
-// very first sign-in sends nothing. Members can turn these off.
-export async function notifySignIn(services: Services, userId: number, ip: string | undefined, userAgent: string | undefined): Promise<void> {
-  try {
-    const seen = await maybeOne<{ same: string; total: string; email: string | null; username: string }>(
-      services.pool,
-      `SELECT count(*) FILTER (WHERE a.ip IS NOT DISTINCT FROM $2::inet AND a.user_agent IS NOT DISTINCT FROM $3) AS same, count(*) AS total, u.email, u.username
-       FROM users u LEFT JOIN auth_events a ON a.user_id = u.id AND a.kind IN ('login', 'signup') AND a.created_at > now() - interval '90 days'
-       WHERE u.id = $1 GROUP BY u.id`,
-      [userId, ip ?? null, userAgent?.slice(0, 300) ?? null],
-    );
-    // The sign-in that just happened is already counted.
-    if (!seen?.email || Number(seen.total) <= 1 || Number(seen.same) > 1) return;
-    await sendTemplated(services, {
-      kind: 'sign_in_alert', to: seen.email, userId,
-      values: { username: seen.username, time: services.now().toISOString().replace('T', ' ').slice(0, 16), device: (userAgent ?? 'unknown').slice(0, 120) },
-      buttonUrl: `${services.config.publicOrigin}/profile.html`,
-    });
-  } catch (err) {
-    services.logger.error({ err, userId }, 'sign-in alert failed');
-  }
-}

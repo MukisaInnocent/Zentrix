@@ -31,34 +31,43 @@ const activate = async (m: Awaited<ReturnType<typeof registerMember>>) => {
 describe('email templates', () => {
   it('lets an admin reword an email with fill-ins, checks the wording, previews it and restores the default', async () => {
     const list = await support.get<Body>('/api/admin/email-templates');
-    const signup = list.body.templates.find((t: Body) => t.kind === 'referral_signup');
-    expect(signup).toMatchObject({ custom: false, version: 0, button: true });
-    expect(signup.fillIns.map((f: Body) => f.name)).toEqual(['username', 'member', 'country']);
+    const KIND = 'referral_reward_level_one';
+    const reward = list.body.templates.find((t: Body) => t.kind === KIND);
+    expect(reward).toMatchObject({ custom: false, version: 0, button: true });
+    expect(reward.fillIns.map((f: Body) => f.name)).toEqual(['username', 'member', 'country', 'amount', 'credited', 'level']);
+    // The removed emails are not listed (owner, 2026-11-01).
+    const kinds = list.body.templates.map((t: Body) => t.kind);
+    for (const gone of ['email_verification', 'referral_signup', 'payment_wallet_deposit_submitted', 'sign_in_alert']) expect(kinds).not.toContain(gone);
 
-    const content = { subject: 'Great news, @{username}', heading: '{member} is in', body: 'Hi {username},\n\n{member} from {country} joined using your link.', buttonLabel: 'Open referrals' };
-    expect((await support.put<Body>('/api/admin/email-templates/referral_signup', { content, note: 'Friendlier' })).status).toBe(403);
-    const bad = await admin.put<Body>('/api/admin/email-templates/referral_signup', { content: { ...content, body: 'Hi {name}' }, note: 'Typo' });
+    const content = { subject: 'Great news, @{username}', heading: '{member} is in', body: 'Hi {username},\n\n{member} from {country} activated. You earned {amount}.', buttonLabel: 'Open referrals' };
+    expect((await support.put<Body>(`/api/admin/email-templates/${KIND}`, { content, note: 'Friendlier' })).status).toBe(403);
+    const bad = await admin.put<Body>(`/api/admin/email-templates/${KIND}`, { content: { ...content, body: 'Hi {name}' }, note: 'Typo' });
     expect(bad.status).toBe(400);
     expect(bad.body.error?.fields?.body?.[0]).toContain('Unknown fill-in {name}');
     const noCode = await admin.put<Body>('/api/admin/email-templates/sign_in_code', { content: { subject: 'Your code', heading: 'Code', body: 'Here it is.' }, note: 'Shorter' });
     expect(noCode.body.error?.fields?.body?.[0]).toContain('Keep {code}');
-    expect((await admin.put<Body>('/api/admin/email-templates/referral_signup', { content: { ...content, buttonLabel: undefined }, note: 'No button' })).body.error?.fields?.buttonLabel).toBeDefined();
+    expect((await admin.put<Body>(`/api/admin/email-templates/${KIND}`, { content: { ...content, buttonLabel: undefined }, note: 'No button' })).body.error?.fields?.buttonLabel).toBeDefined();
 
-    const preview = await admin.post<Body>('/api/admin/email-templates/referral_signup/preview', { content });
-    expect(preview.body.preview).toMatchObject({ subject: 'Great news, @jane', heading: 'peter is in', paragraphs: ['Hi jane,', 'peter from Uganda joined using your link.'], buttonLabel: 'Open referrals' });
-    expect((await admin.put<Body>('/api/admin/email-templates/referral_signup', { content, note: 'Friendlier wording' })).body.version).toBe(1);
+    const preview = await admin.post<Body>(`/api/admin/email-templates/${KIND}/preview`, { content });
+    expect(preview.body.preview).toMatchObject({ subject: 'Great news, @jane', heading: 'peter is in', paragraphs: ['Hi jane,', 'peter from Kenya activated. You earned KES 300.00.'], buttonLabel: 'Open referrals' });
+    expect((await admin.put<Body>(`/api/admin/email-templates/${KIND}`, { content, note: 'Friendlier wording' })).body.version).toBe(1);
 
-    // The next sign-up with a link uses the new wording.
+    // The next level 1 reward uses the new wording.
     const inviter = await registerMember(app);
+    await activate(inviter);
     const invited = await registerMember(app, { referralCode: inviter.input.username });
+    await activate(invited);
+    await new Promise(r => setTimeout(r, 300));
     const mail = (await app.outbox(inviter.input.email)).find(m => m.subject === `Great news, @${inviter.input.username}`);
-    expect(mail?.body).toContain(`${invited.input.username} from Uganda joined using your link.`);
+    expect(mail?.body).toContain(`${invited.input.username} from Uganda activated. You earned UGX 10,000.`);
 
-    expect((await admin.post<Body>('/api/admin/email-templates/referral_signup/restore', { note: 'Back to the original' })).body.version).toBe(2);
+    expect((await admin.post<Body>(`/api/admin/email-templates/${KIND}/restore`, { note: 'Back to the original' })).body.version).toBe(2);
     const third = await registerMember(app, { referralCode: inviter.input.username });
-    expect((await app.outbox(inviter.input.email)).map(m => m.subject)).toContain(`Pexerearn: @${third.input.username} joined with your link`);
-    expect((await support.get<Body>('/api/admin/email-templates/referral_signup/history')).body.history.map((h: Body) => h.version)).toEqual([2, 1]);
-    const audits = await app.owner.query(`SELECT action FROM audit_log WHERE target_id = 'referral_signup' ORDER BY id`);
+    await activate(third);
+    await new Promise(r => setTimeout(r, 300));
+    expect((await app.outbox(inviter.input.email)).map(m => m.subject)).toContain('Pexerearn: you earned UGX 10,000');
+    expect((await support.get<Body>(`/api/admin/email-templates/${KIND}/history`)).body.history.map((h: Body) => h.version)).toEqual([2, 1]);
+    const audits = await app.owner.query(`SELECT action FROM audit_log WHERE target_id = $1 ORDER BY id`, [KIND]);
     expect(audits.rows.map(r => r.action)).toEqual(['email_template.changed', 'email_template.restored']);
   });
 

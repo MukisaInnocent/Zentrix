@@ -108,14 +108,10 @@ describe('registration', () => {
 });
 
 describe('verification', () => {
-  it('verifies email through the emailed link, once', async () => {
-    const { client, input } = await registerMember(app);
-    const [mail] = await app.outbox(input.email);
-    const token = linkToken(mail!.body, 'email');
-    const anon = app.client();
-    expect((await anon.post('/api/auth/verify/email', { token })).status).toBe(200);
-    expect((await anon.post('/api/auth/verify/email', { token })).status).toBe(400);
-    expect((await client.get<Body>('/api/me')).body.user?.emailVerified).toBe(true);
+  it('sends no email confirmation at sign-up (owner, 2026-11-01)', async () => {
+    const { input } = await registerMember(app);
+    expect((await app.outbox(input.email)).filter(m => m.channel === 'email')).toEqual([]);
+    expect((await app.client().post('/api/auth/verify/email', { token: 'x'.repeat(43) })).status).toBe(404);
   });
 
   it('verifies the phone with the texted code and counts wrong attempts', async () => {

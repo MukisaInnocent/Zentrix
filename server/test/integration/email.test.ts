@@ -57,18 +57,18 @@ describe('sending', () => {
     expect(await app.outbox(blocked.toUpperCase())).toEqual([]);
   });
 
-  it('sends a sign-in alert only for a new device, and only while the member wants them', async () => {
+  it('emails nothing on sign-in, but records every sign-in (owner, 2026-11-01)', async () => {
     const m = await registerMember(app);
     const login = (ua: string) => app.client().post('/api/auth/login', { identifier: m.input.username, password: PASSWORD }, { 'user-agent': ua });
-    const alerts = async () => (await app.outbox(m.input.email)).filter(x => x.subject === 'Pexerearn: new sign-in to your account').length;
     expect((await login('Phone A')).status).toBe(200);
-    expect((await login('Phone A')).status).toBe(200);
-    await new Promise(r => setTimeout(r, 300));
-    expect(await alerts()).toBe(2); // sign-up used another device (the test client), so Phone A was new, twice from new IPs
-    await m.client.put('/api/me/email-preferences', { referralRewards: true, signInAlerts: false });
     expect((await login('Laptop B')).status).toBe(200);
     await new Promise(r => setTimeout(r, 300));
-    expect(await alerts()).toBe(2);
+    expect((await app.outbox(m.input.email)).filter(x => x.channel === 'email')).toEqual([]);
+    const events = await app.owner.query(
+      `SELECT a.user_agent FROM auth_events a JOIN users u ON u.id = a.user_id WHERE u.username = $1 AND a.kind = 'login' ORDER BY a.id`, [m.input.username],
+    );
+    expect(events.rows.map(r => r.user_agent)).toEqual(['Phone A', 'Laptop B']);
+    await m.client.put('/api/me/email-preferences', { referralRewards: true, signInAlerts: false });
     expect((await m.client.get<Body>('/api/me/email-preferences')).body.preferences).toEqual({ referralRewards: true, signInAlerts: false, announcements: true });
     expect((await m.client.put<Body>('/api/me/email-preferences', { referralRewards: 'no' })).status).toBe(400);
   });
@@ -86,10 +86,9 @@ describe('sending', () => {
     await quiet.client.put('/api/me/email-preferences', { referralRewards: false, signInAlerts: true });
     const a = await registerMember(app, { referralCode: keen.input.username });
     const b = await registerMember(app, { referralCode: quiet.input.username });
-    // Right away, with no waiting: the new member gets the sign-up email and the inviter hears about it.
-    expect((await app.outbox(a.input.email)).map(x => x.subject)).toContain('Confirm your Pexerearn email address');
-    expect((await app.outbox(keen.input.email)).map(x => x.subject)).toContain(`Pexerearn: @${a.input.username} joined with your link`);
-    expect((await app.outbox(quiet.input.email)).filter(x => x.subject?.includes('joined with your link'))).toEqual([]);
+    // Signing up sends nothing (owner, 2026-11-01): no confirmation, and the inviter hears only when the member activates.
+    expect((await app.outbox(a.input.email)).filter(x => x.channel === 'email')).toEqual([]);
+    expect((await app.outbox(keen.input.email)).filter(x => x.subject?.includes('joined with your link'))).toEqual([]);
     await activate(a);
     await activate(b);
     expect((await app.outbox(a.input.email)).map(x => x.subject)).toContain('Pexerearn: Welcome! Your account is active');

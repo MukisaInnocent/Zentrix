@@ -63,11 +63,6 @@ function rewardTemplate(level: 1 | 2 | 3, who: string, sample: string): Template
 }
 
 export const TEMPLATES = {
-  email_verification: {
-    title: 'Confirm email address', group: 'Sign-up and security', when: 'Right after sign-up, and when a member asks for a new link.', category: 'security',
-    vars: { ...USER }, button: true, note: 'The link works for 48 hours. If you did not create a Pexerearn account, ignore this email.',
-    defaults: { subject: 'Confirm your Pexerearn email address', heading: 'Confirm your email address', body: 'Welcome to Pexerearn. Confirm this is your email address so we can reach you about your account.', buttonLabel: 'Confirm email address' },
-  },
   sign_in_code: {
     title: 'Sign-in code', group: 'Sign-up and security', when: 'When a member with a second sign-in step signs in.', category: 'security',
     vars: { ...USER, code: { about: 'The 6-digit code', sample: '482913' } }, required: ['code'], button: false,
@@ -98,11 +93,6 @@ export const TEMPLATES = {
     vars: { ...USER }, button: false,
     defaults: { subject: 'Your Pexerearn phone number was changed', heading: 'Your phone number was changed', body: 'The phone number on your Pexerearn account (@{username}) was changed. Withdrawals are locked for 48 hours. If this was not you, contact support now.' },
   },
-  sign_in_alert: {
-    title: 'New sign-in alert', group: 'Sign-up and security', when: 'When an account is signed in from a new device or network. Members can turn it off.', category: 'sign_in',
-    vars: { ...USER, time: { about: 'When it happened (UTC)', sample: '2026-10-29 08:15' }, device: { about: 'The browser or app', sample: 'Mozilla/5.0 (Linux; Android 14)' } }, button: true,
-    defaults: { subject: 'Pexerearn: new sign-in to your account', heading: 'New sign-in to your account', body: 'Hello @{username},\n\nYour account was just signed in from a device or network we have not seen recently.\nTime: {time} UTC\nDevice: {device}\n\nIf this was you, there is nothing to do. If it was not, change your password now (ask the admin to unlock it) and contact support.', buttonLabel: 'Open your profile' },
-  },
   payment_deposit_submitted: {
     title: 'Activation payment received', group: 'Activation and referrals', when: 'When a member submits their activation payment.', category: 'payment',
     vars: { ...USER, ...MONEY }, button: false,
@@ -128,19 +118,9 @@ export const TEMPLATES = {
     vars: { ...USER, how: { about: 'How it was activated', sample: 'a payment from @john' } }, button: true,
     defaults: { subject: 'Pexerearn: Welcome! Your account is active', heading: 'Welcome to Pexerearn', body: `Hello @{username},\n\nYour account was activated with {how}. You can now use every part of Pexerearn.\n\n${NEXT_STEPS}`, buttonLabel: 'Open your dashboard' },
   },
-  referral_signup: {
-    title: 'Someone joined with your link', group: 'Activation and referrals', when: 'To the inviter, right when someone signs up with their username. Members can turn it off.', category: 'referral',
-    vars: { ...USER, member: { about: 'Username of the new member', sample: 'peter' }, country: { about: "The new member's country", sample: 'Uganda' } }, button: true,
-    defaults: { subject: 'Pexerearn: @{member} joined with your link', heading: 'Someone joined with your link', body: 'Hello @{username},\n\n@{member} ({country}) just created a Pexerearn account with your username as the referral code.\n\nYour referral reward is paid when they activate their account, and we will email you then.', buttonLabel: 'See your referrals' },
-  },
   referral_reward_level_one: rewardTemplate(1, 'invited directly', 'KES 300.00'),
   referral_reward_level_two: rewardTemplate(2, 'invited by someone you invited', 'KES 150.00'),
   referral_reward_level_three: rewardTemplate(3, 'two steps below you', 'KES 50.00'),
-  payment_wallet_deposit_submitted: {
-    title: 'Deposit received', group: 'Payments', when: 'When an activated member submits a deposit.', category: 'payment',
-    vars: { ...USER, ...MONEY }, button: false,
-    defaults: { subject: 'Pexerearn: Deposit {reference} received', heading: 'We received your deposit', body: 'Hello @{username},\n\nWe received your deposit of {amount} (reference {reference}). Our team will credit your balance as soon as it is found on our statement.' },
-  },
   payment_wallet_deposit_confirmed: {
     title: 'Deposit credited', group: 'Payments', when: 'When staff confirm a deposit.', category: 'payment',
     vars: { ...USER, ...MONEY }, button: true,

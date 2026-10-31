@@ -125,7 +125,8 @@ describe('review queues and test tools', () => {
   it('shows the dev outbox in test mode and the unsigned go-live checklist', async () => {
     const member = await registerMember(app);
     const outbox = await supportClient.get<{ messages: { recipient: string }[] }>('/api/admin/outbox');
-    expect(outbox.body.messages.some(m => m.recipient === member.input.email)).toBe(true);
+    // Sign-up texts the phone code (no email confirmation since 2026-11-01).
+    expect(outbox.body.messages.some(m => m.recipient === member.input.phone)).toBe(true);
     const golive = await adminClient.get<{ items: { signed: boolean | null }[] }>('/api/admin/go-live');
     expect(golive.body.items).toHaveLength(7);
     expect(golive.body.items.every(i => !i.signed)).toBe(true);

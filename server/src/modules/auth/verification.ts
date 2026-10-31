@@ -1,34 +1,14 @@
 import { maybeOne } from '../../db/sql.js';
 import type { Db } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
-import { randomDigits, randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
+import { randomDigits, safeEqual } from '../../lib/crypto.js';
 import { badRequest } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
-import { sendTemplated } from '../email/templates.js';
 import { codeHash } from './totp.js';
 
-const EMAIL_TTL_MS = 48 * 3_600_000;
+// Phone codes only: the email confirmation was removed (owner, 2026-11-01).
 const PHONE_TTL_MS = 10 * 60_000;
 const PHONE_MAX_ATTEMPTS = 5;
-
-export async function issueEmailVerification(db: Db, userId: number, email: string, now: Date): Promise<string> {
-  const token = randomToken(32);
-  await db.query('UPDATE email_verifications SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL', [userId, now]);
-  await db.query('INSERT INTO email_verifications (token_hash, user_id, email, expires_at) VALUES ($1, $2, $3, $4)', [
-    sha256(token), userId, email, new Date(now.getTime() + EMAIL_TTL_MS),
-  ]);
-  return token;
-}
-
-// Messages go out after the transaction commits. A failed send is logged, not fatal: the member can
-// ask for another message.
-export async function sendEmailVerification(services: Services, email: string, token: string, userId: number): Promise<void> {
-  const user = await maybeOne<{ username: string }>(services.pool, 'SELECT username FROM users WHERE id = $1', [userId]);
-  await sendTemplated(services, {
-    kind: 'email_verification', to: email, userId, values: { username: user?.username },
-    buttonUrl: `${services.config.publicOrigin}/verify.html#email=${token}`,
-  });
-}
 
 export async function issuePhoneCode(db: Db, key: Buffer, userId: number, phone: string, now: Date): Promise<string> {
   const code = randomDigits(6);
@@ -45,23 +25,6 @@ export async function sendPhoneCode(services: Services, phone: string, code: str
   } catch (err) {
     services.logger.error({ err }, 'phone code send failed');
   }
-}
-
-const invalidLink = () => badRequest('verify.invalid_link', 'This link is invalid or has expired. Ask for a new one from your profile.');
-
-export async function verifyEmailToken(services: Services, token: string): Promise<void> {
-  await withTransaction(services.pool, async db => {
-    const row = await maybeOne<{ user_id: string; email: string }>(
-      db,
-      `SELECT v.user_id, v.email FROM email_verifications v JOIN users u ON u.id = v.user_id
-       WHERE v.token_hash = $1 AND v.used_at IS NULL AND v.expires_at > $2 AND u.email = v.email FOR UPDATE OF v`,
-      [sha256(token), services.now()],
-    );
-    if (!row) throw invalidLink();
-    await db.query('UPDATE email_verifications SET used_at = $2 WHERE token_hash = $1', [sha256(token), services.now()]);
-    await db.query('UPDATE users SET email_verified_at = coalesce(email_verified_at, $2) WHERE id = $1', [row.user_id, services.now()]);
-    await db.query(`INSERT INTO auth_events (user_id, kind) VALUES ($1, 'email_verified')`, [row.user_id]);
-  });
 }
 
 export async function verifyPhoneCode(services: Services, userId: number, code: string): Promise<void> {

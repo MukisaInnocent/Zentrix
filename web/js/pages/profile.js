@@ -72,7 +72,6 @@ async function render(me, list) {
 async function emailChoices(form) {
   const { preferences } = await api.get('/api/me/email-preferences');
   form.elements.namedItem('referralRewards').checked = preferences.referralRewards;
-  form.elements.namedItem('signInAlerts').checked = preferences.signInAlerts;
   form.elements.namedItem('announcements').checked = preferences.announcements;
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -81,7 +80,8 @@ async function emailChoices(form) {
     try {
       await api.put('/api/me/email-preferences', {
         referralRewards: form.elements.namedItem('referralRewards').checked,
-        signInAlerts: form.elements.namedItem('signInAlerts').checked,
+        // No sign-in alert emails since 2026-11-01; the stored choice is kept as it is.
+        signInAlerts: preferences.signInAlerts,
         announcements: form.elements.namedItem('announcements').checked,
       });
       toast.success('Email choices saved.');

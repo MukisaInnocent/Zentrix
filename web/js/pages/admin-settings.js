@@ -25,9 +25,11 @@ const KNOWN = {
   },
   'support.contact': {
     title: 'Support contact',
-    fields: [{ name: 'email', label: 'Email', type: 'email' }, { name: 'phone', label: 'Phone' }, { name: 'hours', label: 'Opening hours' }],
-    hint: 'Shown on the Contact page.',
-    show: v => `${v.email} · ${v.phone} · ${v.hours}`,
+    fields: [{ name: 'email', label: 'Email', type: 'email' }, { name: 'phone', label: 'Phone' }, { name: 'whatsapp', label: 'WhatsApp number (optional)' }, { name: 'hours', label: 'Opening hours' }],
+    hint: 'Shown on the Contact page and the home page.',
+    toForm: v => ({ ...v, whatsapp: v.whatsapp ?? '' }),
+    show: v => [v.email, v.phone, v.whatsapp ? `WhatsApp ${v.whatsapp}` : null, v.hours].filter(Boolean).join(' · '),
+    read: v => ({ email: v.email, phone: v.phone, ...(v.whatsapp ? { whatsapp: v.whatsapp } : {}), hours: v.hours }),
   },
   'email.allowance': {
     title: 'Email allowance',

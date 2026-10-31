@@ -308,7 +308,7 @@
     "currency": "Wallet currency",
     "memberSince": "Member since",
     "verifyTitle": "Confirm your details",
-    "verifyText": "Confirm your email and mobile number before deposits and withdrawals open.",
+    "verifyText": "Confirm your mobile number before withdrawals open.",
     "verifyAction": "Confirm now",
     "staffMfaText": "Staff tools need two-step verification on your account.",
     "staffMfaAction": "Set it up",

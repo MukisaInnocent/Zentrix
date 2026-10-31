@@ -17,14 +17,15 @@ async function showFee() {
   } catch {
     // Older browsers: keep the country code.
   }
-  $('#plan-country').textContent = `One-time activation fee in ${name}. Each country pays in its own currency.`;
+  $('#plan-country').textContent = `One-time activation fee in ${name}.`;
 }
 
 async function showContact() {
   const { support } = await api.get('/api/meta', { noRedirect: true });
   if (!support) return;
   $('#contact-details').replaceChildren(
-    h('a', { href: `mailto:${support.email}` }, support.email), ' · ', support.phone, ' · ', support.hours);
+    h('a', { href: `mailto:${support.email}` }, support.email), ' · ', support.phone,
+    ...(support.whatsapp ? [' · WhatsApp ', support.whatsapp] : []), ' · ', support.hours);
 }
 
 export async function init() {

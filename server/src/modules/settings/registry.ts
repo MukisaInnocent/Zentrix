@@ -17,9 +17,10 @@ export const SETTING_DEFS = {
     description: 'Version of the Privacy notice members accept at sign-up when the country has no config.',
   },
   'support.contact': {
-    schema: z.strictObject({ email: z.email(), phone: z.string().min(5).max(30), hours: z.string().min(1).max(80) }),
+    // WhatsApp is optional (owner, 2026-11-01: contact details edited by admins, shown on the Contact page and the home page).
+    schema: z.strictObject({ email: z.email(), phone: z.string().min(5).max(30), whatsapp: z.string().min(5).max(30).optional(), hours: z.string().min(1).max(80) }),
     fallback: { email: 'info@pexerearn.com', phone: '+256 700 000 000', hours: 'Mon to Fri, 09:00 to 17:00 EAT' },
-    description: 'Support contact shown on the Contact page. TODO(owner): real details.',
+    description: 'Support contact shown on the Contact page and the home page. TODO(owner): real details.',
   },
   // Referral rewards for levels 1 to 3 (owner's amounts as the fallback), in Uganda shillings. Other countries get
   // the same share of their own activation fee. Together they stay within the UGX 19,000 fee, so a reward can

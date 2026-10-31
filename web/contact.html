@@ -24,18 +24,33 @@
     <div class="zx-card">
       <h2>Get in Touch</h2>
       <div class="zx-stack-3">
+        <!-- Filled from the support contact an admin sets in Settings (contact.js). -->
         <div class="zx-contact-row">
           <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#mail"></use></svg>
           <div>
             <div class="zx-strong">Email Support</div>
-            <div class="zx-hint">support@pexerearn.test</div>
+            <div class="zx-hint"><a id="contact-email" href="#"></a></div>
           </div>
         </div>
         <div class="zx-contact-row">
+          <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#phone"></use></svg>
+          <div>
+            <div class="zx-strong">Phone</div>
+            <div class="zx-hint"><a id="contact-phone" href="#"></a></div>
+          </div>
+        </div>
+        <div id="contact-whatsapp-row" class="zx-contact-row" hidden>
           <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#message"></use></svg>
           <div>
             <div class="zx-strong">WhatsApp Support</div>
-            <div class="zx-hint">+256 700 000 000 (Mon - Sat, 8am - 8pm EAT)</div>
+            <div class="zx-hint"><a id="contact-whatsapp" href="#" rel="noopener" target="_blank"></a></div>
+          </div>
+        </div>
+        <div class="zx-contact-row">
+          <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#clock"></use></svg>
+          <div>
+            <div class="zx-strong">Opening hours</div>
+            <div id="contact-hours" class="zx-hint"></div>
           </div>
         </div>
         <div class="zx-card zx-card--warn zx-card--soft">
