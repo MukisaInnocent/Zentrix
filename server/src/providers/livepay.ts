@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { markerFor, watchKey } from './paywatch.js';
 
 // Mobile-money provider API (owner, 2026-10-30: LivePay, https://docs.livepay.me). Every call is a command and its
 // answer an outcome; modules/payments/provider.ts applies outcomes to the ledger. A webhook never moves money by
@@ -24,7 +25,7 @@ export interface ProviderCommand {
 
 // A collection or payout not sent within 5 minutes is dropped unsent: it may be a retry of one LivePay already has,
 // so it is reported as 'unsure' and a status read settles it. Requests are failed for "missing" only after
-// MISSING_FAIL_MINUTES (modules/payments/provider.ts), well after this window.
+// MISSING_FAIL_MINUTES (providers/paywatch.ts), well after this window.
 export const COMMAND_TTL_MS = 5 * 60_000;
 
 export function expiredOutcome(command: ProviderCommand, now: Date): ProviderOutcome | null {
@@ -218,6 +219,14 @@ export class S3HandoffGateway implements PaymentGateway {
   private readonly s3 = new S3Client({});
   constructor(readonly provider: ProviderName, private readonly bucket: string) {}
   async dispatch(command: ProviderCommand): Promise<ProviderOutcome[]> {
+    // The paygate function watches the request from now on, without the database (providers/paywatch.ts). Marked
+    // before the command is written, so the command's answer always finds the mark to remove.
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: watchKey(command.reference),
+      Body: JSON.stringify(markerFor(command, new Date())),
+      ContentType: 'application/json',
+    }));
     await this.s3.send(new PutObjectCommand({
       Bucket: this.bucket,
       Key: `${PAYGATE_COMMANDS}${command.reference}-${command.op}-${randomUUID()}.json`,

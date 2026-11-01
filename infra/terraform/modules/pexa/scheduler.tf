@@ -25,7 +25,7 @@ resource "aws_iam_role_policy" "scheduler" {
   role = aws_iam_role.scheduler.id
   policy = jsonencode({
     Version   = "2012-10-17"
-    Statement = [{ Effect = "Allow", Action = "lambda:InvokeFunction", Resource = [aws_lambda_function.jobs.arn, aws_lambda_function.fxfetch.arn] }]
+    Statement = [{ Effect = "Allow", Action = "lambda:InvokeFunction", Resource = concat([aws_lambda_function.jobs.arn, aws_lambda_function.fxfetch.arn], aws_lambda_function.paygate[*].arn) }]
   })
 }
 
@@ -36,7 +36,8 @@ locals {
     fxrates        = var.fx_rates_schedule
     announcements  = var.announcements_schedule
     },
-    # Only with LivePay: each run wakes a paused database.
+    # Only with LivePay: the database-side backstop (each run wakes a paused database); paygate_watch does the
+    # minute-by-minute checks without it.
   var.livepay_enabled ? { payments = var.payments_schedule } : {})
 }
 
@@ -74,6 +75,27 @@ resource "aws_scheduler_schedule" "fxfetch" {
     retry_policy {
       maximum_retry_attempts       = 2
       maximum_event_age_in_seconds = 900
+    }
+  }
+}
+
+# Open LivePay requests: paygate reads their status every minute without the database (providers/paywatch.ts) and
+# wakes it only when a request is paid, failed or needs staff. With nothing open, a run lists an empty S3 folder.
+resource "aws_scheduler_schedule" "paygate_watch" {
+  count                        = local.livepay
+  name                         = "${local.name}-paygate-watch"
+  schedule_expression          = var.paygate_watch_schedule
+  schedule_expression_timezone = "UTC"
+  flexible_time_window {
+    mode = "OFF"
+  }
+  target {
+    arn      = aws_lambda_function.paygate[0].arn
+    role_arn = aws_iam_role.scheduler.arn
+    input    = jsonencode({ watch = true })
+    retry_policy {
+      maximum_retry_attempts       = 0
+      maximum_event_age_in_seconds = 60
     }
   }
 }

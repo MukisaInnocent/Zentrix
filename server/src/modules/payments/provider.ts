@@ -7,6 +7,7 @@ import { sha256 } from '../../lib/crypto.js';
 import { AppError, badRequest, conflict, serviceUnavailable } from '../../lib/errors.js';
 import { toDecimalString } from '../../lib/money.js';
 import { providerAmountToMinor, scalar, verifyLivePaySignature, type ProviderCommand, type ProviderOutcome } from '../../providers/livepay.js';
+import { MISSING_FAIL_MINUTES, REVIEW_AFTER_HOURS } from '../../providers/paywatch.js';
 import type { Services } from '../../services.js';
 import type { Role } from '../auth/context.js';
 import { currentCountryConfig } from '../countries/service.js';
@@ -32,10 +33,9 @@ const PROVIDER_ACTOR = { username: 'zx_livepay', phone: '+256700990003' };
 // reads after a webhook may use part of it. A member may have 5 failed prompts a day.
 export const BUDGET = { readsPer15Min: 45, webhookReadsPer15Min: 48, payoutsPerMinute: 5, reserveForStatus: 10, failedPromptsPerDay: 5 };
 // A request with no answer is read again after this long; one still open after a day goes to staff review.
-// Owner, 2026-11-01: results should show within about a minute; BUDGET still caps the reads per 15 minutes.
+// On AWS the paygate function watches open requests every minute without the database (providers/paywatch.ts);
+// the polling job there is a daily backstop.
 const RECHECK_MINUTES = 1;
-const MISSING_FAIL_MINUTES = 15;
-const REVIEW_AFTER_HOURS = 24;
 
 interface RequestRow {
   id: string; public_id: string; provider: string; kind: 'collect' | 'payout'; deposit_id: string | null; withdrawal_id: string | null;
@@ -220,7 +220,9 @@ export async function checkRequest(services: Services, reference: string, opts: 
     return true;
   });
   if (!allowed) return false;
-  await sendCommand(services, { op: 'status', provider: r.provider as ProviderCommand['provider'], reference, currency: r.currency_code });
+  await sendCommand(services, {
+    op: 'status', provider: r.provider as ProviderCommand['provider'], reference, currency: r.currency_code, createdAt: r.created_at.toISOString(),
+  });
   return true;
 }
 

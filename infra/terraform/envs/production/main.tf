@@ -92,8 +92,8 @@ module "pexa" {
   livepay_enabled  = true
   livepay_fixed_ip = true
   livepay_nat      = true
-  # Owner, 2026-11-01: check open LivePay payments every minute (the scheduler's minimum), not every 5.
-  payments_schedule = "rate(1 minute)"
+  # Owner, 2026-11-01: open LivePay payments are checked every minute by paygate (paygate_watch_schedule) without
+  # waking the database; the database wakes for a transaction only.
 }
 
 output "site_url" {

@@ -90,6 +90,9 @@ resource "aws_iam_role_policy" "paygate" {
     Statement = [
       { Effect = "Allow", Action = ["s3:GetObject", "s3:DeleteObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/commands/*" },
       { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/results/*" },
+      # Watch markers (providers/paywatch.ts): open requests paygate reads every minute without the database.
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/watch/*" },
+      { Effect = "Allow", Action = ["s3:ListBucket"], Resource = aws_s3_bucket.outbox.arn, Condition = { StringLike = { "s3:prefix" = ["paygate/watch/*"] } } },
       { Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = aws_sqs_queue.paygate[0].arn },
     ]
   })
@@ -125,6 +128,7 @@ resource "aws_lambda_function" "paygate" {
       APP_MODE               = var.app_mode
       LIVEPAY_LIVE_API_KEY   = try(local.app_secret.LIVEPAY_LIVE_API_KEY, "")
       LIVEPAY_ACCOUNT_NUMBER = try(local.app_secret.LIVEPAY_ACCOUNT_NUMBER, "")
+      PAYGATE_S3_BUCKET      = aws_s3_bucket.outbox.bucket
       LOG_LEVEL              = "info"
     }
   }

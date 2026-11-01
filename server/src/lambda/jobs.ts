@@ -2,14 +2,17 @@ import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client
 import { boot } from '../bootstrap.js';
 import { assertStartupGates } from '../config/gates.js';
 import { JOBS, runExclusive } from '../jobs/runner.js';
+import { maybeOne } from '../db/sql.js';
 import { applyOutcome } from '../modules/payments/provider.js';
 import { PAYGATE_RESULTS, type ProviderOutcome } from '../providers/livepay.js';
+import { watchKey } from '../providers/paywatch.js';
 import { createServices, type Services } from '../services.js';
 
 // AWS Lambda entry for scheduled jobs. EventBridge Scheduler invokes it with { "job": "<name>" } on the schedule
 // set in Terraform (the node-cron schedules in jobs/runner.ts apply only to the local worker). Runs inside the VPC.
 // New exchange rates written to S3 under fx/ (S3 notification) run the `fxrates` job. Provider outcomes written by
-// the paygate function under paygate/results/ are applied here (`payresults`), then deleted.
+// the paygate function under paygate/results/ are applied here (`payresults`), then deleted; once a request is
+// closed or sent to staff review, its watch marker goes too, so paygate stops reading it (providers/paywatch.ts).
 let services: Services | undefined;
 const s3 = new S3Client({});
 
@@ -39,6 +42,10 @@ export async function handler(event: JobEvent): Promise<{ job: string; ran: bool
       const outcomes = JSON.parse(await object.Body!.transformToString()) as ProviderOutcome[];
       // A failure throws, so the S3 notification retries it; applying an outcome twice changes nothing.
       for (const outcome of outcomes) await applyOutcome(s, outcome);
+      for (const reference of new Set(outcomes.map(o => o.reference))) {
+        const open = await maybeOne(s.pool, `SELECT 1 FROM provider_requests WHERE reference = $1 AND status IN ('queued', 'sent', 'pending')`, [reference]);
+        if (!open) await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: watchKey(reference) }));
+      }
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     }
     return { job: 'payresults', ran: true };

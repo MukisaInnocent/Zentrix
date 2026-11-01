@@ -50,9 +50,15 @@ variable "livepay_nat" {
 }
 
 variable "payments_schedule" {
-  description = "How often the payments job reads the status of LivePay requests that got no answer (only while livepay_enabled)."
+  description = "Backstop: when the payments job reads, from the database, the status of LivePay requests that got no answer (only while livepay_enabled). Each run wakes the database; paygate_watch does the minute-by-minute checks."
   type        = string
-  default     = "rate(5 minutes)"
+  default     = "cron(25 3 * * ? *)"
+}
+
+variable "paygate_watch_schedule" {
+  description = "How often paygate reads the status of open LivePay requests without the database (only while livepay_enabled)."
+  type        = string
+  default     = "rate(1 minute)"
 }
 
 variable "test_auto_approve" {

@@ -81,6 +81,7 @@ resource "aws_iam_role_policy" "vpc_fn_outbox" {
       { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" },
       { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/commands/*" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:DeleteObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/results/*" },
+      { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/watch/*" },
     ]
   })
 }
