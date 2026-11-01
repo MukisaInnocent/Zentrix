@@ -39,7 +39,9 @@ export async function init({ me }) {
   if (referrals) {
     set('#me-referred', String(referrals.levels[1].total));
     const input = $('#ref-link-input');
-    input.value = referrals.referralLink;
+    // Always on the address the member is using (pexerearn.com), whatever host the API saw.
+    const link = new URL(referrals.referralLink);
+    input.value = `${location.origin}${link.pathname}${link.search}`;
     $('#copy-ref-btn').addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(input.value);
