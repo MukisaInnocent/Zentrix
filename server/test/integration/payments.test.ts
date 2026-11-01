@@ -268,7 +268,7 @@ describe('referral rewards', () => {
     expect((await referrer.client.get<Body>('/api/referrals/members?level=1&status=inactive')).body.members).toEqual([]);
     const overview = await referrer.client.get<Body>('/api/referrals');
     expect(overview.body.upline).toEqual({ username: grand.input.username });
-    expect(overview.body.referralLink).toContain(`ref=${referrer.input.username}`);
+    expect(overview.body.referralLink).toBe(`${app.services.config.publicOrigin}/register.html?ref=${referrer.input.username}`);
     expect(overview.body.levels['1']).toEqual({ total: 1, active: 1, inactive: 0, rewardsMinor: '10000' });
     // Each level's overview counts only that level: the top member's level 1 (never activated) earned nothing; level 3 earned 2,000.
     const topLevels = (await top.client.get<Body>('/api/referrals')).body.levels;
