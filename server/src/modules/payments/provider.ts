@@ -32,7 +32,8 @@ const PROVIDER_ACTOR = { username: 'zx_livepay', phone: '+256700990003' };
 // reads after a webhook may use part of it. A member may have 5 failed prompts a day.
 export const BUDGET = { readsPer15Min: 45, webhookReadsPer15Min: 48, payoutsPerMinute: 5, reserveForStatus: 10, failedPromptsPerDay: 5 };
 // A request with no answer is read again after this long; one still open after a day goes to staff review.
-const RECHECK_MINUTES = 2;
+// Owner, 2026-11-01: results should show within about a minute; BUDGET still caps the reads per 15 minutes.
+const RECHECK_MINUTES = 1;
 const MISSING_FAIL_MINUTES = 15;
 const REVIEW_AFTER_HOURS = 24;
 
