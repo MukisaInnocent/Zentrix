@@ -11,6 +11,7 @@ data "archive_file" "package" {
 }
 
 locals {
+  test_mode = var.app_mode == "test"
   # The custom site domain once it is live (domain.tf), else the CloudFront link. The CloudFront link stays an
   # accepted site address while keep_temporary_links is true.
   public_origin = local.site_live ? "https://${var.site_domain}" : local.cloudfront_url
@@ -28,11 +29,12 @@ locals {
     DATABASE_CONNECT_TIMEOUT_MS = "25000"
     CSRF_SECRET                 = local.app_secret.CSRF_SECRET
     DATA_ENCRYPTION_KEY         = local.app_secret.DATA_ENCRYPTION_KEY
-    TEST_AUTO_APPROVE           = tostring(var.test_auto_approve)
-    TEST_SUPERADMIN_PASSWORD    = local.app_secret.TEST_SUPERADMIN_PASSWORD
-    MAIL_FROM                   = var.mail_from
-    RESEND_WEBHOOK_SECRET       = try(local.app_secret.RESEND_WEBHOOK_SECRET, "")
-    MAIL_S3_BUCKET              = local.resend_enabled ? aws_s3_bucket.outbox.bucket : ""
+    # Test switches exist only in test mode; live mode refuses to start while either is set.
+    TEST_AUTO_APPROVE        = tostring(local.test_mode && var.test_auto_approve)
+    TEST_SUPERADMIN_PASSWORD = local.test_mode ? local.app_secret.TEST_SUPERADMIN_PASSWORD : ""
+    MAIL_FROM                = var.mail_from
+    RESEND_WEBHOOK_SECRET    = try(local.app_secret.RESEND_WEBHOOK_SECRET, "")
+    MAIL_S3_BUCKET           = local.resend_enabled ? aws_s3_bucket.outbox.bucket : ""
     # Exchange rates: fxfetch leaves the latest snapshot in the outbox bucket under fx/.
     FX_PROVIDER  = "s3"
     FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
@@ -193,8 +195,8 @@ resource "aws_lambda_function" "migrate" {
   environment {
     # Runs as the database owner (no app role): migrations create tables and roles.
     variables = merge(local.db_env, {
-      SEED_STAFF_PASSWORD  = local.app_secret.SEED_STAFF_PASSWORD
-      SEED_MEMBER_PASSWORD = local.app_secret.SEED_MEMBER_PASSWORD
+      SEED_STAFF_PASSWORD  = local.test_mode ? local.app_secret.SEED_STAFF_PASSWORD : ""
+      SEED_MEMBER_PASSWORD = local.test_mode ? local.app_secret.SEED_MEMBER_PASSWORD : ""
     })
   }
   depends_on = [aws_cloudwatch_log_group.fn, aws_iam_role_policy_attachment.vpc_fn_access]

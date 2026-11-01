@@ -185,7 +185,36 @@ get an error and the next one works. A deploy with a breaking migration should b
 5. Sign in as `superadmin` (step 7) at `/login.html`, open the staff console (`/admin/index.html`) and check the
    deposits, withdrawals, ledger and balance check pages, and the **Email outbox** for sign-in and reset emails.
 
-## Production (later)
+## Production (live mode)
+
+Owner, 2026-11-01: production runs in **live mode** (real money, LivePay with the fixed IP). Terraform blanks the
+test switches (TEST_AUTO_APPROVE, TEST_SUPERADMIN_PASSWORD, the seed passwords) in live mode and refuses to build it
+without RESEND_API_KEY and LivePay's keys in the app secret. The paragraph after these steps is the older note.
+
+### Going live
+
+Run from the repository root with `$env:AWS_PROFILE = "Pexerearn"` after `aws sso login --profile Pexerearn`.
+
+1. Build: `npm run build`, then `node infra\scripts\package-lambda.mjs`.
+2. Create the app secret only (the live guards need real keys before the rest is built), from
+   `infra\terraform\envs\production`: `terraform plan -target=module.pexa.aws_secretsmanager_secret_version.app -out=secret.tfplan`,
+   then `terraform apply secret.tfplan`.
+3. Keys into `pexa-production/app`: `.\infra\scripts\set-livepay-secret.ps1 -Environment production` (LivePay) and
+   RESEND_API_KEY (`aws secretsmanager put-secret-value`, keeping the other keys).
+4. Everything else: `terraform plan -out=prod.tfplan`, check it, `terraform apply prod.tfplan`.
+5. Pages and database: upload `web` to the `web_bucket` output, invalidate CloudFront, then invoke the migrate
+   function with `{"action":"migrate"}`. That stamps the new database **live**, for good.
+6. Add the `livepay_fixed_ip` output to LivePay's IP whitelist, and point LivePay's webhook at
+   `https://pexerearn.com/api/webhooks/livepay` (a webhook only triggers a status read).
+7. `.\infra\scripts\golive.ps1 admin` creates the first admin (once) and shows its authenticator key. Then
+   `.\infra\scripts\golive.ps1 sign <item>` for each item of `.\infra\scripts\golive.ps1 status`. The API and jobs
+   refuse to start until every item is signed.
+8. Sign in to the staff console, set the support contact, payment methods and Uganda's `live_enabled` (every country
+   starts closed in live mode).
+9. Domain (docs/DOMAIN.md): turn the launch countdown's `domain_live` off, set `custom_domain_live = true` here, plan
+   and apply, and point the Cloudflare records at production.
+
+### Older note
 
 Production uses the same code in `infra/terraform/envs/production` (separate state file; deletion protection, 7-day
 backups, the balance check every 15 minutes). It is still test mode. To create it, set `PEXA_PRODUCTION_ENABLED=true`

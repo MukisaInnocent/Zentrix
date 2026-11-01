@@ -236,7 +236,8 @@ export function assertModeRules(config: Config, env: NodeJS.ProcessEnv): void {
   if (config.nodeEnv !== 'production') problems.push('NODE_ENV must be production');
   if (!config.cookieSecure) problems.push('COOKIE_SECURE must be true');
   if (!config.publicOrigin.startsWith('https://')) problems.push('PUBLIC_ORIGIN must use https');
-  if (!config.smtpUrl && !config.resendApiKey) problems.push('SMTP_URL or RESEND_API_KEY must be set');
+  // On AWS the API hands email to the mailer function through S3 (MAIL_S3_BUCKET); only the mailer holds the Resend key.
+  if (!config.smtpUrl && !config.resendApiKey && !config.mailS3Bucket) problems.push('SMTP_URL, RESEND_API_KEY or MAIL_S3_BUCKET must be set');
   if (config.databaseSsl === 'disable') problems.push('DATABASE_SSL must not be disable');
   if (config.geoipProvider === 'test-header') problems.push('GEOIP_PROVIDER=test-header is test-only');
   if (config.seedOnStart) problems.push('SEED_ON_START must be false');

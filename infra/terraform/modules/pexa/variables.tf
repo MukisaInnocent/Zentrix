@@ -8,12 +8,12 @@ variable "environment" {
 }
 
 variable "app_mode" {
-  description = "Pexa APP_MODE. Everything deployed from this code runs in test mode; real money stays behind the go-live checklist."
+  description = "Pexa APP_MODE. Live (owner, 2026-11-01, production) moves real money; the API refuses to start until the go-live checklist is signed on the live database."
   type        = string
   default     = "test"
   validation {
-    condition     = var.app_mode == "test"
-    error_message = "Only APP_MODE=test may be deployed. Live mode needs the go-live checklist and the owner's sign-off first."
+    condition     = contains(["test", "live"], var.app_mode)
+    error_message = "app_mode must be test or live."
   }
 }
 
@@ -27,6 +27,10 @@ variable "livepay_trial" {
   description = "Owner, 2026-10-30: let LivePay run with real keys while the site is in test mode, to try it on staging. LivePay payments then move REAL money."
   type        = bool
   default     = false
+  validation {
+    condition     = !(var.livepay_trial && var.app_mode == "live")
+    error_message = "livepay_trial is for test-mode staging only; live mode loads LivePay's keys by itself."
+  }
 }
 
 variable "livepay_fixed_ip" {
@@ -52,7 +56,7 @@ variable "payments_schedule" {
 }
 
 variable "test_auto_approve" {
-  description = "Test mode only: activation payments and withdrawals pass by themselves."
+  description = "Test mode only: activation payments and withdrawals pass by themselves. Ignored (always off) in live mode."
   type        = bool
   default     = true
 }

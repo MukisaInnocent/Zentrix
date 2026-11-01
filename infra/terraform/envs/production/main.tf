@@ -1,4 +1,5 @@
-# Pexa production (not created yet: apply only after staging is approved). Still test mode until the go-live checklist. Run with $env:AWS_PROFILE = "Pexerearn" (docs/DEPLOYMENT.md).
+# Pexa production, live mode (owner, 2026-11-01): real money. The API refuses to start until the go-live checklist is
+# signed on this database (infra/scripts/golive.ps1). Run with $env:AWS_PROFILE = "Pexerearn" (docs/DEPLOYMENT.md, "Going live").
 terraform {
   required_version = ">= 1.10.0"
   required_providers {
@@ -31,7 +32,7 @@ provider "aws" {
     tags = {
       Project     = "Pexa"
       Environment = "production"
-      AppMode     = "test"
+      AppMode     = "live"
       ManagedBy   = "Terraform"
       Repository  = "MukisaInnocent/Zentrix"
     }
@@ -46,7 +47,7 @@ provider "aws" {
     tags = {
       Project     = "Pexa"
       Environment = "production"
-      AppMode     = "test"
+      AppMode     = "live"
       ManagedBy   = "Terraform"
       Repository  = "MukisaInnocent/Zentrix"
     }
@@ -71,7 +72,7 @@ module "pexa" {
     aws.us_east_1 = aws.us_east_1
   }
   environment                  = "production"
-  app_mode                     = "test"
+  app_mode                     = "live"
   alarm_email                  = var.alarm_email
   lambda_package_dir           = var.lambda_package_dir
   aurora_min_acu               = 0
@@ -79,6 +80,18 @@ module "pexa" {
   deletion_protection          = true
   aurora_backup_retention_days = 7
   reconciliation_schedule      = "rate(15 minutes)"
+
+  # pexerearn.com (docs/DOMAIN.md). Step 1: false (certificates only). The launch countdown holds the name until
+  # 2 November 2026 00:00 EAT; take it off there first, then set true here and apply again.
+  site_domain        = "pexerearn.com"
+  api_domain         = "api.pexerearn.com"
+  custom_domain_live = false
+
+  # LivePay (docs/LIVEPAY.md) with the fixed IP LivePay whitelists; the NAT gateway (about USD 35 a month) must run
+  # for payments to go through.
+  livepay_enabled  = true
+  livepay_fixed_ip = true
+  livepay_nat      = true
 }
 
 output "site_url" {
@@ -103,4 +116,24 @@ output "app_secret_name" {
 
 output "email_delivery" {
   value = module.pexa.email_delivery
+}
+
+output "temporary_site_url" {
+  value = module.pexa.temporary_site_url
+}
+
+output "livepay_fixed_ip" {
+  value = module.pexa.livepay_fixed_ip
+}
+
+output "api_url" {
+  value = module.pexa.api_url
+}
+
+output "certificate_status" {
+  value = module.pexa.certificate_status
+}
+
+output "cloudflare_dns_records" {
+  value = module.pexa.cloudflare_dns_records
 }

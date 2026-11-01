@@ -82,3 +82,14 @@ locals {
   # Only the yes/no answer is used to decide which resources exist, so it is safe to reveal.
   resend_enabled = nonsensitive(try(local.app_secret.RESEND_API_KEY, "") != "")
 }
+
+# Live mode sends real email (password resets, payment emails) and has no test outbox page, so it needs the Resend key.
+resource "terraform_data" "live_guard" {
+  count = var.app_mode == "live" ? 1 : 0
+  lifecycle {
+    precondition {
+      condition     = local.resend_enabled
+      error_message = "Live mode needs RESEND_API_KEY in the app secret first (docs/DEPLOYMENT.md)."
+    }
+  }
+}

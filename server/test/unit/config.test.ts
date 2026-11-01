@@ -45,7 +45,7 @@ describe('configuration', () => {
         return String(err);
       }
     })();
-    for (const part of ['NODE_ENV must be production', 'SMTP_URL or RESEND_API_KEY must be set', 'DATABASE_SSL must not be disable']) expect(message).toContain(part);
+    for (const part of ['NODE_ENV must be production', 'SMTP_URL, RESEND_API_KEY or MAIL_S3_BUCKET must be set', 'DATABASE_SSL must not be disable']) expect(message).toContain(part);
   });
 
   it('accepts a complete live configuration', () => {
@@ -54,6 +54,8 @@ describe('configuration', () => {
       DATABASE_SSL: 'verify',
     });
     expect(c.cookieSecure).toBe(true);
+    // AWS: email goes through the S3 handoff to the mailer function, which holds the Resend key.
+    expect(loadConfig({ ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', MAIL_S3_BUCKET: 'pexa-production-outbox', DATABASE_SSL: 'require' }).mailS3Bucket).toBe('pexa-production-outbox');
     expect(() => loadConfig({
       ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', SMTP_URL: 'smtp://mail.example:587',
       DATABASE_SSL: 'verify', TEST_AUTO_APPROVE: 'true',
