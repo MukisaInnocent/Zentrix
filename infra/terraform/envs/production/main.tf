@@ -79,7 +79,8 @@ module "pexa" {
   aurora_max_acu               = 4
   deletion_protection          = true
   aurora_backup_retention_days = 7
-  reconciliation_schedule      = "rate(15 minutes)"
+  # Owner, 2026-11-01: hourly, so the database sleeps between transactions.
+  reconciliation_schedule = "rate(1 hour)"
 
   # pexerearn.com (docs/DOMAIN.md). Step 1: false (certificates only). The launch countdown holds the name until
   # 2 November 2026 00:00 EAT; take it off there first, then set true here and apply again.
