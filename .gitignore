@@ -26,3 +26,6 @@ override.tf.json
 infra/terraform/**/.build/
 # Lambda package built by infra/scripts/package-lambda.mjs
 .lambda/
+
+# Claude Code local permissions (per machine)
+.claude/settings.local.json
