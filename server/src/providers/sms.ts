@@ -14,7 +14,15 @@ export class OutboxSms implements SmsSender {
   }
 }
 
+// Live mode has no SMS provider yet (TODO(owner): choose one). Owner, 2026-11-01: until then a paid LivePay prompt to
+// the registered number verifies the phone (payments/provider.ts), and sending a code fails (callers log it).
+export class UnavailableSms implements SmsSender {
+  send(): Promise<void> {
+    return Promise.reject(new Error('No SMS provider is set up for live mode.'));
+  }
+}
+
 export function createSmsSender(config: Config, pool: Pool): SmsSender {
   if (config.appMode === 'test') return new OutboxSms(pool);
-  throw new Error('No SMS provider adapter is configured for live mode yet (TODO(owner): choose a provider).');
+  return new UnavailableSms();
 }

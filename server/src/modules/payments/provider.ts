@@ -350,6 +350,14 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
       if (d.status === 'pending') {
         await confirmDeposit(db, actor, d.public_id, amount, `Paid with LivePay, transaction ${payoutTxnId}`);
         notice = { event: 'deposit_confirmed', reference: d.reference, note: null };
+        // Owner, 2026-11-01: prompts go only to the registered number and the member approves with their PIN, so a
+        // paid prompt verifies that phone (live mode has no SMS provider yet).
+        await db.query(
+          `WITH v AS (UPDATE users SET phone_verified_at = now()
+             WHERE id = (SELECT user_id FROM deposits WHERE id = $1) AND phone_e164 = $2 AND phone_verified_at IS NULL RETURNING id)
+           INSERT INTO auth_events (user_id, kind, details) SELECT id, 'phone_verified', '{"by":"livepay_payment"}' FROM v`,
+          [r.deposit_id, r.phone],
+        );
       } else {
         throw conflict('deposit.not_pending', `LivePay collected the fee but deposit ${d.reference} is already ${d.status}; refund it or settle it by hand.`);
       }
