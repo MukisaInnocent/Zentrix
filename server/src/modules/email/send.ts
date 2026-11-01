@@ -22,6 +22,7 @@ export interface OutgoingEmail extends EmailContent {
   subject: string;
   // Set to send this email only once (for example 'reward:42').
   ref?: string;
+  replyTo?: string;
 }
 
 export type SendOutcome = 'queued' | 'sent' | 'skipped' | 'suppressed' | 'opted_out' | 'duplicate' | 'failed';
@@ -68,7 +69,7 @@ export async function sendEmail(services: Services, email: OutgoingEmail): Promi
       ? 'You get this email because it is turned on in your Pexerearn profile. Open Profile > Emails to change it.'
       : undefined);
     const rendered = renderEmail({ ...email, footer }, { origin: config.publicOrigin, testMode: config.appMode === 'test' });
-    await services.mailer.send({ to, subject: email.subject, text: rendered.text, html: rendered.html, id });
+    await services.mailer.send({ to, subject: email.subject, text: rendered.text, html: rendered.html, id, ...(email.replyTo ? { replyTo: email.replyTo } : {}) });
     // Only Resend reports delivery back (webhooks); with SMTP or the test outbox, handing it over is the end.
     const tracked = services.mailer instanceof ResendMailer || services.mailer instanceof S3HandoffMailer;
     if (!tracked) await pool.query(`UPDATE email_messages SET status = 'sent', updated_at = now() WHERE id = $1`, [id]);

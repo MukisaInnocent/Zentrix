@@ -251,10 +251,7 @@
 .zx-copy-row--max { max-inline-size: 640px; }
 .zx-inline-copy { display: flex; align-items: center; gap: var(--zx-space-2); flex: 1; min-inline-size: 260px; max-inline-size: 460px; }
 
-/* Voucher status and the demo-account helper. */
-.zx-demo { margin-block-start: var(--zx-space-2); padding: var(--zx-space-4); border-radius: var(--zx-radius); background: var(--zx-surface-2); border: 1px dashed var(--zx-border); font-size: .8125rem; }
-.zx-demo__title { font-weight: 800; color: var(--zx-brand-strong); margin-block-end: 4px; }
-.zx-demo__text { color: var(--zx-text-muted); margin-block-end: 10px; }
+/* Voucher status. */
 
 /* ---------- Pills, badges, alerts ---------- */
 .zx-pill { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 10px; background: var(--zx-brand); color: var(--zx-on-brand); font-weight: 700; font-size: .875rem; white-space: nowrap; font-variant-numeric: tabular-nums; }

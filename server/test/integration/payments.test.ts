@@ -455,6 +455,13 @@ describe('treasury and task budget', () => {
   it('needs a different admin to approve, and task rewards stop when the budget is empty', async () => {
     const member = await verifiedMember();
     await activate(member);
+    // The site makes up no tasks (owner, 2026-11-01): only tasks in the table are listed.
+    expect((await member.client.get<Body>('/api/tasks')).body.tasks).toEqual([]);
+    await app.owner.query(
+      `INSERT INTO tasks (module, title, description, reward_minor, currency_code, url, duration_sec, details) VALUES
+         ('youtube', 'Watch a sponsored video', 'A test video task.', 1500, 'UGX', 'https://www.youtube.com/', 60, '{}'),
+         ('trivia', 'A test question', 'Which is the capital of Uganda?', 500, 'UGX', NULL, NULL, '{"options": ["Kampala", "Nairobi"], "answer": "Kampala"}')`,
+    );
     const tasks = await member.client.get<Body>('/api/tasks?module=youtube');
     const task = tasks.body.tasks[0];
     expect((await member.client.post<Body>(`/api/tasks/${task.id}/complete`, { answer: 'done' }, key())).body.error?.code).toBe('task.budget_empty');

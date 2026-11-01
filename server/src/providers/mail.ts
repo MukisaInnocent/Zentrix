@@ -11,6 +11,8 @@ export interface MailMessage {
   html?: string;
   // Our email_messages id. Resend returns it in delivery webhooks as the `message_id` tag.
   id?: string;
+  // Where a reply goes (a contact-form message: the sender). The From address stays ours.
+  replyTo?: string;
 }
 
 export interface Mailer {
@@ -30,7 +32,7 @@ export class SmtpMailer implements Mailer {
   }
   async send(message: MailMessage): Promise<void> {
     if (isReservedAddress(message.to)) return;
-    await this.transport.sendMail({ from: this.from, to: message.to, subject: message.subject, text: message.text, html: message.html });
+    await this.transport.sendMail({ from: this.from, to: message.to, subject: message.subject, text: message.text, html: message.html, ...(message.replyTo ? { replyTo: message.replyTo } : {}) });
   }
 }
 
@@ -47,6 +49,7 @@ export class ResendMailer implements Mailer {
         from: this.from, to: [message.to], subject: message.subject, text: message.text,
         ...(message.html ? { html: message.html } : {}),
         ...(message.id ? { tags: [{ name: 'message_id', value: message.id }] } : {}),
+        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     });

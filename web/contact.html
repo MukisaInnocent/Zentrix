@@ -61,14 +61,20 @@
     </div>
     <div class="zx-card">
       <h2>Send us a Message</h2>
-      <form id="contact-form" class="zx-form">
+      <form id="contact-form" class="zx-form" novalidate>
+        <div id="contact-form-error" class="zx-error" hidden role="alert"></div>
+        <!-- Shown only to visitors who are not signed in: the answer goes to this address. -->
+        <div id="contact-reply-field" class="zx-field" hidden>
+          <label for="contact-reply">Your email (we answer here)</label>
+          <input id="contact-reply" class="zx-input" name="email" type="email" autocomplete="email" maxlength="254">
+        </div>
         <div class="zx-field">
           <label for="contact-subject">Subject</label>
-          <input id="contact-subject" class="zx-input" required placeholder="e.g. Question about withdrawal">
+          <input id="contact-subject" class="zx-input" name="subject" required minlength="3" maxlength="120" placeholder="e.g. Question about withdrawal">
         </div>
         <div class="zx-field">
           <label for="contact-msg">Message</label>
-          <textarea id="contact-msg" class="zx-textarea" required rows="4" placeholder="How can we help you?"></textarea>
+          <textarea id="contact-msg" class="zx-textarea" name="message" required minlength="10" maxlength="2000" rows="4" placeholder="How can we help you?"></textarea>
         </div>
         <button id="contact-submit" class="zx-btn zx-btn--block" type="submit">Send Message</button>
       </form>

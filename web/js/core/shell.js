@@ -123,6 +123,7 @@ const ADMIN_NAV = [
     items: [
       { id: 'admin-countries', href: '/admin/countries.html', icon: 'globe', label: 'admin.nav.countries' },
       { id: 'admin-settings', href: '/admin/settings.html', icon: 'settings', label: 'admin.nav.settings' },
+      { id: 'admin-ebooks', href: '/admin/ebooks.html', icon: 'book', label: 'admin.nav.ebooks' },
     ],
   },
   {

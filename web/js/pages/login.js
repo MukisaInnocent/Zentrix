@@ -63,7 +63,7 @@ export function init() {
     hint.className = 'zx-hint';
     hint.textContent = emailSent
       ? 'We emailed a 6-digit code to your account email. It expires in 5 minutes. A code from your authenticator app also works.'
-      : 'Enter the 6-digit code from your authenticator app. In test mode you can run: npm run totp -- <username>';
+      : 'Enter the 6-digit code from your authenticator app.';
     field.append(label, input, hint);
     submitBtn.before(field);
     submitBtn.textContent = 'Confirm code';

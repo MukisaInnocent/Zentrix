@@ -18,6 +18,8 @@ import { referralsRouter } from './modules/referrals/routes.js';
 import { tasksRouter } from './modules/tasks/routes.js';
 import { meRouter } from './modules/users/routes.js';
 import { clientPaymentsRouter, vouchersRouter } from './modules/vouchers/routes.js';
+import { supportRouter } from './modules/support/routes.js';
+import { ebooksRouter } from './modules/ebooks/routes.js';
 import { walletRouter } from './modules/wallet/routes.js';
 import type { Services } from './services.js';
 
@@ -70,6 +72,8 @@ export function createApp(services: Services): express.Express {
   api.use('/vouchers', vouchersRouter(services));
   api.use('/client-payments', clientPaymentsRouter(services));
   api.use('/chat', chatRouter(services));
+  api.use('/support', supportRouter(services));
+  api.use('/ebooks', ebooksRouter(services));
   api.use((_req: Request, _res: Response, next: NextFunction) => next(notFound('api.not_found', 'API endpoint not found.')));
   app.use('/api', api);
 

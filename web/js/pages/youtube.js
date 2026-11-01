@@ -26,14 +26,14 @@ export async function init() {
             .map(t => {
               const actionBtn = t.completed
                 ? `<span class="zx-btn zx-btn--secondary zx-btn--sm zx-btn--done">Completed</span>`
-                : `<button class="zx-btn zx-btn--sm complete-btn" data-id="${t.id}" data-reward="${t.rewardMinor}">Start & Complete (+UGX ${Number(t.rewardMinor).toLocaleString()})</button>`;
+                : `<button class="zx-btn zx-btn--sm complete-btn" data-id="${t.id}" data-reward="${t.rewardMinor}">Start & Complete (+${formatMoney(t.rewardMinor, t.currency)})</button>`;
 
               return `
                 <div class="zx-tile">
                   <div>
                     <div class="zx-tile__title">${t.title}</div>
                     <div class="zx-hint zx-tile__meta">${t.description}</div>
-                    <div class="zx-tile__reward">Reward: +UGX ${Number(t.rewardMinor).toLocaleString()}</div>
+                    <div class="zx-tile__reward">Reward: +${formatMoney(t.rewardMinor, t.currency)}</div>
                   </div>
                   <div>${actionBtn}</div>
                 </div>

@@ -27,53 +27,9 @@ export interface TaskSubmissionRecord {
   createdAt: Date;
 }
 
-export async function ensureDefaultTasks(db: Db): Promise<void> {
-  const count = await one<{ n: string }>(db, 'SELECT count(*) AS n FROM tasks');
-  if (Number(count.n) > 0) return;
-
-  const defaults = [
-    // YouTube
-    { module: 'youtube', title: 'Watch Tech Trends 2026', description: 'Watch the full 3-minute video on emerging mobile technologies.', reward: 1500, url: 'https://youtube.com', duration: 180 },
-    { module: 'youtube', title: 'Subscribe to Pexerearn Official', description: 'Subscribe to our official YouTube channel and hit the notification bell.', reward: 1000, url: 'https://youtube.com', duration: 60 },
-    { module: 'youtube', title: 'Review Mobile Wallet Security', description: 'Learn key security practices for safeguarding your digital wallet credentials.', reward: 2000, url: 'https://youtube.com', duration: 240 },
-
-    // TikTok
-    { module: 'tiktok', title: 'Watch Pexerearn Life Highlights', description: 'Watch and like the featured member story highlight on TikTok.', reward: 1200, url: 'https://tiktok.com', duration: 45 },
-    { module: 'tiktok', title: 'Follow Creator of the Week', description: 'Follow our partner creator specializing in personal finance education.', reward: 800, url: 'https://tiktok.com', duration: 30 },
-    { module: 'tiktok', title: 'Share TikTok Educational Reel', description: 'Share the short clip about budgeting in local currencies to your profile.', reward: 1500, url: 'https://tiktok.com', duration: 60 },
-
-    // Ads
-    { module: 'ads', title: 'Clean Energy & Solar Solutions', description: 'View the 30-second sponsored advertisement about household solar kits.', reward: 500, duration: 30 },
-    { module: 'ads', title: 'AgriTech Farmers Market App', description: 'Explore the 45-second interactive showcase for farm produce delivery.', reward: 800, duration: 45 },
-    { module: 'ads', title: 'Fast Mobile Broadband Promo', description: 'View the 60-second high-speed internet bundle promotion.', reward: 1000, duration: 60 },
-
-    // Trivia
-    { module: 'trivia', title: 'Red Planet Trivia', description: 'Which planet in our solar system is commonly known as the Red Planet?', reward: 500, details: { options: ['Venus', 'Mars', 'Jupiter', 'Saturn'], answer: 'Mars' } },
-    { module: 'trivia', title: 'Capital Cities of East Africa', description: 'What is the capital city of Uganda?', reward: 500, details: { options: ['Nairobi', 'Kigali', 'Kampala', 'Dodoma'], answer: 'Kampala' } },
-    { module: 'trivia', title: 'Currencies of the World', description: 'What is the official currency code of Uganda?', reward: 500, details: { options: ['KES', 'TZS', 'UGX', 'RWF'], answer: 'UGX' } },
-    { module: 'trivia', title: 'Geography Quiz: Great Lakes', description: 'Which is the largest tropical lake in the world by surface area?', reward: 500, details: { options: ['Lake Victoria', 'Lake Tanganyika', 'Lake Malawi', 'Lake Albert'], answer: 'Lake Victoria' } },
-    { module: 'trivia', title: 'Global Economics Quiz', description: 'What is the currency of the United Kingdom?', reward: 500, details: { options: ['Euro', 'Dollar', 'Pound Sterling', 'Yen'], answer: 'Pound Sterling' } },
-
-    // Fix Tap
-    { module: 'fixtap', title: 'Data Categorization Micro-task', description: 'Tag 5 store receipts with the correct spending category.', reward: 800, duration: 60 },
-    { module: 'fixtap', title: 'Local Business Info Verification', description: 'Verify opening hours and contact info for a local merchant.', reward: 1200, duration: 90 },
-
-    // Music
-    { module: 'music', title: 'Stream Trending Afrobeat Track', description: 'Stream the sponsored track on the integrated player for at least 60 seconds.', reward: 600, duration: 60 },
-    { module: 'music', title: 'Listen to Indie Artist Spotlight', description: 'Listen to the featured independent artist track and leave a quick rating.', reward: 750, duration: 75 },
-  ];
-
-  for (const t of defaults) {
-    await db.query(
-      `INSERT INTO tasks (module, title, description, reward_minor, currency_code, url, duration_sec, details)
-       VALUES ($1, $2, $3, $4, 'UGX', $5, $6, $7)`,
-      [t.module, t.title, t.description, t.reward, t.url ?? null, t.duration ?? null, JSON.stringify(t.details ?? {})],
-    );
-  }
-}
-
+// Tasks are only what is in the tasks table (owner, 2026-11-01: no made-up tasks on the site). The demo tasks for
+// test databases live in seeds/test-data.ts.
 export async function listTasks(db: Db, userId: number, module?: string): Promise<TaskItem[]> {
-  await ensureDefaultTasks(db);
 
   const query = module
     ? `SELECT id, module, title, description, reward_minor, currency_code, url, duration_sec, details

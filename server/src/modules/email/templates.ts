@@ -161,6 +161,17 @@ export const TEMPLATES = {
     vars: { ...USER, ...MONEY, ...REASON }, button: false,
     defaults: { subject: 'Pexerearn: Withdrawal {reference} cancelled', heading: 'Withdrawal cancelled', body: 'Hello @{username},\n\nYour withdrawal {reference} was cancelled. The full amount and fee are back in your balance.\n\nReason: {reason}' },
   },
+  support_message: {
+    title: 'Contact form message', group: 'Support', when: 'To the support address in Settings, when someone sends the Contact page form. Reply to it to answer them.', category: 'account',
+    vars: {
+      from: { about: 'Who sent it: the username, or "a visitor"', sample: '@jane' },
+      email: { about: 'Their email address (replies go there)', sample: 'jane@gmail.com' },
+      subject: { about: 'The subject they wrote', sample: 'Question about withdrawal' },
+      message: { about: 'Their message', sample: 'My withdrawal has been waiting since this morning.' },
+    },
+    required: ['message', 'email'], button: false,
+    defaults: { subject: 'Contact form: {subject}', heading: 'New message from the Contact page', body: 'From {from} ({email}).\n\nSubject: {subject}\n\n{message}\n\nReply to this email to answer them.' },
+  },
   issue_reply: {
     title: 'Reply to a payment report', group: 'Support', when: 'When staff answer a payment report.', category: 'payment',
     vars: { ...USER, reply: { about: "The staff member's reply", sample: 'We found your payment and confirmed it. Thank you for your patience.' } }, required: ['reply'], button: false,
@@ -261,6 +272,7 @@ export interface TemplatedEmail {
   values: Record<string, string | null | undefined>;
   /** Where the button goes; required for kinds with a button. */
   buttonUrl?: string;
+  replyTo?: string;
 }
 
 // Sends an automatic email in the current wording. Never throws (sendEmail logs and records failures).
@@ -274,6 +286,7 @@ export async function sendTemplated(services: Services, email: TemplatedEmail): 
   }
   return sendEmail(services, {
     to: email.to, userId: email.userId ?? null, kind: email.kind, category: def(email.kind).category, ...(email.ref ? { ref: email.ref } : {}),
+    ...(email.replyTo ? { replyTo: email.replyTo } : {}),
     subject: filled.subject, heading: filled.heading, paragraphs: filled.paragraphs,
     ...(filled.buttonLabel && email.buttonUrl ? { button: { label: filled.buttonLabel, url: email.buttonUrl } } : {}),
     ...(filled.note ? { note: filled.note } : {}),
