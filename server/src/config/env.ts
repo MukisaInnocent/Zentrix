@@ -66,7 +66,8 @@ const EnvSchema = z.object({
   // Test mode only: activation payments and withdrawals pass by themselves (owner, 2026-10-25).
   TEST_AUTO_APPROVE: z.stringbool().default(false),
   // Test mode only: the password of the `superadmin` account, which signs in without the second step.
-  TEST_SUPERADMIN_PASSWORD: z.string().min(12, { error: 'TEST_SUPERADMIN_PASSWORD must be at least 12 characters.' }).optional(),
+  // Empty means not set (Terraform blanks it in live mode).
+  TEST_SUPERADMIN_PASSWORD: z.union([z.literal(''), z.string().min(12, { error: 'TEST_SUPERADMIN_PASSWORD must be at least 12 characters.' })]).optional(),
   RUN_JOBS_IN_WEB: z.stringbool().default(false),
 });
 
@@ -200,7 +201,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     migrateOnStart: e.MIGRATE_ON_START,
     seedOnStart: e.SEED_ON_START,
     testAutoApprove: e.TEST_AUTO_APPROVE,
-    testSuperadminPassword: e.TEST_SUPERADMIN_PASSWORD ?? null,
+    testSuperadminPassword: e.TEST_SUPERADMIN_PASSWORD || null,
     runJobsInWeb: e.RUN_JOBS_IN_WEB,
   };
   assertModeRules(config, env);

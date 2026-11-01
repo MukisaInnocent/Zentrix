@@ -56,6 +56,8 @@ describe('configuration', () => {
     expect(c.cookieSecure).toBe(true);
     // AWS: email goes through the S3 handoff to the mailer function, which holds the Resend key.
     expect(loadConfig({ ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', MAIL_S3_BUCKET: 'pexa-production-outbox', DATABASE_SSL: 'require' }).mailS3Bucket).toBe('pexa-production-outbox');
+    // Terraform blanks the test switches in live mode; an empty value counts as not set.
+    expect(loadConfig({ ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', MAIL_S3_BUCKET: 'pexa-production-outbox', DATABASE_SSL: 'require', TEST_SUPERADMIN_PASSWORD: '', TEST_AUTO_APPROVE: 'false', LIVEPAY_TRIAL: 'false' }).testSuperadminPassword).toBeNull();
     expect(() => loadConfig({
       ...base, APP_MODE: 'live', NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://zentrix.example', SMTP_URL: 'smtp://mail.example:587',
       DATABASE_SSL: 'verify', TEST_AUTO_APPROVE: 'true',
