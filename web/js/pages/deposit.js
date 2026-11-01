@@ -16,6 +16,9 @@ let waitingOnPrompt = false;
 
 const selectedChannel = () => info?.channels.find(x => x.code === selected) ?? null;
 
+// A payment link (owner, 2026-11-01) opens the method's payment page in a new tab; the member then claims as usual.
+const payLink = c => h('a', { class: 'zx-btn zx-btn--primary', href: c.payUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open payment link');
+
 function row(label, value, copy = false) {
   const btn = copy ? h('button', { type: 'button', class: 'zx-icon-btn zx-icon-btn--square', 'aria-label': `Copy ${label}` }, icon('copy')) : null;
   btn?.addEventListener('click', async () => {
@@ -46,6 +49,17 @@ function renderPaybox() {
     return;
   }
   const code = c.merchantCode ?? c.accountNumber;
+  if (c.payUrl) {
+    box.replaceChildren(
+      row('Pay to', c.accountName),
+      h('ol', { class: 'zx-steps-list' }, [
+        'Open the payment link and pay the amount you want to deposit.', 'Copy the transaction ID or reference from your receipt.', 'Come back here and enter it below with the amount. Staff check it and add it.',
+      ].map(x => h('li', {}, x))),
+      payLink(c),
+      c.instructions ? h('p', { class: 'zx-hint' }, c.instructions) : null,
+      h('p', { class: 'zx-hint' }, 'Never share your PIN or card code. Pexerearn staff will never ask for it.'));
+    return;
+  }
   box.replaceChildren(
     c.ussdCode ? row('Dial', c.ussdCode, true) : null,
     row(c.ussdCode ? 'Merchant code' : 'Account', code, true),

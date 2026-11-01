@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
 import { parse } from '../../http/validate.js';
-import { badRequest, forbidden, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
@@ -19,6 +19,9 @@ const ReasonSchema = z.strictObject({ reason: z.string().trim().min(5).max(500) 
 const PhoneSchema = z.strictObject({
   phone: z.string().trim().min(4).max(32),
   verification: z.string().trim().min(10, { error: 'Describe how you verified the member\'s identity.' }).max(500),
+});
+const VerifySchema = z.strictObject({
+  verification: z.string().trim().min(10, { error: 'Describe how you checked that this number belongs to the member.' }).max(500),
 });
 const UnlockSchema = z.strictObject({
   kind: z.enum(CHANGE_KINDS),
@@ -143,6 +146,22 @@ export function membersRouter(services: Services): Router {
       });
     });
     res.json({ ok: true, withdrawalsLockedUntil: lockUntil });
+  });
+
+  // Owner, 2026-11-01: live mode has no SMS provider yet, so outside LivePay an admin confirms the member's number
+  // (for example by calling it) before their first withdrawal. Payouts still go only to that number. Audited.
+  router.post('/:id/phone/verify', requireStaff('admin'), async (req, res) => {
+    const userId = await memberId(services, req.params.id);
+    notSelf(req, userId);
+    const { verification } = parse(VerifySchema, req.body);
+    await withTransaction(pool, async db => {
+      const before = await one<{ public_id: string; phone_e164: string; phone_verified_at: Date | null }>(db, 'SELECT public_id, phone_e164, phone_verified_at FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      if (before.phone_verified_at) throw conflict('member.phone_already_verified', 'This number is already verified.');
+      await db.query('UPDATE users SET phone_verified_at = now() WHERE id = $1', [userId]);
+      await db.query(`INSERT INTO auth_events (user_id, kind, details) VALUES ($1, 'phone_verified', '{"by":"admin"}')`, [userId]);
+      await audit(db, req, { action: 'member.phone_verified', targetType: 'user', targetId: before.public_id, before: { phoneVerified: false }, after: { phone: before.phone_e164, phoneVerified: true }, reason: verification });
+    });
+    res.json({ ok: true });
   });
 
   // Changes who invited the member, by username. Referral rewards follow the new line (see referrals/reassign.ts);

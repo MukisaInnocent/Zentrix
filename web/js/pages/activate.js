@@ -14,6 +14,9 @@ let waitingOnPrompt = false;
 
 const selectedChannel = () => info?.channels.find(x => x.code === selected) ?? null;
 
+// A payment link (owner, 2026-11-01) opens the method's payment page in a new tab; the member then claims as usual.
+const payLink = c => h('a', { class: 'zx-btn zx-btn--primary', href: c.payUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open payment link');
+
 function copyRow(label, value) {
   const copy = h('button', { type: 'button', class: 'zx-icon-btn zx-icon-btn--square', 'aria-label': `Copy ${label}` }, icon('copy'));
   copy.addEventListener('click', async () => {
@@ -50,6 +53,18 @@ function renderPaybox() {
     return;
   }
   const code = c.merchantCode ?? c.accountNumber;
+  if (c.payUrl) {
+    box.replaceChildren(
+      h('div', { class: 'zx-paybox__row' }, h('span', { class: 'zx-hint' }, 'Pay to'), h('strong', { class: 'zx-paybox__value' }, c.accountName)),
+      h('div', { class: 'zx-paybox__row' }, h('span', { class: 'zx-hint' }, 'Amount'), h('strong', { class: 'zx-paybox__value' }, fee)),
+      h('ol', { class: 'zx-steps-list' }, [
+        `Open the payment link and pay exactly ${fee}.`, 'Copy the transaction ID or reference from your receipt.', 'Come back here and enter it below. Staff check it and open your account.',
+      ].map(x => h('li', {}, x))),
+      payLink(c),
+      c.instructions ? h('p', { class: 'zx-hint' }, c.instructions) : null,
+      h('p', { class: 'zx-hint' }, 'Never share your PIN or card code. Pexerearn staff will never ask for it.'));
+    return;
+  }
   const steps = c.ussdCode
     ? [`Dial ${c.ussdCode} on your phone.`, `Choose pay merchant and enter the code ${code}.`, `Enter the amount ${fee} and confirm with your PIN.`, 'Copy the transaction ID from the confirmation message.']
     : [`Send ${fee} to the account below.`, 'Check the account name before you confirm.', 'Copy the transaction ID or reference from your receipt.'];

@@ -67,6 +67,8 @@ const ChannelBody = z.strictObject({
   accountNumber: z.string().trim().min(3).max(40),
   ussdCode: z.string().trim().min(2).max(40).optional(),
   merchantCode: z.string().trim().min(2).max(40).optional(),
+  // Payment link (owner, 2026-11-01). An empty string removes it when editing.
+  payUrl: z.union([z.literal(''), z.url({ protocol: /^https$/, error: 'Use a full https:// payment link.' }).max(500)]).optional(),
   instructions: z.string().trim().max(600).optional(),
   depositsEnabled: z.boolean().default(true),
   payoutsEnabled: z.boolean().default(true),
@@ -552,9 +554,9 @@ export function paymentsAdminRouter(services: Services): Router {
       const code = body.code ?? (await newChannelCode(db, body.name, body.country));
       if (await maybeOne(db, 'SELECT 1 FROM payment_channels WHERE code = $1', [code])) throw conflict('channel.exists', 'A channel with this code already exists.');
       await db.query(
-        `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled, provider)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [code, body.name, body.country.toUpperCase(), currency, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled, body.provider ?? null],
+        `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, ussd_code, merchant_code, pay_url, instructions, deposits_enabled, payouts_enabled, provider)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [code, body.name, body.country.toUpperCase(), currency, body.accountName, body.accountNumber, body.ussdCode ?? null, body.merchantCode ?? null, body.payUrl || null, body.instructions ?? null, body.depositsEnabled, body.payoutsEnabled, body.provider ?? null],
       );
       await audit(db, req, { action: 'channel.created', targetType: 'payment_channel', targetId: code, after: { ...body, code } });
       return code;
@@ -565,15 +567,16 @@ export function paymentsAdminRouter(services: Services): Router {
     const body = parse(ChannelPatch, req.body);
     const code = String(req.params.code);
     await withTransaction(pool, async db => {
-      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, instructions, deposits_enabled, payouts_enabled, removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, pay_url, instructions, deposits_enabled, payouts_enabled, removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
       if (!before) throw notFound();
       if (before.removed_at && (body.depositsEnabled || body.payoutsEnabled)) throw conflict('channel.removed', 'Restore this method before switching it on.');
       await db.query(
         `UPDATE payment_channels SET name = coalesce($2, name), account_name = coalesce($3, account_name), account_number = coalesce($4, account_number),
            ussd_code = coalesce($8, ussd_code), merchant_code = coalesce($9, merchant_code),
+           pay_url = CASE WHEN $10::text IS NULL THEN pay_url WHEN $10 = '' THEN NULL ELSE $10 END,
            instructions = coalesce($5, instructions), deposits_enabled = coalesce($6, deposits_enabled), payouts_enabled = coalesce($7, payouts_enabled)
          WHERE code = $1`,
-        [code, body.name ?? null, body.accountName ?? null, body.accountNumber ?? null, body.instructions ?? null, body.depositsEnabled ?? null, body.payoutsEnabled ?? null, body.ussdCode ?? null, body.merchantCode ?? null],
+        [code, body.name ?? null, body.accountName ?? null, body.accountNumber ?? null, body.instructions ?? null, body.depositsEnabled ?? null, body.payoutsEnabled ?? null, body.ussdCode ?? null, body.merchantCode ?? null, body.payUrl ?? null],
       );
       await audit(db, req, { action: 'channel.updated', targetType: 'payment_channel', targetId: code, before, after: body });
     });

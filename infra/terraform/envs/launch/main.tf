@@ -7,8 +7,8 @@
 #      output in Cloudflare (DNS only) and wait until the certificate is ISSUED.
 #   2. domain_live = true: attaches pexerearn.com and www to CloudFront. Then point both names at
 #      cloudfront_domain in Cloudflare (CNAME, DNS only).
-# On launch day the production site takes the names over: set domain_live = false here (or destroy this stack)
-# before production attaches them, because CloudFront allows a name on one distribution only.
+# On launch day the production site takes pexerearn.com: set www_only = true here first (CloudFront allows a name on
+# one distribution only). This stack then keeps only www.pexerearn.com, which redirects to pexerearn.com.
 terraform {
   required_version = ">= 1.10.0"
   required_providers {
@@ -33,7 +33,9 @@ locals {
     ManagedBy   = "Terraform"
     Repository  = "MukisaInnocent/Zentrix"
   }
-  names     = ["pexerearn.com", "www.pexerearn.com"]
+  names = ["pexerearn.com", "www.pexerearn.com"]
+  # The names attached to CloudFront; the certificate keeps covering both.
+  aliases   = var.www_only ? ["www.pexerearn.com"] : local.names
   page_dir  = "${path.module}/../../../launch"
   mime      = { html = "text/html; charset=utf-8", css = "text/css; charset=utf-8", js = "text/javascript; charset=utf-8", svg = "image/svg+xml", ics = "text/calendar; charset=utf-8", png = "image/png", txt = "text/plain; charset=utf-8", xml = "application/xml; charset=utf-8" }
   page_file = fileset(local.page_dir, "*.{html,css,js,svg,ics,png,txt,xml}")
@@ -60,6 +62,13 @@ variable "domain_live" {
   description = "Step 2: attach pexerearn.com and www once the certificate is ISSUED."
   type        = bool
   default     = true
+}
+
+# Launch day (owner, 2026-11-01): production takes pexerearn.com; this stack keeps the www redirect.
+variable "www_only" {
+  description = "Attach only www.pexerearn.com (redirecting to pexerearn.com) so production can take pexerearn.com."
+  type        = bool
+  default     = false
 }
 
 data "aws_caller_identity" "current" {}
@@ -199,7 +208,7 @@ resource "aws_cloudfront_distribution" "page" {
   price_class         = "PriceClass_All"
   http_version        = "http2and3"
   is_ipv6_enabled     = true
-  aliases             = var.domain_live ? local.names : []
+  aliases             = var.domain_live ? local.aliases : []
 
   origin {
     origin_id                = "page"

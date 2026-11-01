@@ -94,6 +94,17 @@ async function openMember(id) {
         return b;
       })
       : [];
+    // No SMS provider yet (owner, 2026-11-01): outside LivePay an admin confirms the member's number before withdrawals.
+    const verifyBtn = me.roles.includes('admin') && me.id !== m.id && !m.phoneVerified ? h('button', { type: 'button', class: 'zx-btn zx-btn--secondary' }, 'Mark phone verified') : null;
+    verifyBtn?.addEventListener('click', async () => {
+      if (await askForm({
+        title: 'Mark phone verified',
+        text: `Only after you have checked that ${m.phone} belongs to @${m.username}, for example by calling it. Withdrawals are paid only to this number.`,
+        submitLabel: 'Mark verified',
+        fields: [{ name: 'verification', label: 'How did you check it?', type: 'textarea', required: true, minLength: 10 }],
+        submit: v => api.post(`/api/admin/members/${id}/phone/verify`, { verification: v.verification }),
+      })) await render();
+    });
     // Admins can change who invited the member; referral rewards then move to the new line.
     const inviterBtn = me.roles.includes('admin') && me.id !== m.id ? h('button', { type: 'button', class: 'zx-btn zx-btn--secondary' }, 'Change inviter') : null;
     inviterBtn?.addEventListener('click', async () => {
@@ -112,7 +123,7 @@ async function openMember(id) {
       toast.success(`Now invited by @${result.inviter}. ${result.moved.length} reward(s) moved${debts.length ? `; ${debts.length} left a debt` : ''}.`);
       await render();
     });
-    view.setActions(canFreeze ? btn : null, inviterBtn, ...unlockButtons);
+    view.setActions(canFreeze ? btn : null, verifyBtn, inviterBtn, ...unlockButtons);
   };
   try {
     await render();

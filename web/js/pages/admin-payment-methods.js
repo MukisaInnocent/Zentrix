@@ -14,9 +14,10 @@ const countryName = code => countries.find(c => c.code === code)?.name ?? code;
 // The fields shared by the add and edit forms; `c` is the method being edited.
 function methodFields(c = {}) {
   return [
-    { name: 'name', label: 'Method name (what members see)', required: true, minLength: 2, value: c.name, hint: 'For example MTN Mobile Money or Airtel Money.' },
+    { name: 'name', label: 'Method name (what members see)', required: true, minLength: 2, value: c.name, hint: 'For example MTN Mobile Money, Airtel Money, Bank transfer (Stanbic) or Pay by card (link).' },
     { name: 'accountName', label: 'Account name', required: true, minLength: 2, value: c.accountName, hint: 'The registered name members should see before they confirm.' },
-    { name: 'accountNumber', label: 'Phone number or account number', required: true, minLength: 3, value: c.accountNumber },
+    { name: 'accountNumber', label: 'Phone number, account number or reference', required: true, minLength: 3, value: c.accountNumber, hint: 'For a bank transfer, the bank account number (put the bank, branch and SWIFT in the instructions). For a payment link, the name or reference members should see.' },
+    { name: 'payUrl', label: 'Payment link (optional)', type: 'url', maxLength: 500, value: c.payUrl ?? '', hint: 'A full https:// payment page. Members open it, pay, then enter the transaction reference; staff approve it by hand. Leave empty to remove.' },
     { name: 'ussdCode', label: 'USSD code (optional)', value: c.ussdCode, hint: 'For example *165*3#.' },
     { name: 'merchantCode', label: 'Merchant code (optional)', value: c.merchantCode },
     { name: 'instructions', label: 'Extra instructions (optional)', type: 'textarea', maxLength: 600, value: c.instructions },
@@ -32,7 +33,7 @@ function methodFields(c = {}) {
 }
 
 const toBody = v => ({
-  name: v.name, accountName: v.accountName, accountNumber: v.accountNumber, ussdCode: v.ussdCode || undefined, merchantCode: v.merchantCode || undefined,
+  name: v.name, accountName: v.accountName, accountNumber: v.accountNumber, ussdCode: v.ussdCode || undefined, merchantCode: v.merchantCode || undefined, payUrl: v.payUrl ?? '',
   instructions: v.instructions || undefined, depositsEnabled: v.depositsEnabled === 'true', payoutsEnabled: v.payoutsEnabled === 'true',
 });
 

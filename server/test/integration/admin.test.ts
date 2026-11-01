@@ -64,6 +64,20 @@ describe('member administration', () => {
     expect(row?.before).toEqual({ phone: member.user.phone });
     expect(row?.after).toMatchObject({ phone: newPhone });
   });
+
+  it('lets only admins mark a number verified, once, with how they checked it (owner, 2026-11-01)', async () => {
+    const member = await registerMember(app);
+    const verified = async () => (await app.owner.query<{ v: boolean }>('SELECT phone_verified_at IS NOT NULL AS v FROM users WHERE public_id = $1', [member.user.id])).rows[0]!.v;
+    const body = { verification: 'Called the number, the member answered' };
+    expect((await complianceClient.post(`/api/admin/members/${member.user.id}/phone/verify`, body)).status).toBe(403);
+    expect((await adminClient.post(`/api/admin/members/${member.user.id}/phone/verify`, { verification: 'ok' })).status).toBe(400);
+    expect(await verified()).toBe(false);
+    expect((await adminClient.post(`/api/admin/members/${member.user.id}/phone/verify`, body)).status).toBe(200);
+    expect(await verified()).toBe(true);
+    expect((await adminClient.post<Body>(`/api/admin/members/${member.user.id}/phone/verify`, body)).body.error?.code).toBe('member.phone_already_verified');
+    const [row] = await auditRows('member.phone_verified', member.user.id);
+    expect(row).toMatchObject({ reason: body.verification, after: { phone: member.user.phone, phoneVerified: true } });
+  });
 });
 
 describe('settings and country configuration', () => {

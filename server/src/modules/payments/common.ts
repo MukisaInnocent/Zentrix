@@ -14,6 +14,8 @@ export interface Channel {
   instructions: string | null;
   ussdCode: string | null;
   merchantCode: string | null;
+  // A payment page members open to pay (owner, 2026-11-01); they then claim with the reference, as for any manual method.
+  payUrl: string | null;
   depositsEnabled: boolean;
   payoutsEnabled: boolean;
   removedAt: Date | null;
@@ -23,13 +25,13 @@ export interface Channel {
 
 interface ChannelRow {
   id: string; code: string; name: string; country_code: string; currency_code: string; account_name: string; account_number: string;
-  instructions: string | null; ussd_code: string | null; merchant_code: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
+  instructions: string | null; ussd_code: string | null; merchant_code: string | null; pay_url: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
   removed_at: Date | null; provider: 'livepay' | null;
 }
 
 const toChannel = (r: ChannelRow): Channel => ({
   id: Number(r.id), code: r.code, name: r.name, countryCode: r.country_code, currency: r.currency_code, accountName: r.account_name,
-  accountNumber: r.account_number, instructions: r.instructions, ussdCode: r.ussd_code, merchantCode: r.merchant_code, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
+  accountNumber: r.account_number, instructions: r.instructions, ussdCode: r.ussd_code, merchantCode: r.merchant_code, payUrl: r.pay_url, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
   removedAt: r.removed_at, provider: r.provider,
 });
 
@@ -54,7 +56,7 @@ export async function channelByCode(db: Db, code: string): Promise<Channel> {
 // Channel details as members see them (no internal ids).
 export const publicChannel = (c: Channel) => ({
   code: c.code, name: c.name, currency: c.currency, accountName: c.accountName, accountNumber: c.accountNumber, instructions: c.instructions,
-  ussdCode: c.ussdCode, merchantCode: c.merchantCode,
+  ussdCode: c.ussdCode, merchantCode: c.merchantCode, payUrl: c.payUrl,
   depositsEnabled: c.depositsEnabled, payoutsEnabled: c.payoutsEnabled, provider: c.provider,
 });
 

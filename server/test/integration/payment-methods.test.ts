@@ -47,6 +47,24 @@ describe('payment methods', () => {
     expect(ke.every((c: Body) => c.countryCode === 'KE')).toBe(true);
   });
 
+  it('adds a payment link that members open, claimed and approved by hand (owner, 2026-11-01)', async () => {
+    const kenyan = await registerMember(app, { country: 'KE', phone: kenyanPhone() });
+    const link = { name: 'Pay by card', accountName: 'PEXEREARN', accountNumber: 'Card payment' };
+    expect((await admin.post<Body>('/api/admin/payments/channels', { country: 'KE', ...link, payUrl: 'http://pay.example/x' })).body.error?.fields?.payUrl).toBeDefined();
+    const code = (await admin.post<Body>('/api/admin/payments/channels', { country: 'KE', ...link, payUrl: 'https://pay.example/pexerearn' })).body.code as string;
+    const seen = () => kenyan.client.get<Body>('/api/payments/channels').then(r => r.body.channels.find((c: Body) => c.code === code));
+    expect((await seen()).payUrl).toBe('https://pay.example/pexerearn');
+    // The member claims with the reference; it waits for staff like any manual payment.
+    const claim = await kenyan.client.post<Body>('/api/payments/deposits', { channel: code, senderPhone: kenyan.input.phone, providerTxnId: `TX${randomUUID().slice(0, 8)}` }, { 'idempotency-key': randomUUID() });
+    expect(claim.status, JSON.stringify(claim.body)).toBe(201);
+    expect(claim.body.deposit.status).toBe('pending');
+    // Editing keeps the link unless it is cleared with an empty value.
+    await admin.patch<Body>(`/api/admin/payments/channels/${code}`, { name: 'Card or bank (link)' });
+    expect((await seen()).payUrl).toBe('https://pay.example/pexerearn');
+    await admin.patch<Body>(`/api/admin/payments/channels/${code}`, { payUrl: '' });
+    expect((await seen()).payUrl).toBeNull();
+  });
+
   it('removes an unused method from members, restores it switched off, and refuses one that holds money', async () => {
     const kenyan = await registerMember(app, { country: 'KE', phone: kenyanPhone() });
     const code = (await admin.post<Body>('/api/admin/payments/channels', { country: 'KE', ...method, name: 'Airtel KE' })).body.code as string;
