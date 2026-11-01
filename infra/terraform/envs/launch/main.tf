@@ -68,7 +68,7 @@ variable "domain_live" {
 variable "www_only" {
   description = "Attach only www.pexerearn.com (redirecting to pexerearn.com) so production can take pexerearn.com."
   type        = bool
-  default     = false
+  default     = true # launched 2026-11-01 23:30 EAT: production holds pexerearn.com
 }
 
 data "aws_caller_identity" "current" {}

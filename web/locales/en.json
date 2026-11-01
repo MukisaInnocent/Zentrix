@@ -27,7 +27,6 @@
     "notVerified": "Not verified",
     "showPassword": "Show password",
     "optional": "optional",
-    "draftNotice": "Draft for the test stage. The owner will replace this text before Pexerearn takes real money.",
     "noIncomeGuarantee": "What you earn depends on the funded tasks available. Pexerearn does not guarantee any income."
   },
   "nav": {
@@ -216,8 +215,7 @@
     "faq4Q": "I forgot my password. What now?",
     "faq4A": "Use \"Forgot password?\" on the sign-in page. We email you a link to choose a new one; it works once and expires after 30 minutes.",
     "contactTitle": "Get in touch",
-    "contactText": "Questions before you join? Our support team is here to help.",
-    "ctaText": "Pexerearn is in its test stage. Accounts work, but no real money moves yet."
+    "contactText": "Questions before you join? Our support team is here to help."
   },
   "login": {
     "artTitle": "Welcome back.",

@@ -86,7 +86,7 @@ module "pexa" {
   # 2 November 2026 00:00 EAT; take it off there first, then set true here and apply again.
   site_domain        = "pexerearn.com"
   api_domain         = "api.pexerearn.com"
-  custom_domain_live = false
+  custom_domain_live = true
 
   # LivePay (docs/LIVEPAY.md) with the fixed IP LivePay whitelists; the NAT gateway (about USD 35 a month) must run
   # for payments to go through.
