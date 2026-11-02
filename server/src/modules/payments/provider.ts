@@ -31,7 +31,7 @@ const PROVIDER_ACTOR = { username: 'zx_livepay', phone: '+256700990003' };
 
 // LivePay's limits: 50 collections and status reads per 15 minutes, 5 payouts a minute. We keep a margin; status
 // reads after a webhook may use part of it. A member may have 5 failed prompts a day.
-export const BUDGET = { readsPer15Min: 45, webhookReadsPer15Min: 48, payoutsPerMinute: 5, reserveForStatus: 10, failedPromptsPerDay: 5 };
+export const BUDGET = { readsPer15Min: 45, webhookReadsPer15Min: 48, payoutsPerMinute: 5, reserveForStatus: 10, failedPromptsPerDay: 5, otherNumbersPerDay: 3 };
 // A request with no answer is read again after this long; one still open after a day goes to staff review.
 // On AWS the paygate function watches open requests every minute without the database (providers/paywatch.ts);
 // the polling job there is a daily backstop.
@@ -94,10 +94,22 @@ export async function startCollection(
   if (member.currency !== 'UGX') {
     throw badRequest('payments.channel_unavailable', 'Mobile money prompts are not available for your country yet. Please use another payment method.');
   }
-  // Prompts go only to the member's registered number, so nobody can send payment prompts to strangers.
+  // Owner, 2026-11-02: a member may pay from any Ugandan number (a friend's phone, for example). Payouts still go only
+  // to the registered number. To keep prompts from being sent to strangers, a member reaches at most 3 other numbers a day.
   const phone = normalizePhone(input.phone ?? member.phone ?? '');
-  if (!member.phone || phone !== member.phone) {
-    throw badRequest('payments.phone_registered', `Payment prompts go only to your registered number ${member.phone ?? ''}. To pay from another phone, use a manual method.`, { phone: ['Use your registered number.'] });
+  if (!phone.startsWith('+256')) {
+    throw badRequest('payments.phone_country', 'Payment prompts go to Ugandan numbers only (+256). To pay from another phone, use a manual method.', { phone: ['Use a +256 number.'] });
+  }
+  if (phone !== member.phone) {
+    const others = await rows<{ phone: string }>(
+      db,
+      `SELECT DISTINCT r.phone FROM provider_requests r JOIN deposits d ON d.id = r.deposit_id
+       WHERE d.user_id = $1 AND r.phone <> $2 AND r.created_at > now() - interval '1 day'`,
+      [userId, member.phone ?? ''],
+    );
+    if (others.length >= BUDGET.otherNumbersPerDay && !others.some(o => o.phone === phone)) {
+      throw badRequest('payments.too_many_numbers', 'You have sent prompts to several other numbers today. Use one of those numbers or your registered number, or try again tomorrow.', { phone: ['Use a number you used today.'] });
+    }
   }
   const failed = await one<{ n: string }>(
     db,
@@ -353,14 +365,6 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
       if (d.status === 'pending') {
         await confirmDeposit(db, actor, d.public_id, amount, `Paid with LivePay, transaction ${payoutTxnId}`);
         notice = { event: 'deposit_confirmed', reference: d.reference, note: null };
-        // Owner, 2026-11-01: prompts go only to the registered number and the member approves with their PIN, so a
-        // paid prompt verifies that phone (live mode has no SMS provider yet).
-        await db.query(
-          `WITH v AS (UPDATE users SET phone_verified_at = now()
-             WHERE id = (SELECT user_id FROM deposits WHERE id = $1) AND phone_e164 = $2 AND phone_verified_at IS NULL RETURNING id)
-           INSERT INTO auth_events (user_id, kind, details) SELECT id, 'phone_verified', '{"by":"livepay_payment"}' FROM v`,
-          [r.deposit_id, r.phone],
-        );
       } else {
         throw conflict('deposit.not_pending', `LivePay collected the fee but deposit ${d.reference} is already ${d.status}; refund it or settle it by hand.`);
       }

@@ -15,7 +15,7 @@ type Body = Record<string, unknown> & { error?: { code: string; fields?: Record<
 describe('registration', () => {
   it('creates a member, signs them in and sets session and CSRF cookies', async () => {
     const { client, input, user } = await registerMember(app);
-    expect(user).toMatchObject({ username: input.username, email: input.email, currency: 'UGX', status: 'active', emailVerified: false, phoneVerified: false, roles: ['member'], isStaff: false });
+    expect(user).toMatchObject({ username: input.username, email: input.email, currency: 'UGX', status: 'active', emailVerified: false, phoneVerified: true, roles: ['member'], isStaff: false });
     expect(user.referralCode).toMatch(/^[A-Z2-9]{8}$/);
     expect(client.cookies.has('zx_session')).toBe(true);
     expect(client.cookies.has('zx_csrf')).toBe(true);
@@ -114,8 +114,16 @@ describe('verification', () => {
     expect((await app.client().post('/api/auth/verify/email', { token: 'x'.repeat(43) })).status).toBe(404);
   });
 
-  it('verifies the phone with the texted code and counts wrong attempts', async () => {
+  it('counts the registered number as verified and sends no code at sign-up (owner, 2026-11-02)', async () => {
     const { client, user } = await registerMember(app);
+    expect(await app.outbox(user.phone)).toEqual([]);
+    expect((await client.get<Body>('/api/me')).body.user?.phoneVerified).toBe(true);
+  });
+
+  it('verifies an unverified phone with the texted code and counts wrong attempts', async () => {
+    const { client, user } = await registerMember(app);
+    await app.owner.query('UPDATE users SET phone_verified_at = NULL WHERE public_id = $1', [user.id]);
+    expect((await client.post('/api/auth/verify/phone/resend', {})).status).toBe(200);
     const [sms] = await app.outbox(user.phone);
     const code = smsCode(sms!.body);
     const wrong = code === '000000' ? '111111' : '000000';
@@ -140,12 +148,12 @@ describe('login and sessions', () => {
     expect(pick(wrong.body).code).toBe('auth.invalid_credentials');
   });
 
-  it('locks the account for 15 minutes after 10 failed attempts, on top of the per-account throttle', async () => {
+  it('locks the account for 1 hour after 50 failed attempts, on top of the per-account throttle', async () => {
     const { input } = await registerMember(app);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 50; i++) {
       await app.client().post('/api/auth/login', { identifier: input.email, password: `wrong-password-${i}` });
     }
-    // The 11th attempt is throttled by the per-identifier rate limit...
+    // The 51st attempt is throttled by the per-identifier rate limit...
     expect((await app.client().post('/api/auth/login', { identifier: input.email, password: PASSWORD })).status).toBe(429);
     const locked = await app.owner.query('SELECT locked_until FROM users WHERE email = $1', [input.email]);
     expect(locked.rows[0].locked_until).toBeInstanceOf(Date);
@@ -153,7 +161,7 @@ describe('login and sessions', () => {
     await app.owner.query('DELETE FROM rate_limits');
     expect((await app.client().post('/api/auth/login', { identifier: input.email, password: PASSWORD })).status).toBe(401);
     await app.owner.query('DELETE FROM rate_limits');
-    app.setNow(new Date(Date.now() + 16 * 60_000));
+    app.setNow(new Date(Date.now() + 61 * 60_000));
     expect((await app.client().post('/api/auth/login', { identifier: input.email, password: PASSWORD })).status).toBe(200);
     app.setNow(null);
   });
@@ -196,6 +204,29 @@ describe('password reset and change', () => {
     expect((await anon.post('/api/auth/password/reset', { token, password: 'another-new-passphrase' })).status).toBe(400);
     expect((await client.get('/api/me')).status).toBe(401);
     expect((await app.client().post('/api/auth/login', { identifier: input.username, password: 'a-brand-new-passphrase' })).status).toBe(200);
+  });
+
+  it('resets with the emailed 6-digit code, allowing 5 tries per code', async () => {
+    const { input } = await registerMember(app);
+    const anon = app.client();
+    expect((await anon.post('/api/auth/password/forgot', { email: input.email })).status).toBe(202);
+    const mail = (await app.outbox(input.email)).find(m => m.subject?.includes('Reset'));
+    const code = /code on the Forgot password page: ([0-9]{6})/.exec(mail!.body)?.[1];
+    expect(code).toMatch(/^[0-9]{6}$/);
+    const wrong = code === '000000' ? '111111' : '000000';
+    const bad = await anon.post<Body>('/api/auth/password/reset', { email: input.email, code: wrong, password: 'a-brand-new-passphrase' });
+    expect(bad.body.error?.code).toBe('reset.invalid_code');
+    expect((await anon.post('/api/auth/password/reset', { email: input.email.toUpperCase(), code, password: 'a-brand-new-passphrase' })).status).toBe(200);
+    expect((await anon.post('/api/auth/password/reset', { email: input.email, code, password: 'another-new-passphrase' })).status).toBe(400);
+    expect((await app.client().post('/api/auth/login', { identifier: input.username, password: 'a-brand-new-passphrase' })).status).toBe(200);
+
+    // A fresh code is dead after 5 wrong tries, even when the right one comes next.
+    await app.owner.query('DELETE FROM rate_limits');
+    await anon.post('/api/auth/password/forgot', { email: input.email });
+    const second = (await app.outbox(input.email)).map(m => /code on the Forgot password page: ([0-9]{6})/.exec(m.body)?.[1]).find(c => c && c !== code)!;
+    const miss = second === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) await anon.post('/api/auth/password/reset', { email: input.email, code: miss, password: 'third-new-passphrase' });
+    expect((await anon.post<Body>('/api/auth/password/reset', { email: input.email, code: second, password: 'third-new-passphrase' })).body.error?.code).toBe('reset.invalid_code');
   });
 
   it('refuses a password change until an admin has unlocked it', async () => {

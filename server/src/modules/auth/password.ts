@@ -2,18 +2,24 @@ import { z } from 'zod';
 import { maybeOne, one } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
 import { parse } from '../../http/validate.js';
-import { randomToken, sha256 } from '../../lib/crypto.js';
+import { randomDigits, randomToken, safeEqual, sha256 } from '../../lib/crypto.js';
 import { badRequest, forbidden } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { sendTemplated } from '../email/templates.js';
 import { consumeGrant } from './changes.js';
 import { hashPassword, passwordProblems, verifyPassword } from './passwords.js';
 import { revokeUserSessions, TOKEN_PATTERN } from './sessions.js';
+import { codeHash } from './totp.js';
 
 const RESET_TTL_MS = 30 * 60_000;
+const CODE_MAX_ATTEMPTS = 5;
 
 export const ForgotSchema = z.strictObject({ email: z.string().trim().toLowerCase().max(254).pipe(z.email()) });
-export const ResetSchema = z.strictObject({ token: z.string().regex(TOKEN_PATTERN), password: z.string().max(256) });
+// The emailed link carries a token; the same email carries a 6-digit code, typed with the email address (owner, 2026-11-02).
+export const ResetSchema = z.union([
+  z.strictObject({ token: z.string().regex(TOKEN_PATTERN), password: z.string().max(256) }),
+  z.strictObject({ email: z.string().trim().toLowerCase().max(254).pipe(z.email()), code: z.string().trim().regex(/^[0-9]{6}$/), password: z.string().max(256) }),
+]);
 export const ChangeSchema = z.strictObject({ currentPassword: z.string().min(1).max(256), newPassword: z.string().max(256) });
 
 // Always answers the same way, whether or not the email belongs to an account.
@@ -27,30 +33,51 @@ export async function requestPasswordReset(services: Services, raw: unknown, ip:
   );
   if (!user) return;
   const token = randomToken(32);
-  await services.pool.query('INSERT INTO password_resets (token_hash, user_id, expires_at, ip) VALUES ($1, $2, $3, $4)', [
-    sha256(token), user.id, new Date(now.getTime() + RESET_TTL_MS), ip ?? null,
+  const code = randomDigits(6);
+  await services.pool.query('INSERT INTO password_resets (token_hash, user_id, expires_at, ip, code_hash) VALUES ($1, $2, $3, $4, $5)', [
+    sha256(token), user.id, new Date(now.getTime() + RESET_TTL_MS), ip ?? null, codeHash(services.config.dataEncryptionKey, 'password-reset', code),
   ]);
   await sendTemplated(services, {
-    kind: 'password_reset', to: email, userId: Number(user.id), values: { username: user.username },
+    kind: 'password_reset', to: email, userId: Number(user.id), values: { username: user.username, code },
     buttonUrl: `${services.config.publicOrigin}/reset-password.html#token=${token}`,
+  });
+}
+
+// Only the latest unused code for the address counts; each try uses one of its 5 attempts, even a wrong one.
+async function resetByCode(services: Services, email: string, code: string, now: Date): Promise<Buffer | null> {
+  return withTransaction(services.pool, async db => {
+    const row = await maybeOne<{ token_hash: Buffer; code_hash: Buffer | null; attempts: number }>(
+      db,
+      `SELECT r.token_hash, r.code_hash, r.attempts FROM password_resets r JOIN users u ON u.id = r.user_id
+       WHERE u.email = $1 AND r.used_at IS NULL AND r.expires_at > $2 ORDER BY r.created_at DESC LIMIT 1 FOR UPDATE OF r`,
+      [email, now],
+    );
+    if (!row?.code_hash || row.attempts >= CODE_MAX_ATTEMPTS) return null;
+    await db.query('UPDATE password_resets SET attempts = attempts + 1 WHERE token_hash = $1', [row.token_hash]);
+    return safeEqual(row.code_hash, codeHash(services.config.dataEncryptionKey, 'password-reset', code)) ? row.token_hash : null;
   });
 }
 
 export async function resetPassword(services: Services, raw: unknown): Promise<void> {
   const input = parse(ResetSchema, raw);
   const now = services.now();
+  const invalid = () => 'token' in input
+    ? badRequest('reset.invalid_link', 'This reset link is invalid or has expired. Ask for a new one.')
+    : badRequest('reset.invalid_code', 'That code is not right or has expired. Use the code from the latest reset email, or ask for a new one.', { code: ['Check the code.'] });
+  const tokenHash = 'token' in input ? sha256(input.token) : await resetByCode(services, input.email, input.code, now);
+  if (!tokenHash) throw invalid();
   const target = await maybeOne<{ user_id: string; username: string; email: string; staff: boolean }>(
     services.pool,
     `SELECT r.user_id, u.username, u.email, EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.name = ur.role WHERE ur.user_id = u.id AND ro.is_staff) AS staff FROM password_resets r JOIN users u ON u.id = r.user_id
      WHERE r.token_hash = $1 AND r.used_at IS NULL AND r.expires_at > $2`,
-    [sha256(input.token), now],
+    [tokenHash, now],
   );
-  if (!target) throw badRequest('reset.invalid_link', 'This reset link is invalid or has expired. Ask for a new one.');
+  if (!target) throw invalid();
   const problems = passwordProblems(input.password, { username: target.username, email: target.email, staff: target.staff });
   if (problems.length > 0) throw badRequest('validation_failed', problems[0] ?? 'Choose a stronger password.', { password: problems });
   const hash = await hashPassword(input.password);
   const done = await withTransaction(services.pool, async db => {
-    const claimed = await db.query('UPDATE password_resets SET used_at = $2 WHERE token_hash = $1 AND used_at IS NULL', [sha256(input.token), now]);
+    const claimed = await db.query('UPDATE password_resets SET used_at = $2 WHERE token_hash = $1 AND used_at IS NULL', [tokenHash, now]);
     if (claimed.rowCount !== 1) return false;
     await db.query('UPDATE users SET password_hash = $2, failed_login_count = 0, locked_until = NULL WHERE id = $1', [target.user_id, hash]);
     await db.query('UPDATE password_resets SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL', [target.user_id, now]);
@@ -58,7 +85,7 @@ export async function resetPassword(services: Services, raw: unknown): Promise<v
     await db.query(`INSERT INTO auth_events (user_id, kind) VALUES ($1, 'password_reset')`, [target.user_id]);
     return true;
   });
-  if (!done) throw badRequest('reset.invalid_link', 'This reset link is invalid or has expired. Ask for a new one.');
+  if (!done) throw invalid();
   await notifyPasswordChanged(services, Number(target.user_id), target.username, target.email);
 }
 

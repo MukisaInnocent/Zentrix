@@ -21,28 +21,30 @@ export interface Channel {
   removedAt: Date | null;
   // Set when a provider API (LivePay) runs this method; empty for a manual method.
   provider: 'livepay' | null;
+  // The system's 'Paid to admin' method (owner, 2026-11-02): hidden from members, used only by admin activations.
+  adminOnly: boolean;
 }
 
 interface ChannelRow {
   id: string; code: string; name: string; country_code: string; currency_code: string; account_name: string; account_number: string;
   instructions: string | null; ussd_code: string | null; merchant_code: string | null; pay_url: string | null; deposits_enabled: boolean; payouts_enabled: boolean;
-  removed_at: Date | null; provider: 'livepay' | null;
+  removed_at: Date | null; provider: 'livepay' | null; admin_only: boolean;
 }
 
 const toChannel = (r: ChannelRow): Channel => ({
   id: Number(r.id), code: r.code, name: r.name, countryCode: r.country_code, currency: r.currency_code, accountName: r.account_name,
   accountNumber: r.account_number, instructions: r.instructions, ussdCode: r.ussd_code, merchantCode: r.merchant_code, payUrl: r.pay_url, depositsEnabled: r.deposits_enabled, payoutsEnabled: r.payouts_enabled,
-  removedAt: r.removed_at, provider: r.provider,
+  removedAt: r.removed_at, provider: r.provider, adminOnly: r.admin_only,
 });
 
-// Removed (archived) methods are left out unless asked for; only the staff console lists them.
-export async function listChannels(db: Db, filter: { currency?: string; country?: string; includeRemoved?: boolean } = {}): Promise<Channel[]> {
+// Removed (archived) methods and the 'Paid to admin' methods are left out unless asked for; only the staff console lists them.
+export async function listChannels(db: Db, filter: { currency?: string; country?: string; includeRemoved?: boolean; includeAdminOnly?: boolean } = {}): Promise<Channel[]> {
   const list = await rows<ChannelRow>(
     db,
     `SELECT * FROM payment_channels WHERE ($1::char(3) IS NULL OR currency_code = $1) AND ($2::char(2) IS NULL OR country_code = $2)
-       AND ($3 OR removed_at IS NULL)
+       AND ($3 OR removed_at IS NULL) AND ($4 OR NOT admin_only)
      ORDER BY country_code, id`,
-    [filter.currency ?? null, filter.country ?? null, filter.includeRemoved ?? false],
+    [filter.currency ?? null, filter.country ?? null, filter.includeRemoved ?? false, filter.includeAdminOnly ?? false],
   );
   return list.map(toChannel);
 }

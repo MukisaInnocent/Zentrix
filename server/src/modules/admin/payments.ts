@@ -9,7 +9,7 @@ import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
 import { idempotent, moneyTx } from '../ledger/idempotency.js';
 import { flagActive, listChannels, PAGE, setFlag } from '../payments/common.js';
-import { confirmDeposit, DEPOSIT_SELECT, depositView, rejectDeposit, type DepositRow } from '../payments/deposits.js';
+import { activateByAdmin, confirmDeposit, DEPOSIT_SELECT, depositView, rejectDeposit, type DepositRow } from '../payments/deposits.js';
 import { addMessage, findIssue, ISSUE_SELECT, issueView, messagesOf, setIssueStatus, type IssueRow } from '../payments/issues.js';
 import { buildReport, runReconciliation } from '../payments/reconciliation.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
@@ -41,6 +41,11 @@ const WithdrawalBody = z.strictObject({ note: Note.optional(), payoutTxnId: z.st
 const IssueStatusBody = z.strictObject({ status: z.enum(['open', 'in_progress', 'resolved']), resolution: z.string().trim().max(1000).optional() });
 const MessageBody = z.strictObject({ body: z.string().trim().min(1).max(2000) });
 const SendBody = z.strictObject({ note: Note.optional() });
+const AdminActivateBody = z.strictObject({
+  note: z.string().trim().min(3, { error: 'Say how the member paid you.' }).max(300),
+  reference: z.string().trim().max(40).optional(),
+  payerPhone: z.string().trim().max(32).optional(),
+});
 const ProviderReference = z.string().regex(/^[A-Z0-9-]{4,30}$/);
 
 interface ProviderRequestRow {
@@ -384,6 +389,19 @@ export function paymentsAdminRouter(services: Services): Router {
     res.json({ balances, statement, deposits: deposits.map(depositView), withdrawals: withdrawals.map(withdrawalView) });
   });
 
+  // Owner, 2026-11-02: an admin activates a member who paid the admin directly, recorded as Paid to admin.
+  router.post('/members/:id/activate', requireStaff('admin'), async (req, res) => {
+    const id = uuid(req.params.id);
+    const body = parse(AdminActivateBody, req.body);
+    const result = await idempotent(pool, req, `admin.member.activate.${id}`, async db => {
+      const { after, receiptNo } = await activateByAdmin(db, staff(req), id, body);
+      await audit(db, req, { action: 'member.activated_paid_to_admin', targetType: 'deposit', targetId: after.reference, after: { ...after, receiptNo }, reason: body.note });
+      return { status: 201, body: { deposit: after, receiptNo } };
+    });
+    if (!result.replayed) await notifyPayment(services, 'deposit_confirmed', (result.body.deposit as { reference: string }).reference);
+    res.status(result.status).json(result.body);
+  });
+
   // ---- Issues ----
   router.get('/issues', requireStaff(...VIEW), async (req, res) => {
     const q = parse(ListQuery, req.query);
@@ -539,7 +557,7 @@ export function paymentsAdminRouter(services: Services): Router {
   // ---- Payment channels ----
   router.get('/channels', requireStaff(...VIEW), async (req, res) => {
     const q = parse(ChannelsQuery, req.query);
-    res.json({ channels: await listChannels(pool, { country: q.country, includeRemoved: q.removed === '1' }) });
+    res.json({ channels: await listChannels(pool, { country: q.country, includeRemoved: q.removed === '1', includeAdminOnly: true }) });
   });
 
   router.post('/channels', requireStaff('admin'), async (req, res) => {
@@ -567,8 +585,10 @@ export function paymentsAdminRouter(services: Services): Router {
     const body = parse(ChannelPatch, req.body);
     const code = String(req.params.code);
     await withTransaction(pool, async db => {
-      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, pay_url, instructions, deposits_enabled, payouts_enabled, removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      const before = await maybeOne<Record<string, unknown>>(db, 'SELECT name, account_name, account_number, ussd_code, merchant_code, pay_url, instructions, deposits_enabled, payouts_enabled, removed_at, admin_only FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
       if (!before) throw notFound();
+      if (before.admin_only) throw conflict('channel.system', 'Paid to admin is kept by the system and cannot be changed.');
+      delete before.admin_only;
       if (before.removed_at && (body.depositsEnabled || body.payoutsEnabled)) throw conflict('channel.removed', 'Restore this method before switching it on.');
       await db.query(
         `UPDATE payment_channels SET name = coalesce($2, name), account_name = coalesce($3, account_name), account_number = coalesce($4, account_number),
@@ -589,8 +609,9 @@ export function paymentsAdminRouter(services: Services): Router {
     const { reason } = parse(RemoveBody, req.body);
     const code = String(req.params.code);
     await withTransaction(pool, async db => {
-      const channel = await maybeOne<{ id: string; currency_code: string; removed_at: Date | null }>(db, 'SELECT id, currency_code, removed_at FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
+      const channel = await maybeOne<{ id: string; currency_code: string; removed_at: Date | null; admin_only: boolean }>(db, 'SELECT id, currency_code, removed_at, admin_only FROM payment_channels WHERE code = $1 FOR UPDATE', [code]);
       if (!channel) throw notFound();
+      if (channel.admin_only) throw conflict('channel.system', 'Paid to admin is kept by the system and cannot be removed.');
       if (channel.removed_at) throw conflict('channel.removed', 'This method is already removed.');
       const held = await maybeOne<{ balance_minor: string }>(db, `SELECT balance_minor FROM accounts WHERE kind = 'payment_clearing' AND channel_id = $1`, [channel.id]);
       if (held && held.balance_minor !== '0') {

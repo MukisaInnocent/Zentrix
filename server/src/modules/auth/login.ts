@@ -24,8 +24,8 @@ export const MfaLoginSchema = z.strictObject({
   code: z.string().trim().min(6).max(12),
 });
 
-const LOCK_AFTER = 10;
-const LOCK_MINUTES = 15;
+const LOCK_AFTER = 50;
+const LOCK_MINUTES = 60;
 const CHALLENGE_TTL_MS = 5 * 60_000;
 const CHALLENGE_MAX_ATTEMPTS = 5;
 

@@ -7,7 +7,7 @@ import { toast } from '../core/toast.js';
 
 // Deposit into the deposit balance (kept apart from the balance, which holds referral money only). Works like the
 // activation page (owner, 2026-10-31), except that the member enters the amount. Mobile-money prompt methods
-// (LivePay): the prompt goes to the registered number and the deposit is credited when LivePay confirms. Manual
+// (LivePay): the prompt goes to the number the member enters (any Ugandan number) and the deposit is credited when LivePay confirms. Manual
 // methods: the member sends money to a business channel and submits the transaction ID; staff confirm it against the
 // statement. The page never changes a balance itself.
 let info = null;
@@ -41,7 +41,8 @@ function renderPaybox() {
     box.replaceChildren(
       h('ol', { class: 'zx-steps-list' }, [
         'Enter the amount you want to deposit.',
-        `Press Send payment prompt. It goes to your registered number${info.phone ? ` ${info.phone}` : ''} (MTN or Airtel).`,
+        'Enter the MTN or Airtel number that will pay. It can be your own or someone else\'s Ugandan number.',
+        'Press Send payment prompt. It goes to that number.',
         'Check the amount on your phone and approve it with your PIN. The deposit is added by itself.',
       ].map(x => h('li', {}, x))),
       c.instructions ? h('p', { class: 'zx-hint' }, c.instructions) : null,
@@ -68,8 +69,7 @@ function renderPaybox() {
     h('p', { class: 'zx-hint' }, 'Never share your PIN. Pexerearn staff will never ask for it.'));
 }
 
-// A prompt method needs the amount only (the prompt goes to the registered number); a manual one also needs the
-// transaction ID and the number paid from.
+// A prompt method needs the amount and the number that pays; a manual one also needs the transaction ID.
 function renderForm(c) {
   const prompt = Boolean(c?.provider);
   $('#txn-field').hidden = prompt;
@@ -77,9 +77,8 @@ function renderForm(c) {
   $('#deposit-txn').disabled = prompt;
   $('#form-title').textContent = prompt ? '2. Enter the amount and get the payment prompt' : '2. Enter your payment details';
   $('#deposit-amount-label').textContent = prompt ? `Amount to deposit (${info.currency})` : 'Amount you sent';
-  $('#deposit-phone-label').textContent = prompt ? 'Your registered number (the prompt goes here)' : 'Number you paid from';
-  $('#deposit-phone').readOnly = prompt;
-  if (prompt && info?.phone) $('#deposit-phone').value = info.phone;
+  $('#deposit-phone-label').textContent = prompt ? 'Number that will pay (the prompt goes here)' : 'Number you paid from';
+  if (prompt && info?.phone && !$('#deposit-phone').value) $('#deposit-phone').value = info.phone;
   $('#deposit-submit').textContent = prompt ? 'Send payment prompt' : 'Submit deposit';
 }
 

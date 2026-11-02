@@ -416,6 +416,7 @@ describe('manual withdrawals', () => {
 
     const unverified = await registerMember(app);
     await activate(unverified);
+    await app.owner.query("UPDATE users SET phone_verified_at = NULL WHERE public_id = $1", [unverified.user.id]);
     expect((await unverified.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key())).body.error?.code).toBe('withdrawal.phone_unverified');
   });
 });
@@ -650,5 +651,47 @@ describe('payment emails', () => {
     expect(w.status, JSON.stringify(w.body)).toBe(201);
     expect(await staffMails(`Pexerearn staff: withdrawal ${w.body.withdrawal.reference} to approve`)).toHaveLength(financeEmails.length);
     expect((await app.outbox(member.input.email)).map(m => m.subject)).toContain(`Pexerearn: Withdrawal ${w.body.withdrawal.reference} requested`);
+  });
+});
+
+describe('activation paid to an admin (owner, 2026-11-02)', () => {
+  it('lets one admin activate a member, recorded on the hidden Paid to admin method, with rewards and a clean ledger', async () => {
+    const referrer = await registerMember(app);
+    const member = await registerMember(app, { referralCode: referrer.input.username });
+    const path = `/api/admin/payments/members/${member.user.id}/activate`;
+    const body = { note: 'Paid me cash at the office', reference: 'cash-0001' };
+    expect((await financeClient.post<Body>(path, body, key())).status).toBe(403);
+    expect((await adminClient.post<Body>(path, { note: '' }, key())).body.error?.fields?.note).toBeDefined();
+
+    const headers = key();
+    const res = await adminClient.post<Body>(path, body, headers);
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.deposit).toMatchObject({ status: 'confirmed', purpose: 'activation', channel: { code: 'admin_ug_ugx', name: 'Paid to admin' }, providerTxnId: 'CASH-0001', creditedAmountMinor: FEE });
+    expect(res.body.receiptNo).toMatch(/^MB-/);
+    // A replay returns the same answer and moves nothing again.
+    expect((await adminClient.post<Body>(path, body, headers)).body.deposit.id).toBe(res.body.deposit.id);
+    expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
+    expect((await referrer.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('10000');
+    expect((await adminClient.post<Body>(path, body, key())).body.error?.code).toBe('deposit.already_active');
+
+    // Members never see or use the method; staff see what admins hold on the balance check.
+    const channels = (await member.client.get<Body>('/api/payments/channels')).body.channels as Body[];
+    expect(channels.some(c => c.code === 'admin_ug_ugx')).toBe(false);
+    const other = await registerMember(app);
+    expect((await other.client.post<Body>('/api/payments/deposits', { channel: 'admin_ug_ugx', senderPhone: other.input.phone, providerTxnId: txnId() }, key())).body.error?.code).toBe('payments.channel_unavailable');
+    expect((await adminClient.patch<Body>('/api/admin/payments/channels/admin_ug_ugx', { depositsEnabled: true })).body.error?.code).toBe('channel.system');
+    const held = await app.owner.query(
+      `SELECT a.balance_minor FROM accounts a JOIN payment_channels c ON c.id = a.channel_id WHERE a.kind = 'payment_clearing' AND c.code = 'admin_ug_ugx'`,
+    );
+    expect(BigInt(held.rows[0].balance_minor)).toBeGreaterThanOrEqual(BigInt(FEE));
+    const [audit] = (await app.owner.query(`SELECT reason FROM audit_log WHERE action = 'member.activated_paid_to_admin' AND target_id = $1`, [res.body.deposit.reference])).rows;
+    expect(audit).toEqual({ reason: body.note });
+  });
+
+  it('refuses while the member has an activation payment waiting', async () => {
+    const member = await registerMember(app);
+    expect((await claim(member)).status).toBe(201);
+    const res = await adminClient.post<Body>(`/api/admin/payments/members/${member.user.id}/activate`, { note: 'Paid me by phone' }, key());
+    expect(res.body.error?.code).toBe('deposit.pending_exists');
   });
 });

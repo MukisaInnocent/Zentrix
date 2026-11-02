@@ -123,7 +123,28 @@ async function openMember(id) {
       toast.success(`Now invited by @${result.inviter}. ${result.moved.length} reward(s) moved${debts.length ? `; ${debts.length} left a debt` : ''}.`);
       await render();
     });
-    view.setActions(canFreeze ? btn : null, verifyBtn, inviterBtn, ...unlockButtons);
+    // Owner, 2026-11-02: a member who paid an admin directly is activated here, recorded as Paid to admin.
+    const activateBtn = me.roles.includes('admin') && me.id !== m.id && !b.membershipActive && m.status === 'active'
+      ? h('button', { type: 'button', class: 'zx-btn zx-btn--success' }, 'Activate (paid to admin)') : null;
+    activateBtn?.addEventListener('click', async () => {
+      const result = await askForm({
+        title: 'Activate (paid to admin)',
+        text: `Only when @${m.username} has paid you the full activation fee. It is recorded as paid to admin and works like any activation: the account opens, a receipt is made and the inviters get their rewards. Move the money to a business method later with a Treasury channel transfer.`,
+        submitLabel: 'Activate', tone: 'success',
+        fields: [
+          { name: 'note', label: 'How did they pay you?', type: 'textarea', required: true, minLength: 3 },
+          { name: 'reference', label: 'Transaction ID or reference (optional)' },
+          { name: 'payerPhone', label: 'Number that paid, with country code (optional)', inputmode: 'tel' },
+        ],
+        submit: v => moneyPost(`/api/admin/payments/members/${id}/activate`, {
+          note: v.note, ...(v.reference ? { reference: v.reference } : {}), ...(v.payerPhone ? { payerPhone: v.payerPhone } : {}),
+        }),
+      });
+      if (!result) return;
+      toast.success(`@${m.username} is activated. Receipt ${result.receiptNo}.`);
+      await render();
+    });
+    view.setActions(activateBtn, canFreeze ? btn : null, verifyBtn, inviterBtn, ...unlockButtons);
   };
   try {
     await render();

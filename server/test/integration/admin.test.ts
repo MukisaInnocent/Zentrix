@@ -67,6 +67,7 @@ describe('member administration', () => {
 
   it('lets only admins mark a number verified, once, with how they checked it (owner, 2026-11-01)', async () => {
     const member = await registerMember(app);
+    await app.owner.query('UPDATE users SET phone_verified_at = NULL WHERE public_id = $1', [member.user.id]);
     const verified = async () => (await app.owner.query<{ v: boolean }>('SELECT phone_verified_at IS NOT NULL AS v FROM users WHERE public_id = $1', [member.user.id])).rows[0]!.v;
     const body = { verification: 'Called the number, the member answered' };
     expect((await complianceClient.post(`/api/admin/members/${member.user.id}/phone/verify`, body)).status).toBe(403);
@@ -138,9 +139,10 @@ describe('review queues and test tools', () => {
 
   it('shows the dev outbox in test mode and the unsigned go-live checklist', async () => {
     const member = await registerMember(app);
+    // Sign-up sends nothing (owner, 2026-11-01 and 2026-11-02), so ask for a password reset email.
+    expect((await app.client().post('/api/auth/password/forgot', { email: member.input.email })).status).toBe(202);
     const outbox = await supportClient.get<{ messages: { recipient: string }[] }>('/api/admin/outbox');
-    // Sign-up texts the phone code (no email confirmation since 2026-11-01).
-    expect(outbox.body.messages.some(m => m.recipient === member.input.phone)).toBe(true);
+    expect(outbox.body.messages.some(m => m.recipient === member.input.email)).toBe(true);
     const golive = await adminClient.get<{ items: { signed: boolean | null }[] }>('/api/admin/go-live');
     expect(golive.body.items).toHaveLength(7);
     expect(golive.body.items.every(i => !i.signed)).toBe(true);

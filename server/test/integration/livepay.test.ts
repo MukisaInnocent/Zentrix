@@ -53,9 +53,6 @@ async function withGateway<T>(gateway: PaymentGateway, fn: () => Promise<T>): Pr
 const collect = (m: Member, phone = m.input.phone, headers = key()) =>
   m.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', phone }, headers);
 
-const phoneVerified = async (m: Member) =>
-  (await app.owner.query<{ v: boolean }>('SELECT phone_verified_at IS NOT NULL AS v FROM users WHERE username = $1', [m.input.username.toLowerCase()])).rows[0]!.v;
-
 async function drift(): Promise<number> {
   const r = await app.owner.query(
     `SELECT 1 FROM accounts a WHERE a.balance_minor <> coalesce((SELECT sum(CASE WHEN e.side = a.normal_side THEN e.amount_minor ELSE -e.amount_minor END) FROM ledger_entries e WHERE e.account_id = a.id), 0)`,
@@ -67,7 +64,6 @@ describe('LivePay collections', () => {
   it('activates on a successful prompt, pays referral rewards, and confirms as zx_livepay', async () => {
     const referrer = await registerMember(app);
     const member = await registerMember(app, { referralCode: referrer.input.username });
-    expect(await phoneVerified(member)).toBe(false);
     const channels = (await member.client.get<Body>('/api/payments/channels')).body.channels as Body[];
     expect(channels.find(c => c.code === 'livepay_ug')).toMatchObject({ provider: 'livepay' });
 
@@ -81,10 +77,6 @@ describe('LivePay collections', () => {
       [res.body.deposit.id],
     )).rows[0];
     expect(row).toEqual({ status: 'succeeded', username: 'zx_livepay' });
-    // Owner, 2026-11-01: the paid prompt to the registered number verifies the phone (no SMS provider in live mode).
-    expect(await phoneVerified(member)).toBe(true);
-    const events = await app.owner.query(`SELECT e.details FROM auth_events e JOIN users u ON u.id = e.user_id WHERE u.username = $1 AND e.kind = 'phone_verified'`, [member.input.username.toLowerCase()]);
-    expect(events.rows).toEqual([{ details: { by: 'livepay_payment' } }]);
     expect(await drift()).toBe(0);
   });
 
@@ -110,7 +102,6 @@ describe('LivePay collections', () => {
     const member = await registerMember(app, { phone: `+25670${randomInt(1000, 9999)}000` });
     const declined = await collect(member);
     expect(declined.body.deposit).toMatchObject({ status: 'rejected' });
-    expect(await phoneVerified(member)).toBe(false);
     expect(declined.body.deposit.reviewNote).toMatch(/declined/);
     for (let i = 0; i < 4; i++) expect((await collect(member)).body.deposit.status).toBe('rejected');
     expect((await collect(member)).body.error?.code).toBe('payments.too_many_failed');
@@ -131,14 +122,22 @@ describe('LivePay collections', () => {
     expect(await drift()).toBe(0);
   });
 
-  it('sends prompts only to the member\'s registered number', async () => {
+  it('sends prompts to any Ugandan number, at most 3 other numbers a day, and keeps the registered number', async () => {
     const member = await registerMember(app);
-    const other = await collect(member, '+256772000111');
-    expect(other.status).toBe(400);
-    expect(other.body.error?.code).toBe('payments.phone_registered');
-    // Without a phone, the registered number is used.
-    const res = await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug' }, key());
-    expect(res.body.deposit).toMatchObject({ status: 'confirmed', senderPhone: member.input.phone });
+    const res = await collect(member, '+256772000111');
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.deposit).toMatchObject({ status: 'confirmed', senderPhone: '+256772000111' });
+    expect((await member.client.get<Body>('/api/me')).body.user).toMatchObject({ phone: member.input.phone });
+    const kenyan = await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '20000', phone: '+254712000111' }, key());
+    expect(kenyan.body.error?.code).toBe('payments.phone_country');
+    for (const phone of ['+256772000112', '+256772000113']) {
+      expect((await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '20000', phone }, key())).status).toBe(201);
+    }
+    const fourth = await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '20000', phone: '+256772000114' }, key());
+    expect(fourth.body.error?.code).toBe('payments.too_many_numbers');
+    // A number used today and the registered number still work.
+    expect((await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '20000', phone: '+256772000112' }, key())).status).toBe(201);
+    expect((await member.client.post<Body>('/api/payments/collections', { channel: 'livepay_ug', purpose: 'wallet', amount: '20000' }, key())).body.deposit).toMatchObject({ senderPhone: member.input.phone });
   });
 
   it('raises a critical alert when LivePay reports success after the payment was given up', async () => {

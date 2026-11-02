@@ -188,6 +188,60 @@ export async function confirmDeposit(db: PoolClient, staffId: number, publicId: 
   return { before: depositView(d), after: depositView(after), receiptNo };
 }
 
+// The country's 'Paid to admin' method for this currency, made the first time it is needed.
+async function adminChannelCode(db: PoolClient, countryCode: string, currency: string): Promise<string> {
+  const code = `admin_${countryCode.toLowerCase()}_${currency.toLowerCase()}`;
+  await db.query(
+    `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, instructions, deposits_enabled, payouts_enabled, admin_only)
+     VALUES ($1, 'Paid to admin', $2, $3, 'Pexerearn admin', 'admin', 'Money paid to an admin directly. Members never see this method.', false, false, true)
+     ON CONFLICT (code) DO NOTHING`,
+    [code, countryCode, currency],
+  );
+  return code;
+}
+
+// Owner, 2026-11-02: an admin activates a member who paid the admin directly. The payment is recorded on the
+// country's 'Paid to admin' method and confirmed in the same step by that admin alone, through the same ledger steps
+// as any activation (cash on the method -> platform revenue, a receipt, referral rewards).
+export async function activateByAdmin(
+  db: PoolClient, staffId: number, memberPublicId: string, input: { payerPhone?: string | undefined; reference?: string | undefined; note: string },
+): Promise<{ after: DepositView; receiptNo: string | null }> {
+  const user = await maybeOne<{ id: string }>(db, 'SELECT id FROM users WHERE public_id = $1 FOR UPDATE', [memberPublicId]);
+  if (!user) throw notFound();
+  const userId = Number(user.id);
+  if (userId === staffId) throw forbidden('admin.self_action', 'Another admin must activate your own account.');
+  const member = await memberInfo(db, userId);
+  if (member.status !== 'active') throw conflict('deposit.member_not_active', 'This member account is frozen or closed. Resolve that first.');
+  if (await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [userId])) throw conflict('deposit.already_active', 'This member is already activated.');
+  if (await maybeOne(db, `SELECT 1 FROM deposits WHERE user_id = $1 AND purpose = 'activation' AND status = 'pending'`, [userId])) {
+    throw conflict('deposit.pending_exists', 'This member has an activation payment waiting. Confirm or reject it first.');
+  }
+  const config = await requireConfig(db, member.countryCode);
+  await assertNotPaused(db, 'deposits_paused', config.feeCurrency);
+  const channel = await channelByCode(db, await adminChannelCode(db, member.countryCode, config.feeCurrency));
+  const reference = newReference('DP');
+  const txnId = input.reference ? normalizeTxnId(input.reference) : reference;
+  if (!/^[A-Z0-9.-]{4,40}$/.test(txnId)) {
+    throw badRequest('validation_failed', 'Use 4 to 40 letters, numbers, dots or dashes, or leave it empty.', { reference: ['Use 4 to 40 letters, numbers, dots or dashes.'] });
+  }
+  const senderPhone = normalizePhone(input.payerPhone || member.phone || '');
+  await setActor(db, staffId, 'Paid to admin');
+  let publicId: string;
+  try {
+    publicId = (await one<{ public_id: string }>(
+      db,
+      `INSERT INTO deposits (reference, user_id, channel_id, claimed_amount_minor, currency_code, sender_phone, provider_txn_id, purpose, method)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'activation', 'manual') RETURNING public_id`,
+      [reference, userId, channel.id, config.membershipFeeMinor.toString(), config.feeCurrency, senderPhone, txnId],
+    )).public_id;
+  } catch (err) {
+    if (pgErrorCode(err) === DB_ERRORS.uniqueViolation) throw conflict('deposit.duplicate_txn', 'This reference was already used for another payment to an admin.');
+    throw err;
+  }
+  const { after, receiptNo } = await confirmDeposit(db, staffId, publicId, BigInt(config.membershipFeeMinor), `Paid to admin. ${input.note}`);
+  return { after, receiptNo };
+}
+
 async function confirmWalletDeposit(db: PoolClient, staffId: number, d: DepositRow, receivedMinor: bigint, note: string | null) {
   if (receivedMinor <= 0n) throw badRequest('validation_failed', 'Enter the amount received.', { amount: ['Enter the amount received.'] });
   if (receivedMinor !== BigInt(d.claimed_amount_minor) && !note) {

@@ -26,8 +26,7 @@
     "verified": "Verified",
     "notVerified": "Not verified",
     "showPassword": "Show password",
-    "optional": "optional",
-    "noIncomeGuarantee": "What you earn depends on the funded tasks available. Pexerearn does not guarantee any income."
+    "optional": "optional"
   },
   "nav": {
     "group": {
@@ -206,8 +205,6 @@
     "guide3Title": "How withdrawals work",
     "guide3Text": "Request a payout from your balance to your own mobile number. The charge and tax are shown before you confirm.",
     "faqTitle": "Questions people ask",
-    "faq1Q": "Is income guaranteed?",
-    "faq1A": "No. What you earn depends on the funded tasks available and how many you complete. Pexerearn never promises a fixed or typical income.",
     "faq2Q": "What does the activation fee buy?",
     "faq2A": "Access to every service above and member support. It is a service fee, not an investment, and it is not paid to other members.",
     "faq3Q": "Where do task rewards come from?",
@@ -284,10 +281,11 @@
   },
   "forgot": {
     "title": "Reset your password",
-    "lead": "Enter the email address on your account and we'll send a reset link.",
+    "lead": "Enter the email address on your account and we'll send a reset code.",
     "email": "Email address",
-    "submit": "Send reset link",
-    "sent": "If an account uses that email, a reset link is on its way. It expires in 30 minutes.",
+    "submit": "Send reset code",
+    "sent": "If an account uses that email, we sent a 6-digit code and a link. Type the code below, or open the link. Both expire in 30 minutes.",
+    "code": "Code from the email",
     "back": "Back to sign in"
   },
   "reset": {

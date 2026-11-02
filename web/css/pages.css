@@ -144,6 +144,7 @@
 
 /* ---------- Member dashboard: stacked colour cards (total earnings, balance, withdrawn, pending, referrals) ---------- */
 .zx-dashx { gap: var(--zx-space-4); max-inline-size: 760px; }
+.zx-dashx__top { display: flex; justify-content: flex-end; }
 .zx-dashx__hero {
   display: grid; gap: var(--zx-space-2); padding: var(--zx-space-6); border-radius: var(--zx-radius-lg); color: #fff;
   background: linear-gradient(135deg, #5b2bd6 0%, #7c4dff 55%, #9b6bff 100%); box-shadow: var(--zx-shadow);

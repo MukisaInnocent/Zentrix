@@ -63,11 +63,12 @@ function renderChannels(channels, positions, refresh) {
         submit: v => api.post('/api/admin/payments/float-snapshots', { channel: c.code, balance: v.balance, ...(v.note ? { note: v.note } : {}) }),
       })) await refresh();
     });
-    const edit = me?.roles.includes('admin') ? h('button', { type: 'button', class: 'zx-btn zx-btn--ghost zx-btn--sm' }, 'Edit') : null;
+    // Paid to admin (owner, 2026-11-02) is kept by the system: its balance is what admins hold for the platform.
+    const edit = me?.roles.includes('admin') && !c.adminOnly ? h('button', { type: 'button', class: 'zx-btn zx-btn--ghost zx-btn--sm' }, 'Edit') : null;
     edit?.addEventListener('click', () => void editChannel(c, refresh));
     const diff = p?.differenceMinor;
     return h('tr', {},
-      h('td', { class: 'zx-td-strong' }, c.name, ' ', !c.depositsEnabled ? h('span', { class: 'zx-badge' }, 'No deposits') : null, !c.payoutsEnabled ? h('span', { class: 'zx-badge' }, 'No payouts') : null),
+      h('td', { class: 'zx-td-strong' }, c.name, ' ', c.adminOnly ? h('span', { class: 'zx-badge' }, `System, ${c.countryCode}`) : null, !c.adminOnly && !c.depositsEnabled ? h('span', { class: 'zx-badge' }, 'No deposits') : null, !c.adminOnly && !c.payoutsEnabled ? h('span', { class: 'zx-badge' }, 'No payouts') : null),
       h('td', { class: 'zx-td-mono' }, `${c.accountNumber} · ${c.accountName}`),
       h('td', { class: 'zx-amount' }, money(p?.ledgerHeldMinor ?? '0', c.currency)),
       h('td', {}, p?.statementMinor ? `${money(p.statementMinor, c.currency)} · ${ago(p.statementAt)}` : h('span', { class: 'zx-badge zx-badge--warning' }, 'Never recorded')),

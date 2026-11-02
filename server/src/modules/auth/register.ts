@@ -11,7 +11,6 @@ import { raiseFlag } from '../fraud/flags.js';
 import { getSetting } from '../settings/registry.js';
 import { hashPassword, passwordProblems } from './passwords.js';
 import { createSession, type IssuedSession } from './sessions.js';
-import { issuePhoneCode, sendPhoneCode } from './verification.js';
 
 export const RegisterSchema = z.strictObject({
   username: z
@@ -76,7 +75,7 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
   const timezone = validTimezone(input.timezone) ? input.timezone : country.defaultTimezone;
   const passwordHash = await hashPassword(input.password);
 
-  let registration: Registration & { email: string; phoneE164: string; phoneCode: string };
+  let registration: Registration;
   try {
     registration = await withTransaction(pool, async db => {
       let referrerId: number | null = null;
@@ -93,11 +92,13 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
       let referralCode = randomCode(8);
       while (await maybeOne(db, 'SELECT 1 FROM users WHERE referral_code = $1', [referralCode])) referralCode = randomCode(8);
 
+      // Owner, 2026-11-02: the registered number counts as verified until it is changed, so withdrawals to it work
+      // without a code (live mode has no SMS provider).
       const user = await one<{ id: string }>(
         db,
         `INSERT INTO users (username, email, phone_e164, password_hash, country_code, currency_code, locale, timezone,
-           referral_code, referred_by_user_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+           referral_code, referred_by_user_id, phone_verified_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()) RETURNING id`,
         [input.username, input.email, phone.number, passwordHash, country.code, country.currencyCode,
           country.defaultLocale, timezone, referralCode, referrerId],
       );
@@ -127,11 +128,10 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
         if (Number(recent.n) > 3) await raiseFlag(db, userId, 'signup_velocity', 'medium', { signupsFromIpIn24h: Number(recent.n) });
       }
 
-      const phoneCode = await issuePhoneCode(db, config.dataEncryptionKey, userId, phone.number, now);
       const session = await createSession(db, config.csrfSecret, {
         userId, staff: false, mfaVerified: false, ip: meta.ip, userAgent: meta.userAgent, now,
       });
-      return { userId, session, email: input.email, phoneE164: phone.number, phoneCode };
+      return { userId, session };
     });
   } catch (err) {
     if (err instanceof AppError) throw err;
@@ -146,6 +146,5 @@ export async function register(services: Services, raw: unknown, meta: RequestMe
     throw err;
   }
 
-  await sendPhoneCode(services, registration.phoneE164, registration.phoneCode);
-  return { userId: registration.userId, session: registration.session };
+  return registration;
 }

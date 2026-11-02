@@ -30,7 +30,7 @@ interface TemplateDef {
   required?: string[];
   /** Whether the email has a button; its link is set by the site. */
   button: boolean;
-  /** A fixed line under the button (security notes), not editable. */
+  /** A fixed line under the button (security notes, a reset code), not editable; fill-ins are replaced. */
   note?: string;
   defaults: TemplateContent;
 }
@@ -69,8 +69,9 @@ export const TEMPLATES = {
     defaults: { subject: 'Your Pexerearn sign-in code', heading: 'Your sign-in code', body: 'Your Pexerearn sign-in code is {code}.\n\nIt expires in 5 minutes and works once. If you did not just sign in, change your password now.' },
   },
   password_reset: {
-    title: 'Password reset link', group: 'Sign-up and security', when: 'When someone asks to reset the password on the Forgot password page.', category: 'security',
-    vars: { ...USER }, button: true, note: 'The link works for 30 minutes. If you did not ask for this, ignore this email; your password stays the same.',
+    title: 'Password reset link and code', group: 'Sign-up and security', when: 'When someone asks to reset the password on the Forgot password page.', category: 'security',
+    vars: { ...USER, code: { about: 'The 6-digit reset code (always shown under the button)', sample: '482913' } }, button: true,
+    note: 'Or type this code on the Forgot password page: {code}. The code and the link work for 30 minutes. If you did not ask for this, ignore this email; your password stays the same.',
     defaults: { subject: 'Reset your Pexerearn password', heading: 'Reset your password', body: 'Someone asked to reset the password for this Pexerearn account. To choose a new password, use the button below.', buttonLabel: 'Choose a new password' },
   },
   password_changed: {
@@ -258,7 +259,7 @@ export function fill(kind: TemplateKind, content: TemplateContent, values: Recor
     heading: put(content.heading),
     paragraphs,
     ...(d.button && content.buttonLabel ? { buttonLabel: put(content.buttonLabel) } : {}),
-    ...(d.note ? { note: d.note } : {}),
+    ...(d.note ? { note: put(d.note) } : {}),
   };
 }
 

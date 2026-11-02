@@ -101,7 +101,8 @@ async function load() {
   const params = new URLSearchParams();
   if (state.country) params.set('country', state.country);
   if (state.removed) params.set('removed', '1');
-  const { channels } = await api.get(`/api/admin/payments/channels?${params}`);
+  // The system's Paid to admin methods are not edited here; they show on the Balances page.
+  const channels = (await api.get(`/api/admin/payments/channels?${params}`)).channels.filter(c => !c.adminOnly);
   $('#rows').replaceChildren(...(channels.length ? channels.map(c => h('tr', {},
     h('td', {}, `${countryName(c.countryCode)} (${c.currency})`),
     h('td', { class: 'zx-td-strong' }, c.name, c.provider ? h('div', { class: 'zx-hint' }, 'LivePay') : null, c.removedAt ? h('div', { class: 'zx-hint' }, 'Removed') : null),

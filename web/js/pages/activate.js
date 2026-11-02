@@ -44,7 +44,8 @@ function renderPaybox() {
     box.replaceChildren(
       h('div', { class: 'zx-paybox__row' }, h('span', { class: 'zx-hint' }, 'Amount'), h('strong', { class: 'zx-paybox__value' }, fee)),
       h('ol', { class: 'zx-steps-list' }, [
-        `Press Activate now. A payment prompt goes to your registered number${info.phone ? ` ${info.phone}` : ''} (MTN or Airtel).`,
+        'Enter the MTN or Airtel number that will pay. It can be your own or someone else\'s Ugandan number.',
+        'Press Activate now. A payment prompt goes to that number.',
         `A prompt for ${fee} appears on that phone.`,
         'Check the amount and approve it with your PIN. Your account opens by itself.',
       ].map(x => h('li', {}, x))),
@@ -85,10 +86,9 @@ function renderForm(c) {
   $('#activate-txn').required = !prompt;
   $('#activate-txn').disabled = prompt;
   $('#form-title').textContent = prompt ? '2. Get the payment prompt' : '2. Enter your payment details';
-  $('#activate-phone-label').textContent = prompt ? 'Your registered number (the prompt goes here)' : 'Number you paid from';
-  // Prompts go only to the registered number; to pay from another phone, a manual method is used.
-  $('#activate-phone').readOnly = prompt;
-  if (prompt && info?.phone) $('#activate-phone').value = info.phone;
+  $('#activate-phone-label').textContent = prompt ? 'Number that will pay (the prompt goes here)' : 'Number you paid from';
+  // Any Ugandan number can pay (owner, 2026-11-02); the registered number is filled in to start with.
+  if (prompt && info?.phone && !$('#activate-phone').value) $('#activate-phone').value = info.phone;
   $('#activate-submit').textContent = prompt ? 'Activate now' : 'Submit payment';
 }
 

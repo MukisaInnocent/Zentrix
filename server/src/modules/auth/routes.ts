@@ -42,8 +42,10 @@ export function authRouter(services: Services): Router {
 
   router.post(
     '/login',
-    limiter(pool, { name: 'login-ip', windowMs: 15 * MINUTE, limit: 20 }),
-    limiter(pool, { name: 'login-id', windowMs: 15 * MINUTE, limit: 10, key: bodyField('identifier') }),
+    // Owner, 2026-11-02: 50 attempts per account, then blocked for an hour. Mobile networks put many members behind one
+    // address, so the per-address limit is much higher.
+    limiter(pool, { name: 'login-ip', windowMs: HOUR, limit: 500 }),
+    limiter(pool, { name: 'login-id', windowMs: HOUR, limit: 50, key: bodyField('identifier') }),
     async (req, res) => {
       const result = await login(services, req.body, meta(req));
       if (result.kind === 'mfa') return void res.json({ mfaRequired: true, challengeToken: result.challengeToken, emailSent: result.emailSent });
@@ -79,7 +81,7 @@ export function authRouter(services: Services): Router {
 
   router.post(
     '/password/forgot',
-    limiter(pool, { name: 'forgot-ip', windowMs: HOUR, limit: 5 }),
+    limiter(pool, { name: 'forgot-ip', windowMs: HOUR, limit: 30 }),
     limiter(pool, { name: 'forgot-email', windowMs: HOUR, limit: 3, key: bodyField('email') }),
     async (req, res) => {
       await requestPasswordReset(services, req.body, req.ip);
@@ -87,7 +89,7 @@ export function authRouter(services: Services): Router {
     },
   );
 
-  router.post('/password/reset', limiter(pool, { name: 'reset', windowMs: HOUR, limit: 10 }), async (req, res) => {
+  router.post('/password/reset', limiter(pool, { name: 'reset', windowMs: HOUR, limit: 50 }), async (req, res) => {
     await resetPassword(services, req.body);
     clearAuthCookies(res, config);
     res.json({ ok: true });
