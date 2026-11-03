@@ -95,6 +95,12 @@ describe('referrals for staff and members', () => {
     expect(mine.leaders.some((l: Body) => staff.rows.some(s => s.username === l.username))).toBe(false);
     const l1 = (await top.client.get<Body>('/api/referrals/members?level=1')).body.members;
     expect(l1.find((m: Body) => m.username === a.input.username).phone).toBe(a.input.phone);
+
+    // Members search their invitees by username: any part of it, any case; `_` and `%` match only themselves.
+    const search = async (q: string) => (await top.client.get<Body>(`/api/referrals/members?level=1&q=${encodeURIComponent(q)}`)).body.members.map((m: Body) => m.username);
+    expect(await search(a.input.username.slice(2).toUpperCase())).toEqual([a.input.username]);
+    expect(await search('%')).toEqual([]);
+    expect(await search(' ')).toHaveLength(2);
   });
 });
 

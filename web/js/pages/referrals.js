@@ -42,10 +42,32 @@ export async function init() {
   }
 
   $('#table-title').textContent = `Level ${level} ${config.title.toLowerCase()}`;
-  const data = await api.get(`/api/referrals/members?level=${level}&status=${config.status}`);
+  const input = $('#ref-q');
+  input.value = params.get('q') ?? '';
+  let timer;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void loadList(level, config, input.value.trim()), 300);
+  });
+  $('#ref-search').addEventListener('submit', e => {
+    e.preventDefault();
+    clearTimeout(timer);
+    void loadList(level, config, input.value.trim());
+  });
+  await loadList(level, config, input.value.trim());
+}
+
+// The server searches the whole level (not only the rows on screen). A reply that arrives after a newer search
+// started is dropped.
+let latest = 0;
+async function loadList(level, config, q) {
+  const call = ++latest;
+  const search = q ? `&q=${encodeURIComponent(q)}` : '';
+  const data = await api.get(`/api/referrals/members?level=${level}&status=${config.status}${search}`);
+  if (call !== latest) return;
   const body = $('#ref-body');
   if (!data.members.length) {
-    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, config.empty)));
+    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, q ? `No username at this level contains "${q}".` : config.empty)));
     return;
   }
   body.replaceChildren(...data.members.map(m => h('tr', {},

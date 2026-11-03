@@ -31,6 +31,13 @@
   </section>
   <section id="list-card" class="zx-card" hidden>
     <div class="zx-section-title"><h2 id="table-title">Usernames</h2></div>
+    <form id="ref-search" class="zx-ref-search" role="search">
+      <label class="zx-visually-hidden" for="ref-q">Search by username</label>
+      <div class="zx-input-group">
+        <span class="zx-input-group__addon"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#search"></use></svg></span>
+        <input id="ref-q" class="zx-input" name="q" type="search" maxlength="30" autocomplete="off" placeholder="Search by username">
+      </div>
+    </form>
     <div class="zx-table-wrap">
       <table class="zx-table">
         <thead><tr><th scope="col">Username</th><th scope="col">Phone number</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Status</th><th scope="col">Reward</th></tr></thead>

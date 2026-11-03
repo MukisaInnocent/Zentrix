@@ -3,84 +3,100 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Join · Pexerearn</title>
-<meta name="description" content="Create your Pexerearn account.">
+<title>Sign up · Pexerearn</title>
+<meta name="description" content="Create your Pexerearn account: social media tasks, trivia, forex lessons and business e-books in your own currency.">
 <meta name="theme-color" content="#5b2bd6">
+<link rel="canonical" href="https://pexerearn.com/register.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pexerearn">
+<meta property="og:url" content="https://pexerearn.com/register.html">
+<meta property="og:title" content="Join Pexerearn">
+<meta property="og:description" content="Social media tasks, trivia, forex lessons and business e-books in one account, in your own currency.">
+<meta property="og:image" content="https://pexerearn.com/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Pexerearn">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Join Pexerearn">
+<meta name="twitter:description" content="Social media tasks, trivia, forex lessons and business e-books in one account, in your own currency.">
+<meta name="twitter:image" content="https://pexerearn.com/img/og.png">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/js/theme-init.js"></script>
 <script type="module" src="/js/app.js"></script>
 </head>
 <body data-page="register" data-shell="plain">
-<div class="zx-auth-layout">
-  <aside class="zx-auth-art" aria-hidden="true">
-    <a class="zx-brand" href="/" tabindex="-1"><img src="/img/mark.svg" alt=""><span class="zx-wordmark"><span class="zx-wordmark__pexer">Pexer</span><span class="zx-wordmark__earn">earn</span></span></a>
-    <h2>Start with a wallet that shows its working.</h2>
-    <p>Create an account, pay the activation fee and pick up funded tasks. Every fee is shown before you confirm.</p>
-    <ul class="zx-auth-points">
-      <li><svg class="zx-icon"><use href="/img/icons.svg#user-plus"></use></svg>One account per verified phone and email</li>
-      <li><svg class="zx-icon"><use href="/img/icons.svg#wallet"></use></svg>Everything in your own currency</li>
-      <li><svg class="zx-icon"><use href="/img/icons.svg#lock"></use></svg>We never store your mobile money PIN</li>
-    </ul>
-  </aside>
-
+<div class="zx-auth-layout zx-auth-layout--single">
   <div class="zx-auth-panel">
-    <div class="zx-auth-card zx-auth-card--wide">
+    <div class="zx-auth-card zx-signup">
       <a href="/" class="zx-brand"><img src="/img/mark.svg" alt=""><span class="zx-wordmark"><span class="zx-wordmark__pexer">Pexer</span><span class="zx-wordmark__earn">earn</span></span></a>
 
-      <h1>Join Pexerearn</h1>
-      <p class="zx-lead">Do funded tasks, learn new skills and keep your earnings in one place.</p>
+      <h1>Sign Up</h1>
+      <p class="zx-lead">Fill in your details to create your account.</p>
 
       <form id="register-form" class="zx-form">
         <div id="register-alert" class="zx-error zx-error--slot" role="alert"></div>
 
-        <div class="zx-form-row zx-form-row--2">
-          <div class="zx-field">
-            <label for="country">Country</label>
-            <select id="country" class="zx-select" name="country" required>
-              <option value="">Loading countries...</option>
-            </select>
-            <div id="country-hint" class="zx-hint"></div>
+        <div class="zx-field">
+          <label for="username">Username</label>
+          <input id="username" class="zx-input" name="username" required minlength="3" maxlength="30" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username" pattern="[A-Za-z0-9_]{3,30}" title="3 to 30 letters, numbers or underscores (no spaces)">
+        </div>
+
+        <div class="zx-field">
+          <label for="email">Email</label>
+          <input id="email" class="zx-input" name="email" type="email" required autocomplete="email" autocapitalize="none" placeholder="Email address">
+        </div>
+
+        <div class="zx-field">
+          <label for="phone">Mobile Number</label>
+          <div class="zx-input-group zx-phone">
+            <span id="phone-dial" class="zx-input-group__addon zx-phone__dial">+</span>
+            <input id="phone" class="zx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" required placeholder="700 123456">
           </div>
-          <div class="zx-field">
-            <label for="phone">Mobile number</label>
-            <input id="phone" class="zx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+256700000000">
-            <div class="zx-hint">Starts with your country code. Payouts go to this number.</div>
+          <div class="zx-hint">Payouts go to this number.</div>
+        </div>
+
+        <div class="zx-field">
+          <label for="password">Password</label>
+          <div class="zx-input-group">
+            <input id="password" class="zx-input" name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="Password">
+            <button class="zx-input-group__btn" type="button" data-toggle-password="password" aria-label="Show password" aria-pressed="false"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#eye"></use></svg></button>
           </div>
         </div>
 
-        <div class="zx-form-row zx-form-row--2">
-          <div class="zx-field">
-            <label for="username">Username</label>
-            <input id="username" class="zx-input" name="username" required minlength="3" maxlength="30" placeholder="e.g. alex256" pattern="[A-Za-z0-9_]{3,30}" title="3 to 30 letters, numbers or underscores (no spaces)">
-            <div class="zx-hint">3-30 chars: letters, numbers, underscores.</div>
-          </div>
-          <div class="zx-field">
-            <label for="email">Email address</label>
-            <input id="email" class="zx-input" name="email" type="email" required placeholder="name@example.com">
+        <div class="zx-field">
+          <label for="confirmPassword">Confirm Password</label>
+          <div class="zx-input-group">
+            <input id="confirmPassword" class="zx-input" name="confirmPassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Confirm password">
+            <button class="zx-input-group__btn" type="button" data-toggle-password="confirmPassword" aria-label="Show password" aria-pressed="false"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#eye"></use></svg></button>
           </div>
         </div>
 
-        <div class="zx-form-row zx-form-row--2">
-          <div class="zx-field">
-            <label for="password">Password</label>
-            <input id="password" class="zx-input" name="password" type="password" required minlength="6" placeholder="At least 6 characters">
-            <div class="zx-hint">At least 6 characters. Avoid 123456 and your username.</div>
-          </div>
-          <div class="zx-field">
-            <label for="referralCode">Invited by</label>
-            <input id="referralCode" class="zx-input" name="referralCode" maxlength="30" autocomplete="off" readonly aria-readonly="true" placeholder="Filled in from your invite link">
+        <div class="zx-field">
+          <label for="country">Country</label>
+          <select id="country" class="zx-select" name="country" required>
+            <option value="">Loading countries...</option>
+          </select>
+          <div id="country-hint" class="zx-hint"></div>
+        </div>
+
+        <input id="referralCode" name="referralCode" type="hidden">
+        <div id="invited-by" class="zx-invited" hidden>
+          <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#user"></use></svg>
+          <div>
+            <span class="zx-invited__label">Invited by</span>
+            <strong id="invited-by-name" class="zx-invited__name"></strong>
           </div>
         </div>
 
         <div class="zx-check">
-          <input id="terms" type="checkbox" name="acceptTerms" required checked>
-          <label for="terms">I accept the <a href="/terms.html">Terms</a> and <a href="/privacy.html">Privacy notice</a></label>
+          <input id="terms" type="checkbox" name="acceptTerms" required>
+          <label for="terms">I have read and agree to the <a href="/terms.html">Terms &amp; Conditions</a> and the <a href="/privacy.html">Privacy notice</a></label>
         </div>
 
-        <button id="register-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Create account</button>
+        <button id="register-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Create Account</button>
 
-        <p class="zx-auth-switch">Already have an account? <a href="/login.html">Sign in</a></p>
+        <p class="zx-auth-switch">Already have an account? <a href="/login.html">Sign In</a></p>
       </form>
     </div>
   </div>

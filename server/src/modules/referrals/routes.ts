@@ -9,6 +9,7 @@ const LeaderboardQuery = z.object({ period: z.enum(['all', '30d', '7d']).default
 const MembersQuery = z.object({
   level: z.coerce.number().int().min(1).max(3).default(1),
   status: z.enum(['all', 'active', 'inactive']).default('all'),
+  q: z.string().max(30).optional(),
 });
 
 export function referralsRouter(services: Services): Router {
@@ -28,10 +29,10 @@ export function referralsRouter(services: Services): Router {
   router.get('/overview', handleOverview);
 
   router.get('/members', async (req, res) => {
-    const { level, status } = parse(MembersQuery, req.query);
+    const { level, status, q } = parse(MembersQuery, req.query);
     const [overview, members] = await Promise.all([
       getReferralOverview(services.pool, req.auth!.userId),
-      listReferralMembers(services.pool, req.auth!.userId, level, status),
+      listReferralMembers(services.pool, req.auth!.userId, level, status, q),
     ]);
     res.json({ level, status, counts: overview.levels[level as 1 | 2 | 3], members });
   });

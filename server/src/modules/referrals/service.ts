@@ -255,8 +255,10 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
   };
 }
 
-// The members at one level below the user, optionally only the activated or the not-yet-activated ones.
-export async function listReferralMembers(db: Db, userId: number, level: number, status: 'all' | 'active' | 'inactive'): Promise<ReferralMember[]> {
+// The members at one level below the user, optionally only the activated or the not-yet-activated ones, and only
+// usernames containing `search` (any case; strpos, so `_` and `%` are plain characters).
+export async function listReferralMembers(db: Db, userId: number, level: number, status: 'all' | 'active' | 'inactive', search?: string): Promise<ReferralMember[]> {
+  const needle = search?.trim().replace(/^@/, '').toLowerCase() || null;
   const list = await rows<{
     username: string; phone_e164: string | null; country_code: string; created_at: Date; level: number; activated_at: Date | null; reward: string; currency_code: string; reward_currency: string;
   }>(
@@ -268,8 +270,9 @@ export async function listReferralMembers(db: Db, userId: number, level: number,
                       WHERE r.referrer_user_id = $1 AND r.referred_user_id = u.id AND r.status = 'credited'), 0)::text AS reward
      FROM tree t JOIN users u ON u.id = t.id LEFT JOIN memberships m ON m.user_id = u.id
      WHERE t.level = $2 AND ($3 = 'all' OR ($3 = 'active') = (m.user_id IS NOT NULL))
+       AND ($4::text IS NULL OR strpos(lower(u.username), $4::text) > 0)
      ORDER BY u.created_at DESC LIMIT 500`,
-    [userId, level, status],
+    [userId, level, status, needle],
   );
   return list.map(r => ({
     username: r.username, phone: r.phone_e164, country: r.country_code, level: r.level, joinedAt: r.created_at, status: r.activated_at ? 'Active' : 'Inactive',

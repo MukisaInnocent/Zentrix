@@ -217,3 +217,16 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 .zx-footer__inner--cols nav { display: grid; gap: var(--zx-space-2); }
 .zx-footer__brand { display: grid; gap: var(--zx-space-3); }
 .zx-footer__heading { margin: 0 0 var(--zx-space-1); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--zx-side-muted); }
+
+/* Sign-up: one centred column on every screen, the country code boxed in front of the number. */
+@media (min-width: 960px) {
+  .zx-auth-layout--single { grid-template-columns: minmax(0, 1fr); }
+}
+.zx-phone__dial { min-inline-size: 64px; justify-content: center; border-inline-end: 1px solid var(--zx-border); font-variant-numeric: tabular-nums; }
+.zx-invited { display: flex; align-items: center; gap: var(--zx-space-3); padding: var(--zx-space-2) var(--zx-space-3); }
+.zx-invited > .zx-icon { color: var(--zx-text-muted); }
+.zx-invited__label { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--zx-text-muted); }
+.zx-invited__name { display: block; }
+
+/* Referral lists: search by username above the table. */
+.zx-ref-search { margin-block-end: var(--zx-space-4); max-inline-size: 360px; }

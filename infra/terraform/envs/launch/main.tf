@@ -147,7 +147,17 @@ resource "aws_cloudfront_function" "www_redirect" {
       var request = event.request;
       var host = request.headers.host ? request.headers.host.value : '';
       if (host.indexOf('www.') === 0) {
-        return { statusCode: 301, statusDescription: 'Moved Permanently', headers: { location: { value: 'https://' + host.substring(4) + request.uri } } };
+        // Keep the query string: invite links carry the inviter as ?ref=username.
+        var parts = [];
+        for (var key in request.querystring) {
+          var q = request.querystring[key];
+          var values = q.multiValue ? q.multiValue : [q];
+          for (var i = 0; i < values.length; i++) {
+            parts.push(values[i].value === '' ? key : key + '=' + values[i].value);
+          }
+        }
+        var search = parts.length ? '?' + parts.join('&') : '';
+        return { statusCode: 301, statusDescription: 'Moved Permanently', headers: { location: { value: 'https://' + host.substring(4) + request.uri + search } } };
       }
       return request;
     }

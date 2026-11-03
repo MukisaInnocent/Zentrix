@@ -1,11 +1,22 @@
 import { api, ApiError } from '../core/api.js';
 import { $, h } from '../core/dom.js';
 import { formatMoney, loadCurrencies } from '../core/format.js';
+import { bindPasswordToggles } from '../core/forms.js';
 
 // Picks the visitor's country (from the network when known, else the browser time zone, else the browser
-// language), fills the phone prefix with its country code, and shows its currency and activation fee.
+// language), shows its country code in front of the mobile number, and shows its currency and activation fee.
 let countries = [];
-let lastDial = '';
+let dial = '';
+
+// The number goes to the server with its country code: typed with a leading + it is sent as typed, otherwise the
+// country code is put in front (a leading 0 of the local form is dropped).
+function fullPhone(typed) {
+  const compact = typed.replace(/[\s()-]/g, '');
+  if (compact === '' || compact.startsWith('+')) return compact;
+  if (compact.startsWith('00')) return `+${compact.slice(2)}`;
+  const local = compact.replace(/^0+/, '');
+  return local.startsWith(dial.slice(1)) && local.length > 10 ? `+${local}` : `${dial}${local}`;
+}
 
 function guessFromLanguage() {
   const region = (navigator.language || '').split('-')[1]?.toUpperCase();
@@ -25,18 +36,13 @@ async function detectCountry() {
 
 async function applyCountry(code) {
   const country = countries.find(c => c.code === code);
-  const phone = $('#phone');
   const hint = $('#country-hint');
   if (!country) {
     hint.textContent = '';
     return;
   }
-  // Keep the country code at the start of the number, replacing the previous country's code.
-  const dial = `+${country.dialCode}`;
-  const typed = phone.value.trim();
-  if (typed === '' || typed === lastDial) phone.value = dial;
-  lastDial = dial;
-  phone.placeholder = `${dial}...`;
+  dial = `+${country.dialCode}`;
+  $('#phone-dial').textContent = dial;
   try {
     await loadCurrencies();
     const { config } = await api.get(`/api/reference/config/${country.code}`, { noRedirect: true });
@@ -61,12 +67,15 @@ export async function init() {
   const alert = $('#register-alert');
   const submitBtn = $('#register-submit');
   const referralInput = $('#referralCode');
+  bindPasswordToggles(form);
 
   // An invite link carries the username of the member who invited you: ?ref=username
   const params = new URLSearchParams(location.search);
-  const ref = params.get('ref') || params.get('referral');
-  if (ref && referralInput) {
-    referralInput.value = ref.trim().replace(/^@/, '').toLowerCase();
+  const ref = (params.get('ref') || params.get('referral') || '').trim().replace(/^@/, '').toLowerCase();
+  if (ref) {
+    referralInput.value = ref;
+    $('#invited-by-name').textContent = ref;
+    $('#invited-by').hidden = false;
   }
   await loadCountries().catch(() => {
     $('#country').replaceChildren(h('option', { value: '' }, 'Could not load countries. Reload the page.'));
@@ -94,12 +103,21 @@ export async function init() {
   form?.addEventListener('submit', async e => {
     e.preventDefault();
     clearErrors();
+    const data = new FormData(form);
+    if (data.get('password') !== data.get('confirmPassword')) {
+      const confirm = $('#confirmPassword');
+      confirm.style.borderColor = 'var(--zx-danger)';
+      confirm.setAttribute('aria-invalid', 'true');
+      alert.style.display = 'block';
+      alert.replaceChildren(h('div', { class: 'zx-alert zx-alert--danger' }, h('div', { class: 'zx-alert__body' }, 'The two passwords do not match.')));
+      confirm.focus();
+      return;
+    }
     submitBtn.setAttribute('aria-busy', 'true');
     submitBtn.disabled = true;
 
-    const data = new FormData(form);
     const country = String(data.get('country') || 'UG');
-    const phone = String(data.get('phone') || '').trim();
+    const phone = fullPhone(String(data.get('phone') || ''));
     const username = String(data.get('username') || '').trim().toLowerCase();
     const email = String(data.get('email') || '').trim().toLowerCase();
     const password = String(data.get('password') || '');
