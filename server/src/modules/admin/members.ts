@@ -32,7 +32,12 @@ const InviterSchema = z.strictObject({
   username: z.string().trim().min(3, { error: 'Enter the username of the new inviter.' }).max(40),
   reason: z.string().trim().min(5, { error: 'Say why the inviter changes.' }).max(500),
 });
-const ListQuery = z.object({ q: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).max(10_000).default(1) });
+// status: active = paid the activation fee (has a membership), inactive = not yet paid (owner, 2026-11-03).
+const ListQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  status: z.enum(['all', 'active', 'inactive']).default('all'),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
 
 const PAGE = 25;
 const WITHDRAWAL_LOCK_MS = 48 * 3_600_000;
@@ -54,21 +59,23 @@ export function membersRouter(services: Services): Router {
   const router = Router();
 
   router.get('/', requireStaff('support', 'compliance', 'finance'), async (req, res) => {
-    const { q, page } = parse(ListQuery, req.query);
+    const { q, status, page } = parse(ListQuery, req.query);
     const term = q ? q.toLowerCase() : null;
     const list = await rows<{
       public_id: string; username: string; email: string; phone_e164: string; country_code: string; status: string;
-      created_at: Date; email_verified: boolean; phone_verified: boolean; open_flags: string; roles: string[];
+      created_at: Date; email_verified: boolean; phone_verified: boolean; open_flags: string; roles: string[]; activated: boolean;
     }>(
       pool,
       `SELECT u.public_id, u.username, u.email, u.phone_e164, u.country_code, u.status, u.created_at,
               u.email_verified_at IS NOT NULL AS email_verified, u.phone_verified_at IS NOT NULL AS phone_verified,
               (SELECT count(*) FROM fraud_flags f WHERE f.user_id = u.id AND f.status = 'open') AS open_flags,
-              coalesce((SELECT array_agg(role ORDER BY role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles
+              coalesce((SELECT array_agg(role ORDER BY role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles,
+              EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id) AS activated
        FROM users u
        WHERE u.anonymized_at IS NULL AND ($1::text IS NULL OR u.username LIKE $1 || '%' OR u.email LIKE $1 || '%' OR u.phone_e164 LIKE '%' || $1 || '%')
+         AND ($4 = 'all' OR ($4 = 'active') = EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id))
        ORDER BY u.created_at DESC LIMIT $2 OFFSET $3`,
-      [term, PAGE + 1, (page - 1) * PAGE],
+      [term, PAGE + 1, (page - 1) * PAGE, status],
     );
     res.json({
       page,
@@ -76,7 +83,7 @@ export function membersRouter(services: Services): Router {
       members: list.slice(0, PAGE).map(m => ({
         id: m.public_id, username: m.username, email: m.email, phone: m.phone_e164, country: m.country_code, status: m.status,
         createdAt: m.created_at, emailVerified: m.email_verified, phoneVerified: m.phone_verified,
-        openFlags: Number(m.open_flags), roles: m.roles,
+        openFlags: Number(m.open_flags), roles: m.roles, activated: m.activated,
       })),
     });
   });

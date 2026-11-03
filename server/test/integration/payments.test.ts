@@ -342,6 +342,17 @@ describe('manual withdrawals', () => {
     expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '1000' }, key())).body.error?.code).toBe('activation.required');
   });
 
+  it('refuses withdrawals from task balances (owner, 2026-11-03); the main balance still pays out', async () => {
+    const member = await verifiedMember();
+    await fund(member, '50000');
+    for (const source of ['youtube', 'tiktok', 'ads', 'trivia', 'fixtap', 'music']) {
+      const res = await member.client.post<Body>('/api/payments/withdrawals', { source, amount: '15000' }, key());
+      expect([res.status, res.body.error?.code], source).toEqual([400, 'withdrawal.task_balance']);
+    }
+    expect((await summary(member)).reservedBalanceMinor).toBe('0');
+    expect((await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '15000' }, key())).status).toBe(201);
+  });
+
   it('holds amount plus the table charge and 0.7% tax; below the approval amount finance approves, however new the account is', async () => {
     const member = await verifiedMember();
     await fund(member, '50000');
@@ -693,5 +704,17 @@ describe('activation paid to an admin (owner, 2026-11-02)', () => {
     expect((await claim(member)).status).toBe(201);
     const res = await adminClient.post<Body>(`/api/admin/payments/members/${member.user.id}/activate`, { note: 'Paid me by phone' }, key());
     expect(res.body.error?.code).toBe('deposit.pending_exists');
+  });
+
+  it('lists paid members as active and unpaid members as inactive for staff', async () => {
+    const paid = await registerMember(app);
+    const unpaid = await registerMember(app);
+    expect((await adminClient.post<Body>(`/api/admin/payments/members/${paid.user.id}/activate`, { note: 'Paid me by phone' }, key())).status).toBe(201);
+    const list = async (status: string, q: string) => (await adminClient.get<Body>(`/api/admin/members?status=${status}&q=${q}`)).body.members.map((m: Body) => [m.username, m.activated]);
+    expect(await list('active', paid.input.username)).toEqual([[paid.input.username, true]]);
+    expect(await list('inactive', paid.input.username)).toEqual([]);
+    expect(await list('inactive', unpaid.input.username)).toEqual([[unpaid.input.username, false]]);
+    expect(await list('active', unpaid.input.username)).toEqual([]);
+    expect(await list('all', unpaid.input.username)).toEqual([[unpaid.input.username, false]]);
   });
 });

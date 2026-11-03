@@ -57,6 +57,7 @@
     "leaderboard": "Leaderboard",
     "skills": "Skills development",
     "ebooks": "Free e-books",
+    "videos": "Videos",
     "forex": "Forex classes",
     "team": "Team",
     "messages": "Messages",
@@ -112,6 +113,8 @@
       "vouchers": "Vouchers",
       "paymentMethods": "Payment methods",
       "ebooks": "E-books",
+      "tasks": "Tasks",
+      "videos": "Videos",
       "leaderboard": "Referral leaderboard",
       "balances": "Balance check",
       "ledger": "Ledger"

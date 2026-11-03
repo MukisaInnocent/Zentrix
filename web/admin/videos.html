@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Videos · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-videos" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Videos</h1>
+      <p>The videos on the members' Videos page: links to YouTube, TikTok or any other site (no uploads). YouTube and TikTok videos play on the page; other links open on their own site. Links to adult content are refused. Videos pay nothing.</p>
+    </div>
+    <div class="zx-page-head__actions"><button id="add-btn" class="zx-btn" type="button">Add a video</button></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <label class="zx-check"><input id="show-removed" type="checkbox"> Show removed videos</label>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Title</th><th scope="col">Site</th><th scope="col">Link</th><th scope="col">Members see it</th><th scope="col">Order</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

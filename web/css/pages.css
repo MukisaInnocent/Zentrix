@@ -230,3 +230,16 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 
 /* Referral lists: search by username above the table. */
 .zx-ref-search { margin-block-end: var(--zx-space-4); max-inline-size: 360px; }
+.zx-ref-tabs { display: flex; gap: var(--zx-space-2); margin-block-end: var(--zx-space-3); }
+.zx-ref-tab { padding: 8px 16px; border: 1px solid var(--zx-border); border-radius: 999px; font-weight: 700; color: var(--zx-text-muted); text-decoration: none; }
+.zx-ref-tab[aria-current="page"] { border-color: var(--zx-brand); background: var(--zx-brand-soft); color: var(--zx-brand); }
+.zx-ref-tab__count { font-variant-numeric: tabular-nums; }
+
+/* Videos: a grid of cards; YouTube and TikTok play in their own players. */
+.zx-video-grid { display: grid; gap: var(--zx-space-4); grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+.zx-video { display: grid; gap: var(--zx-space-2); align-content: start; }
+.zx-video__frame { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
+.zx-video__frame--tall { aspect-ratio: 9 / 16; max-block-size: 580px; justify-self: center; inline-size: 100%; max-inline-size: 330px; }
+.zx-video__frame iframe { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border: 0; }
+.zx-video__title { font-size: 1.05rem; margin: 0; }
+.zx-video .zx-btn { justify-self: start; }

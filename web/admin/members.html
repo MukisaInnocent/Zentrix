@@ -22,12 +22,17 @@
     <div class="zx-page-head__actions"></div>
   </div>
   <div class="zx-card zx-stack-3">
+    <div class="zx-tabs" role="tablist" aria-label="Paid or not paid">
+      <button class="zx-tab" type="button" role="tab" data-status="active" aria-selected="true">Active (paid)</button>
+      <button class="zx-tab" type="button" role="tab" data-status="inactive" aria-selected="false">Inactive (not paid)</button>
+      <button class="zx-tab" type="button" role="tab" data-status="all" aria-selected="false">All</button>
+    </div>
     <div class="zx-filters">
       <input id="search" class="zx-input" type="search" placeholder="Search username, email or phone" aria-label="Search members">
     </div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Member</th><th scope="col">Phone</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Verified</th><th scope="col">Status</th></tr></thead>
+        <thead><tr><th scope="col">Member</th><th scope="col">Phone</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Verified</th><th scope="col">Paid</th><th scope="col">Account</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>

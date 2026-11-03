@@ -7,7 +7,8 @@ import { toast } from '../core/toast.js';
 
 // Withdrawal request. The server previews the fee and limits, holds amount plus fee, and staff send the payout to
 // the member's verified phone. The page only displays server values.
-const SOURCES = { main: 'Balance', youtube: 'YouTube earnings', tiktok: 'TikTok earnings', ads: 'Ads earnings', trivia: 'Trivia earnings', fixtap: 'Fix Tap earnings', music: 'Music earnings' };
+// Task earnings cannot be withdrawn yet (owner, 2026-11-03), so the main balance is the only choice.
+const SOURCES = { main: 'Balance' };
 
 let quoteSeq = 0;
 async function updateQuote(amount) {

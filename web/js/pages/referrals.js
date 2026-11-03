@@ -1,6 +1,6 @@
 import { api } from '../core/api.js';
 import { $, h } from '../core/dom.js';
-import { formatDate, formatMoney } from '../core/format.js';
+import { formatMoney } from '../core/format.js';
 
 // Referrals by level, shown as tables. Every level has an overview (that level's figures only) and lists of its
 // active and inactive usernames. A username is Active once its activation fee is confirmed.
@@ -42,6 +42,12 @@ export async function init() {
   }
 
   $('#table-title').textContent = `Level ${level} ${config.title.toLowerCase()}`;
+  // Active (paid the activation fee) and Inactive (not yet) are two separate lists, one tab each.
+  for (const tab of ['active', 'inactive']) {
+    const link = $(`#tab-${tab}`);
+    link.href = `${location.pathname}?level=${level}&view=${tab}`;
+    if (tab === view) link.setAttribute('aria-current', 'page');
+  }
   const input = $('#ref-q');
   input.value = params.get('q') ?? '';
   let timer;
@@ -65,16 +71,15 @@ async function loadList(level, config, q) {
   const search = q ? `&q=${encodeURIComponent(q)}` : '';
   const data = await api.get(`/api/referrals/members?level=${level}&status=${config.status}${search}`);
   if (call !== latest) return;
+  $('#count-active').textContent = String(data.counts.active);
+  $('#count-inactive').textContent = String(data.counts.inactive);
   const body = $('#ref-body');
   if (!data.members.length) {
-    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, q ? `No username at this level contains "${q}".` : config.empty)));
+    body.replaceChildren(h('tr', {}, h('td', { colspan: '2', class: 'zx-td-empty' }, q ? `No username at this level contains "${q}".` : config.empty)));
     return;
   }
+  // Username and phone number only (owner, 2026-11-03).
   body.replaceChildren(...data.members.map(m => h('tr', {},
-    h('td', { class: 'zx-td-strong' }, `@${m.username}`),
-    h('td', { class: 'zx-td-mono' }, m.phone ?? '-'),
-    h('td', {}, m.country),
-    h('td', { class: 'zx-td-muted' }, formatDate(m.joinedAt)),
-    h('td', {}, h('span', { class: `zx-badge ${m.status === 'Active' ? 'zx-badge--success' : 'zx-badge--warning'}` }, m.status)),
-    h('td', { class: 'zx-amount' }, m.rewardMinor === '0' ? '' : formatMoney(m.rewardMinor, m.rewardCurrency)))));
+    h('td', { class: 'zx-td-strong' }, m.username),
+    h('td', { class: 'zx-td-mono' }, m.phone ?? '-'))));
 }

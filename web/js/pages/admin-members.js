@@ -4,22 +4,24 @@ import { act, ago, askForm, debounce, emptyRow, kv, money, moneyPost, pager, pan
 import { toast } from '../core/toast.js';
 
 // Member search and detail: profile, balances, recent payments and statement, and freeze or unfreeze.
-const state = { q: '', page: 1 };
+// status: active = paid the activation fee, inactive = not paid yet (owner, 2026-11-03).
+const state = { q: '', status: 'active', page: 1 };
 let me = null;
 
 async function load() {
-  const params = new URLSearchParams({ page: String(state.page) });
+  const params = new URLSearchParams({ page: String(state.page), status: state.status });
   if (state.q) params.set('q', state.q);
   const data = await api.get(`/api/admin/members?${params}`);
   const body = $('#rows');
-  if (!data.members.length) body.replaceChildren(emptyRow(6, 'No members match.'));
+  if (!data.members.length) body.replaceChildren(emptyRow(7, 'No members match.'));
   else body.replaceChildren(...data.members.map(m => h('tr', { tabindex: '0', dataset: { open: m.id } },
-    h('td', { class: 'zx-td-strong' }, `@${m.username}`, m.roles.some(r => r !== 'member') ? h('span', { class: 'zx-badge zx-badge--brand' }, ` ${m.roles.filter(r => r !== 'member').join(', ')}`) : null),
+    h('td', { class: 'zx-td-strong' }, m.username, m.roles.some(r => r !== 'member') ? h('span', { class: 'zx-badge zx-badge--brand' }, ` ${m.roles.filter(r => r !== 'member').join(', ')}`) : null),
     h('td', { class: 'zx-td-mono' }, m.phone),
     h('td', {}, m.country),
     h('td', { class: 'zx-td-muted' }, ago(m.createdAt)),
     h('td', {}, m.phoneVerified ? 'Phone' : 'Not yet', m.emailVerified ? ', email' : ''),
-    h('td', {}, h('span', { class: `zx-badge${m.status === 'active' ? ' zx-badge--success' : ' zx-badge--danger'}` }, m.status), m.openFlags ? h('span', { class: 'zx-badge zx-badge--warning' }, ` ${m.openFlags} flag(s)`) : null))));
+    h('td', {}, h('span', { class: `zx-badge ${m.activated ? 'zx-badge--success' : 'zx-badge--warning'}` }, m.activated ? 'Active' : 'Inactive')),
+    h('td', {}, h('span', { class: `zx-badge${m.status === 'active' ? ' zx-badge--success' : ' zx-badge--danger'}` }, m.status === 'active' ? 'Open' : m.status), m.openFlags ? h('span', { class: 'zx-badge zx-badge--warning' }, ` ${m.openFlags} flag(s)`) : null))));
   pager($('#pager'), data, page => {
     state.page = page;
     void load();
@@ -33,7 +35,7 @@ async function openMember(id) {
     const [detail, money_] = await Promise.all([api.get(`/api/admin/members/${id}`), api.get(`/api/admin/payments/members/${id}`)]);
     const m = detail.member;
     const b = money_.balances;
-    view.setTitle(`@${m.username}`);
+    view.setTitle(m.username);
     view.body.replaceChildren(
       panel('Account', kv([
         ['Status', `${m.status}${m.statusReason ? `: ${m.statusReason}` : ''}`],
@@ -41,7 +43,7 @@ async function openMember(id) {
         ['Email', m.email],
         ['Country', `${m.country.name} · ${m.currency}`],
         ['Joined', when(m.createdAt)],
-        ['Referred by', m.referrer ? `@${m.referrer.username}` : 'Nobody'],
+        ['Referred by', m.referrer ? m.referrer.username : 'Nobody'],
         ['Account', b.membershipActive ? `Activated ${when(b.membershipActivatedAt)}` : 'Not activated'],
         m.withdrawalsLockedUntil ? ['Withdrawals locked until', when(m.withdrawalsLockedUntil)] : null,
       ])),
@@ -99,7 +101,7 @@ async function openMember(id) {
     verifyBtn?.addEventListener('click', async () => {
       if (await askForm({
         title: 'Mark phone verified',
-        text: `Only after you have checked that ${m.phone} belongs to @${m.username}, for example by calling it. Withdrawals are paid only to this number.`,
+        text: `Only after you have checked that ${m.phone} belongs to ${m.username}, for example by calling it. Withdrawals are paid only to this number.`,
         submitLabel: 'Mark verified',
         fields: [{ name: 'verification', label: 'How did you check it?', type: 'textarea', required: true, minLength: 10 }],
         submit: v => api.post(`/api/admin/members/${id}/phone/verify`, { verification: v.verification }),
@@ -110,7 +112,7 @@ async function openMember(id) {
     inviterBtn?.addEventListener('click', async () => {
       const result = await askForm({
         title: 'Change inviter',
-        text: `Now invited by ${m.referrer ? `@${m.referrer.username}` : 'nobody'}. Rewards already paid for this member, and for the people up to two levels below them, move to the new line. If an old inviter already used the money, their balance goes below zero and their next referral earnings repay it.`,
+        text: `Now invited by ${m.referrer ? m.referrer.username : 'nobody'}. Rewards already paid for this member, and for the people up to two levels below them, move to the new line. If an old inviter already used the money, their balance goes below zero and their next referral earnings repay it.`,
         submitLabel: 'Change inviter', tone: 'danger',
         fields: [
           { name: 'username', label: 'Username of the new inviter', required: true, minLength: 3 },
@@ -120,7 +122,7 @@ async function openMember(id) {
       });
       if (!result) return;
       const debts = result.moved.filter(r => r.debtMinor !== '0');
-      toast.success(`Now invited by @${result.inviter}. ${result.moved.length} reward(s) moved${debts.length ? `; ${debts.length} left a debt` : ''}.`);
+      toast.success(`Now invited by ${result.inviter}. ${result.moved.length} reward(s) moved${debts.length ? `; ${debts.length} left a debt` : ''}.`);
       await render();
     });
     // Owner, 2026-11-02: a member who paid an admin directly is activated here, recorded as Paid to admin.
@@ -129,7 +131,7 @@ async function openMember(id) {
     activateBtn?.addEventListener('click', async () => {
       const result = await askForm({
         title: 'Activate (paid to admin)',
-        text: `Only when @${m.username} has paid you the full activation fee. It is recorded as paid to admin and works like any activation: the account opens, a receipt is made and the inviters get their rewards. Move the money to a business method later with a Treasury channel transfer.`,
+        text: `Only when ${m.username} has paid you the full activation fee. It is recorded as paid to admin and works like any activation: the account opens, a receipt is made and the inviters get their rewards. Move the money to a business method later with a Treasury channel transfer.`,
         submitLabel: 'Activate', tone: 'success',
         fields: [
           { name: 'note', label: 'How did they pay you?', type: 'textarea', required: true, minLength: 3 },
@@ -141,7 +143,7 @@ async function openMember(id) {
         }),
       });
       if (!result) return;
-      toast.success(`@${m.username} is activated. Receipt ${result.receiptNo}.`);
+      toast.success(`${m.username} is activated. Receipt ${result.receiptNo}.`);
       await render();
     });
     view.setActions(activateBtn, canFreeze ? btn : null, verifyBtn, inviterBtn, ...unlockButtons);
@@ -167,11 +169,24 @@ export async function init({ me: current }) {
       void openMember(tr.dataset.open);
     }
   });
-  // Other staff pages link here with ?q=username to find a member.
+  const tabs = [...document.querySelectorAll('.zx-tab[data-status]')];
+  const selectTab = status => {
+    state.status = status;
+    for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.status === status));
+  };
+  for (const t of tabs) {
+    t.addEventListener('click', () => {
+      selectTab(t.dataset.status);
+      state.page = 1;
+      void load();
+    });
+  }
+  // Other staff pages link here with ?q=username to find a member, paid or not.
   const q = queryParam('q');
   if (q) {
     state.q = q;
     $('#search').value = q;
+    selectTab('all');
   }
   await load();
   const id = queryParam('id');

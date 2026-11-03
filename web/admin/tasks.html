@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tasks · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-tasks" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Tasks</h1>
+      <p>The tasks on the members' YouTube, TikTok, Ads and Trivia pages. A completed task pays its reward from the promotions budget into the member's task earnings, which cannot be withdrawn yet. When the budget is empty, tasks stop paying. Links to adult content are refused.</p>
+    </div>
+    <div class="zx-page-head__actions"><button id="add-btn" class="zx-btn" type="button">Add a task</button></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <select id="module" class="zx-select" aria-label="Page"><option value="">All pages</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="ads">Ads</option><option value="trivia">Trivia</option></select>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Page</th><th scope="col">Task</th><th scope="col">Reward</th><th scope="col">Link</th><th scope="col">Members see it</th><th scope="col">Done</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

@@ -57,6 +57,8 @@ export function securityHeaders(config: Config) {
         objectSrc: ["'none'"],
         baseUri: ["'none'"],
         formAction: ["'self'"],
+        // The Videos page plays YouTube and TikTok videos in their own players (owner, 2026-11-03).
+        frameSrc: ['https://www.youtube-nocookie.com', 'https://www.tiktok.com'],
         frameAncestors: ["'none'"],
         ...(https ? { upgradeInsecureRequests: [] } : {}),
       },

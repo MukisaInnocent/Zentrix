@@ -25,7 +25,7 @@ resource "aws_cloudfront_response_headers_policy" "security" {
   name = "${local.name}-security"
   security_headers_config {
     content_security_policy {
-      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src https://www.youtube-nocookie.com https://www.tiktok.com; frame-ancestors 'none'; upgrade-insecure-requests"
       override                = true
     }
     strict_transport_security {

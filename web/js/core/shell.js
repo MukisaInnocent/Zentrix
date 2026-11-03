@@ -59,6 +59,7 @@ const MEMBER_NAV = [
     group: 'nav.group.learn',
     items: [
       { id: 'ebooks', href: '/ebooks.html', icon: 'book', label: 'nav.ebooks' },
+      { id: 'videos', href: '/videos.html', icon: 'play', label: 'nav.videos' },
       { id: 'forex', href: '/forex.html', icon: 'chart', label: 'nav.forex' },
     ],
   },
@@ -123,6 +124,8 @@ const ADMIN_NAV = [
     items: [
       { id: 'admin-countries', href: '/admin/countries.html', icon: 'globe', label: 'admin.nav.countries' },
       { id: 'admin-settings', href: '/admin/settings.html', icon: 'settings', label: 'admin.nav.settings' },
+      { id: 'admin-tasks', href: '/admin/tasks.html', icon: 'list', label: 'admin.nav.tasks' },
+      { id: 'admin-videos', href: '/admin/videos.html', icon: 'play', label: 'admin.nav.videos' },
       { id: 'admin-ebooks', href: '/admin/ebooks.html', icon: 'book', label: 'admin.nav.ebooks' },
     ],
   },

@@ -31,6 +31,10 @@
   </section>
   <section id="list-card" class="zx-card" hidden>
     <div class="zx-section-title"><h2 id="table-title">Usernames</h2></div>
+    <nav class="zx-ref-tabs" aria-label="Active or inactive">
+      <a id="tab-active" class="zx-ref-tab" href="#">Active <span id="count-active" class="zx-ref-tab__count"></span></a>
+      <a id="tab-inactive" class="zx-ref-tab" href="#">Inactive <span id="count-inactive" class="zx-ref-tab__count"></span></a>
+    </nav>
     <form id="ref-search" class="zx-ref-search" role="search">
       <label class="zx-visually-hidden" for="ref-q">Search by username</label>
       <div class="zx-input-group">
@@ -40,8 +44,8 @@
     </form>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Username</th><th scope="col">Phone number</th><th scope="col">Country</th><th scope="col">Joined</th><th scope="col">Status</th><th scope="col">Reward</th></tr></thead>
-        <tbody id="ref-body"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
+        <thead><tr><th scope="col">Username</th><th scope="col">Phone number</th></tr></thead>
+        <tbody id="ref-body"><tr><td colspan="2" class="zx-td-empty">Loading...</td></tr></tbody>
       </table>
     </div>
   </section>
