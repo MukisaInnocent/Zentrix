@@ -39,6 +39,16 @@ const ListQuery = z.object({
   page: z.coerce.number().int().min(1).max(10_000).default(1),
 });
 
+// Sort keys map to fixed column names only, never to input text.
+// Qualified with b. so the numbers sort, not the text columns of the same name.
+const BALANCE_SORT = { balance: 'b.balance', deposit: 'b.deposit', tasks: 'b.tasks', total: 'b.balance + b.deposit + b.tasks' } as const;
+const BalancesQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).default('UGX'),
+  sort: z.enum(['balance', 'deposit', 'tasks', 'total']).default('balance'),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
+
 const PAGE = 25;
 const WITHDRAWAL_LOCK_MS = 48 * 3_600_000;
 
@@ -84,6 +94,42 @@ export function membersRouter(services: Services): Router {
         id: m.public_id, username: m.username, email: m.email, phone: m.phone_e164, country: m.country_code, status: m.status,
         createdAt: m.created_at, emailVerified: m.email_verified, phoneVerified: m.phone_verified,
         openFlags: Number(m.open_flags), roles: m.roles, activated: m.activated,
+      })),
+    });
+  });
+
+  // Member balances in one currency, greatest first (owner, 2026-11-03). Balance is the main balance less any debt (as
+  // on the member's dashboard); total adds the deposit and task balances. Staff and system accounts are left out.
+  router.get('/balances', requireStaff('support', 'compliance', 'finance'), async (req, res) => {
+    const { q, currency, sort, page } = parse(BalancesQuery, req.query);
+    const term = q ? q.toLowerCase().replace(/^@/, '') : null;
+    const currencies = (await rows<{ currency_code: string }>(pool, 'SELECT DISTINCT currency_code FROM users WHERE anonymized_at IS NULL ORDER BY currency_code')).map(r => r.currency_code);
+    const list = await rows<{
+      public_id: string; username: string; phone_e164: string; country_code: string; balance: string; deposit: string; tasks: string; held: string; total: string;
+    }>(
+      pool,
+      `WITH b AS (
+         SELECT u.public_id, u.username, u.phone_e164, u.country_code, u.created_at,
+                coalesce(sum(a.balance_minor) FILTER (WHERE a.kind = 'member_main'), 0) - coalesce(sum(a.balance_minor) FILTER (WHERE a.kind = 'member_debt'), 0) AS balance,
+                coalesce(sum(a.balance_minor) FILTER (WHERE a.kind = 'member_deposit'), 0) AS deposit,
+                coalesce(sum(a.balance_minor) FILTER (WHERE a.kind = 'member_task'), 0) AS tasks,
+                coalesce(sum(a.balance_minor) FILTER (WHERE a.kind = 'member_withdrawal_hold'), 0) AS held
+         FROM users u
+         LEFT JOIN accounts a ON a.user_id = u.id AND a.currency_code = u.currency_code
+         WHERE u.anonymized_at IS NULL AND u.currency_code = $1 AND u.username NOT LIKE 'zx\\_%'
+           AND NOT EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.name = ur.role WHERE ur.user_id = u.id AND ro.is_staff)
+           AND ($2::text IS NULL OR u.username LIKE $2 || '%' OR u.phone_e164 LIKE '%' || $2 || '%')
+         GROUP BY u.id
+       )
+       SELECT public_id, username, phone_e164, country_code, balance::text, deposit::text, tasks::text, held::text, (balance + deposit + tasks)::text AS total
+       FROM b ORDER BY ${BALANCE_SORT[sort]} DESC, b.created_at DESC LIMIT $3 OFFSET $4`,
+      [currency, term, PAGE + 1, (page - 1) * PAGE],
+    );
+    res.json({
+      currency, sort, page, hasMore: list.length > PAGE, currencies,
+      members: list.slice(0, PAGE).map(m => ({
+        id: m.public_id, username: m.username, phone: m.phone_e164, country: m.country_code,
+        balanceMinor: m.balance, depositMinor: m.deposit, tasksMinor: m.tasks, heldMinor: m.held, totalMinor: m.total,
       })),
     });
   });

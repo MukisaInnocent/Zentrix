@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Member balances · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-member-balances" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Member balances</h1>
+      <p>Members of one currency from the greatest balance to the lowest. Balance is the main balance (referral money, the only one members can withdraw); total adds the deposit and task earnings. Staff and system accounts are left out. Select a member to open their details.</p>
+    </div>
+    <div class="zx-page-head__actions"></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <input id="search" class="zx-input" type="search" placeholder="Search username or phone" aria-label="Search members">
+      <select id="currency" class="zx-select" aria-label="Currency"><option value="UGX">UGX</option></select>
+      <select id="sort" class="zx-select" aria-label="Sort by">
+        <option value="balance">Sort by balance</option>
+        <option value="total">Sort by total</option>
+        <option value="deposit">Sort by deposit</option>
+        <option value="tasks">Sort by task earnings</option>
+      </select>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">#</th><th scope="col">Member</th><th scope="col">Phone</th><th scope="col">Country</th><th scope="col">Balance</th><th scope="col">Deposit</th><th scope="col">Task earnings</th><th scope="col">On hold</th><th scope="col">Total</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="zx-pager"></div>
+  </div>
+</div>
+</main>
+</body>
+</html>

@@ -496,6 +496,57 @@ describe('treasury and task budget', () => {
     const trivia = await member.client.get<Body>('/api/tasks?module=trivia');
     expect(JSON.stringify(trivia.body)).not.toContain('"answer"');
   });
+
+  it('shows and pays a task in the member currency, converted at the latest rate through fx_clearing (owner, 2026-11-03)', async () => {
+    app.services.fx = new FixedFxSource({ source: 'test', rateAt: new Date(), unitsPerUsd: { USD: '1', KES: '129', UGX: '3700' } });
+    await fxRatesJob.run(app.services);
+    const capital = await financeClient.post<Body>('/api/admin/payments/treasury', { kind: 'capital_in', currency: 'UGX', amount: '20000', channel: CHANNEL, externalRef: `OWNER-${txnId()}`, note: 'Owner capital for tests' });
+    await adminClient.post<Body>(`/api/admin/payments/treasury/${capital.body.id}/decide`, { approve: true }, key());
+    const budget = await adminClient.post<Body>('/api/admin/payments/treasury', { kind: 'fund_budget', currency: 'UGX', amount: '2000', source: 'owner_capital', budget: 'promotions_budget', note: 'Task budget' });
+    expect((await admin2Client.post<Body>(`/api/admin/payments/treasury/${budget.body.id}/decide`, { approve: true }, key())).status).toBe(200);
+    const promotions = async () => BigInt((await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'promotions_budget' AND currency_code = 'UGX'`)).rows[0]!.balance_minor);
+    const before = await promotions();
+    await app.owner.query(`INSERT INTO tasks (module, title, description, reward_minor, currency_code, url, duration_sec, details) VALUES ('ads', 'Converted ad', 'A UGX task.', 1000, 'UGX', NULL, NULL, '{}')`);
+
+    const kenyan = await verifiedMember({ country: 'KE', phone: kenyanPhone() });
+    expect((await adminClient.post<Body>(`/api/admin/payments/members/${kenyan.user.id}/activate`, { note: 'Paid me by phone' }, key())).status).toBe(201);
+    // UGX 1,000 at KES 129 and UGX 3,700 per dollar is KES 34.86 (in cents, rounded down).
+    const shown = (await kenyan.client.get<Body>('/api/tasks?module=ads')).body.tasks.find((t: Body) => t.title === 'Converted ad');
+    expect([shown.rewardMinor, shown.currency]).toEqual(['3486', 'KES']);
+
+    const done = await kenyan.client.post<Body>(`/api/tasks/${shown.id}/complete`, {}, key());
+    expect(done.status, JSON.stringify(done.body)).toBe(200);
+    expect(done.body.rewardMinor).toBe('3486');
+    expect((await summary(kenyan)).taskBalancesMinor.ads).toBe('3486');
+    expect(await promotions()).toBe(before - 1000n);
+    const subs = (await kenyan.client.get<Body>('/api/tasks/submissions?module=ads')).body.submissions;
+    expect(subs.map((s: Body) => [s.rewardMinor, s.currency])).toEqual([['3486', 'KES']]);
+    // Done once only, also in another currency.
+    expect((await kenyan.client.post<Body>(`/api/tasks/${shown.id}/complete`, {}, key())).body.error?.code).toBe('already_completed');
+  });
+});
+
+describe('member balances for staff', () => {
+  it('lists members of one currency from the greatest balance to the lowest, with search and a choice of balance', async () => {
+    const rich = await verifiedMember();
+    const poor = await verifiedMember();
+    await fund(rich, '90000');
+    await fund(poor, '1000');
+    const list = async (query: string) => (await financeClient.get<Body>(`/api/admin/members/balances?currency=UGX&${query}`)).body;
+    const page = await list('');
+    const names = page.members.map((m: Body) => m.username);
+    expect(names.indexOf(rich.input.username)).toBeLessThan(names.indexOf(poor.input.username));
+    const balances = page.members.map((m: Body) => BigInt(m.balanceMinor));
+    expect(balances).toEqual([...balances].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)));
+    expect(page.currencies).toContain('UGX');
+    expect(page.members.some((m: Body) => m.username.startsWith('zx_'))).toBe(false);
+
+    const found = await list(`q=${rich.input.username}`);
+    expect(found.members.map((m: Body) => [m.username, m.balanceMinor, m.phone])).toEqual([[rich.input.username, '90000', rich.input.phone]]);
+    expect((await list(`q=${poor.input.username}&sort=deposit`)).members[0]).toMatchObject({ depositMinor: '0', tasksMinor: '0', heldMinor: '0' });
+    expect((await financeClient.get<Body>('/api/admin/members/balances?sort=bogus')).status).toBe(400);
+    expect((await rich.client.get<Body>('/api/admin/members/balances')).status).toBe(403);
+  });
 });
 
 describe('payment issues', () => {
