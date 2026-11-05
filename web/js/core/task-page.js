@@ -4,7 +4,8 @@ import { formatDate, formatMoney } from './format.js';
 import { toast } from './toast.js';
 
 // The YouTube, TikTok and ads task pages. Tasks come from the staff console (Tasks), so every text is put in with
-// DOM nodes, never as HTML. A task with a link opens it first; Done unlocks after the task's duration.
+// DOM nodes, never as HTML. A YouTube or TikTok task plays its video on the page (owner, 2026-11-05); any other task
+// with a link opens it first. Done unlocks after the task's duration.
 // Task earnings stay in the task balance and cannot be withdrawn yet (owner, 2026-11-03).
 export async function initTaskPage({ module, ids, verb, proof, empty, defaultSeconds }) {
   const container = $(ids.list);
@@ -39,12 +40,30 @@ export async function initTaskPage({ module, ids, verb, proof, empty, defaultSec
     return btn;
   }
 
-  function actions(t) {
+  // The server builds the player address (youtube-nocookie.com or tiktok.com embed), the same as on the Videos page.
+  function player(t) {
+    return h('div', { class: `zx-video__frame${t.module === 'tiktok' ? ' zx-video__frame--tall' : ''}` },
+      h('iframe', {
+        src: t.embedUrl, title: t.title, allowfullscreen: true, referrerpolicy: 'strict-origin-when-cross-origin',
+        allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', sandbox: 'allow-scripts allow-same-origin allow-presentation',
+      }));
+  }
+
+  function actions(t, tile) {
     if (t.completed) return h('span', { class: 'zx-btn zx-btn--secondary zx-btn--sm zx-btn--done' }, 'Completed');
     const slot = h('div', { class: 'zx-row-actions' });
     const seconds = t.durationSec || defaultSeconds;
     if (!t.url) {
       slot.append(doneButton(t, 0));
+      return slot;
+    }
+    if (t.embedUrl) {
+      const watch = h('button', { type: 'button', class: 'zx-btn zx-btn--sm' }, 'Watch video');
+      watch.addEventListener('click', () => {
+        tile.append(player(t));
+        watch.replaceWith(doneButton(t, seconds));
+      }, { once: true });
+      slot.append(watch);
       return slot;
     }
     const open = h('a', { class: 'zx-btn zx-btn--sm', href: t.url, target: '_blank', rel: 'noopener noreferrer' }, verb);
@@ -62,12 +81,15 @@ export async function initTaskPage({ module, ids, verb, proof, empty, defaultSec
     $(ids.earnings).textContent = formatMoney(summary.taskBalancesMinor[module] ?? '0', summary.currency);
     $(ids.count).textContent = String(submissions.length);
 
-    container.replaceChildren(...(tasks.length ? tasks.map(t => h('div', { class: 'zx-tile' },
-      h('div', {},
-        h('div', { class: 'zx-tile__title' }, t.title),
-        h('div', { class: 'zx-hint zx-tile__meta' }, t.description),
-        h('div', { class: 'zx-tile__reward' }, `Reward: +${formatMoney(t.rewardMinor, t.currency)}`)),
-      h('div', {}, actions(t)))) : [h('p', { class: 'zx-empty' }, empty)]));
+    container.replaceChildren(...(tasks.length ? tasks.map(t => {
+      const tile = h('div', { class: `zx-tile${t.embedUrl ? ' zx-tile--video' : ''}` },
+        h('div', {},
+          h('div', { class: 'zx-tile__title' }, t.title),
+          h('div', { class: 'zx-hint zx-tile__meta' }, t.description),
+          h('div', { class: 'zx-tile__reward' }, `Reward: +${formatMoney(t.rewardMinor, t.currency)}`)));
+      tile.append(h('div', {}, actions(t, tile)));
+      return tile;
+    }) : [h('p', { class: 'zx-empty' }, empty)]));
 
     body.replaceChildren(...(submissions.length ? submissions.map(s => h('tr', {},
       h('td', { class: 'zx-td-muted' }, formatDate(s.createdAt)),

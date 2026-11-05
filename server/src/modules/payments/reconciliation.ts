@@ -111,7 +111,7 @@ export async function buildReport(db: Db): Promise<Report> {
     if (drift.some(d => d.currency_code === currency)) findings.push({ severity: 'critical', kind: 'drift', message: `Cached ${currency} balances differ from their ledger entries.` });
     if (unbalanced.some(u => u.currency_code === currency)) findings.push({ severity: 'critical', kind: 'unbalanced', message: `${currency} ledger debits and credits do not match.` });
     const system: Record<string, string> = {};
-    for (const kind of ['platform_revenue', 'fees', 'referral_budget', 'promotions_budget', 'owner_capital', 'voucher_liability', 'suspense']) {
+    for (const kind of ['platform_revenue', 'fees', 'referral_budget', 'promotions_budget', 'campaign_escrow', 'owner_capital', 'voucher_liability', 'suspense']) {
       system[kind] = sum(kind).toString();
     }
     return {

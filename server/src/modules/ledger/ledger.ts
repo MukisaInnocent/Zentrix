@@ -18,6 +18,8 @@ export type AccountRef =
   | { kind: 'member_main' | 'member_deposit' | 'member_withdrawal_hold' | 'member_debt'; userId: number; currency: string }
   | { kind: 'member_task'; userId: number; module: TaskModule; currency: string }
   | { kind: 'payment_clearing'; channelId: number; currency: string }
+  // One per task: its budget, funded from promotions_budget, which pays the task's rewards.
+  | { kind: 'campaign_escrow'; taskId: number; currency: string }
   | { kind: SystemKind; currency: string };
 
 export interface Leg {
@@ -40,18 +42,19 @@ export async function accountId(db: Db, ref: AccountRef): Promise<number> {
   const userId = 'userId' in ref ? ref.userId : null;
   const module = 'module' in ref ? ref.module : null;
   const channelId = 'channelId' in ref ? ref.channelId : null;
+  const taskId = 'taskId' in ref ? ref.taskId : null;
   const found = await maybeOne<{ id: string }>(
     db,
-    `INSERT INTO accounts (kind, user_id, module, channel_id, currency_code) VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (kind, user_id, module, channel_id, currency_code) DO NOTHING RETURNING id`,
-    [ref.kind, userId, module, channelId, ref.currency],
+    `INSERT INTO accounts (kind, user_id, module, channel_id, task_id, currency_code) VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (kind, user_id, module, channel_id, task_id, currency_code) DO NOTHING RETURNING id`,
+    [ref.kind, userId, module, channelId, taskId, ref.currency],
   );
   if (found) return Number(found.id);
   const existing = await one<{ id: string }>(
     db,
     `SELECT id FROM accounts WHERE kind = $1 AND user_id IS NOT DISTINCT FROM $2 AND module IS NOT DISTINCT FROM $3
-       AND channel_id IS NOT DISTINCT FROM $4 AND currency_code = $5`,
-    [ref.kind, userId, module, channelId, ref.currency],
+       AND channel_id IS NOT DISTINCT FROM $4 AND task_id IS NOT DISTINCT FROM $5 AND currency_code = $6`,
+    [ref.kind, userId, module, channelId, taskId, ref.currency],
   );
   return Number(existing.id);
 }

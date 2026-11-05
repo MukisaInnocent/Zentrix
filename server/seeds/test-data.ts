@@ -10,6 +10,7 @@ import { DATA_DIR } from '../src/lib/paths.js';
 import type { Role } from '../src/modules/auth/context.js';
 import { newTotpSecret, otpauthUrl } from '../src/modules/auth/totp.js';
 import { createUserDirect } from '../src/modules/users/create.js';
+import { accountId, move, post } from '../src/modules/ledger/ledger.js';
 import type { PoolClient } from '../src/db/pool.js';
 import { confirmDeposit, submitDeposit } from '../src/modules/payments/deposits.js';
 import { decideTreasury, requestTreasury } from '../src/modules/payments/treasury.js';
@@ -192,6 +193,15 @@ async function seedPayments(db: PoolClient, staffIds: Record<string, number>, me
   await decideTreasury(db, admin, capital, true, 'Seed');
   const budget = await requestTreasury(db, finance, { kind: 'fund_budget', currency: 'UGX', amountMinor: 500_000n, source: 'owner_capital', budget: 'promotions_budget', note: 'Fake task budget' });
   await decideTreasury(db, admin, budget, true, 'Seed');
+  // Each demo task gets its own budget of 20 rewards from the promotions budget (owner, 2026-11-05: tasks show only while
+  // their budget covers a reward).
+  const promotions = await accountId(db, { kind: 'promotions_budget', currency: 'UGX' });
+  for (const t of (await db.query<{ id: string; title: string; reward_minor: string }>(`SELECT id, title, reward_minor FROM tasks WHERE currency_code = 'UGX' AND budget_minor = 0`)).rows) {
+    const amount = BigInt(t.reward_minor) * 20n;
+    const escrow = await accountId(db, { kind: 'campaign_escrow', taskId: Number(t.id), currency: 'UGX' });
+    await post(db, { kind: 'task_budget', memo: `Budget for task: ${t.title}`, refType: 'task', refId: t.id, actorUserId: admin, legs: move(promotions, escrow, amount) });
+    await db.query('UPDATE tasks SET budget_minor = $2 WHERE id = $1', [t.id, amount.toString()]);
+  }
 
   const phoneOf = async (id: number) => (await db.query<{ phone_e164: string }>('SELECT phone_e164 FROM users WHERE id = $1', [id])).rows[0]!.phone_e164;
   const claim = async (id: number, channelCode: string, txn: string) =>

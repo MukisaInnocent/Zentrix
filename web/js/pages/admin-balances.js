@@ -8,7 +8,8 @@ import { act, ago, askForm, emptyRow, money, moneyPost, panel, severityBadge, st
 // treasury requests (a second admin approves) and the recent check runs.
 const KIND = { capital_in: 'Owner capital in', owner_withdrawal: 'Owner withdrawal', fund_budget: 'Fund a budget', channel_transfer: 'Move float between channels' };
 const ACCOUNT = {
-  platform_revenue: 'Platform revenue (activation fees)', fees: 'Withdrawal fees', referral_budget: 'Referral budget', promotions_budget: 'Task reward budget',
+  platform_revenue: 'Platform revenue (activation fees)', fees: 'Withdrawal fees', referral_budget: 'Referral budget', promotions_budget: 'Task reward budget (not yet given to a task)',
+  campaign_escrow: 'Budgets set on tasks (left to pay)',
   owner_capital: 'Owner capital', voucher_liability: 'Unredeemed vouchers', suspense: 'Suspense',
 };
 let me = null;

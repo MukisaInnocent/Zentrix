@@ -2,6 +2,7 @@ import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, notFound } from '../../lib/errors.js';
+import { videoEmbed } from '../../lib/safe-links.js';
 import { convert } from '../fx/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post, type TaskModule } from '../ledger/ledger.js';
 
@@ -13,6 +14,7 @@ export interface TaskItem {
   rewardMinor: string;
   currency: string;
   url: string | null;
+  embedUrl: string | null;
   durationSec: number | null;
   details: Record<string, unknown>;
   completed: boolean;
@@ -29,16 +31,9 @@ export interface TaskSubmissionRecord {
 }
 
 // Tasks are only what is in the tasks table (owner, 2026-11-01: no made-up tasks on the site). The demo tasks for
-// test databases live in seeds/test-data.ts.
+// test databases live in seeds/test-data.ts. A task shows only while its own budget covers one more reward
+// (owner, 2026-11-05).
 export async function listTasks(db: Db, userId: number, module?: string): Promise<TaskItem[]> {
-
-  const query = module
-    ? `SELECT id, module, title, description, reward_minor, currency_code, url, duration_sec, details
-       FROM tasks WHERE is_active = true AND module = $1 ORDER BY id ASC`
-    : `SELECT id, module, title, description, reward_minor, currency_code, url, duration_sec, details
-       FROM tasks WHERE is_active = true ORDER BY id ASC`;
-  const params = module ? [module] : [];
-
   const taskRows = await rows<{
     id: string;
     module: string;
@@ -49,7 +44,15 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
     url: string | null;
     duration_sec: number | null;
     details: Record<string, unknown>;
-  }>(db, query, params);
+  }>(
+    db,
+    `SELECT t.id, t.module, t.title, t.description, t.reward_minor, t.currency_code, t.url, t.duration_sec, t.details
+     FROM tasks t
+     JOIN accounts a ON a.kind = 'campaign_escrow' AND a.task_id = t.id AND a.currency_code = t.currency_code
+     WHERE t.is_active = true AND ($1::text IS NULL OR t.module = $1) AND a.balance_minor >= t.reward_minor
+     ORDER BY t.id ASC`,
+    [module ?? null],
+  );
 
   const completedSet = new Set(
     (
@@ -78,6 +81,8 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
     rewardMinor: rewardMinor.toString(),
     currency,
     url: t.url,
+    // YouTube and TikTok tasks play on the member's page (owner, 2026-11-05).
+    embedUrl: t.url && (t.module === 'youtube' || t.module === 'tiktok') ? videoEmbed(new URL(t.url)).embedUrl : null,
     durationSec: t.duration_sec,
     // Never send a trivia answer to the browser.
     details: Object.fromEntries(Object.entries(t.details || {}).filter(([key]) => key !== 'answer')),
@@ -120,8 +125,9 @@ export async function listSubmissions(db: Db, userId: number, module?: string): 
   }));
 }
 
-// Pays a verified task from the promotions budget (rule 1: rewards come only from money budgeted in advance)
-// to the member's balance for that module. An empty budget stops payouts. Runs inside moneyTx.
+// Pays a verified task from the task's own budget (campaign_escrow, set by an admin from the promotions budget; rule 1:
+// rewards come only from money budgeted in advance) to the member's balance for that module. When the budget no longer
+// covers the reward, the task stops paying. Runs inside moneyTx.
 export async function completeTask(
   db: PoolClient,
   userId: number,
@@ -164,7 +170,7 @@ export async function completeTask(
 
   const budgetMinor = BigInt(task.reward_minor);
   const rewardMinor = fx ? fx.amountMinor : budgetMinor;
-  const budget = await accountId(db, { kind: 'promotions_budget', currency: task.currency_code });
+  const budget = await accountId(db, { kind: 'campaign_escrow', taskId: Number(task.id), currency: task.currency_code });
   const earnings = await accountId(db, { kind: 'member_task', userId, module: task.module as TaskModule, currency: member.currency_code });
   const legs = fx
     ? [
@@ -180,7 +186,7 @@ export async function completeTask(
       legs,
     });
   } catch (err) {
-    if (err instanceof InsufficientFundsError) throw badRequest('task.budget_empty', 'This task has no budget left right now. Try again later.');
+    if (err instanceof InsufficientFundsError) throw badRequest('task.budget_empty', 'This task has ended: its budget is used up.');
     throw err;
   }
 

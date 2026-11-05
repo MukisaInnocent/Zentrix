@@ -469,14 +469,9 @@ describe('treasury and task budget', () => {
     await activate(member);
     // The site makes up no tasks (owner, 2026-11-01): only tasks in the table are listed.
     expect((await member.client.get<Body>('/api/tasks')).body.tasks).toEqual([]);
-    await app.owner.query(
-      `INSERT INTO tasks (module, title, description, reward_minor, currency_code, url, duration_sec, details) VALUES
-         ('youtube', 'Watch a sponsored video', 'A test video task.', 1500, 'UGX', 'https://www.youtube.com/', 60, '{}'),
-         ('trivia', 'A test question', 'Which is the capital of Uganda?', 500, 'UGX', NULL, NULL, '{"options": ["Kampala", "Nairobi"], "answer": "Kampala"}')`,
-    );
-    const tasks = await member.client.get<Body>('/api/tasks?module=youtube');
-    const task = tasks.body.tasks[0];
-    expect((await member.client.post<Body>(`/api/tasks/${task.id}/complete`, { answer: 'done' }, key())).body.error?.code).toBe('task.budget_empty');
+    // A task's budget comes out of the promotions budget (owner, 2026-11-05): none there yet, so no task can be added.
+    const videoTask = { module: 'youtube', title: 'Watch a sponsored video', description: 'A test video task.', reward: '1500', budget: '1500', currency: 'UGX', linkUrl: 'https://youtu.be/dQw4w9WgXcQ', durationSec: 60 };
+    expect((await adminClient.post<Body>('/api/admin/tasks', videoTask, key())).body.error?.fields?.budget).toBeDefined();
 
     const capital = await financeClient.post<Body>('/api/admin/payments/treasury', { kind: 'capital_in', currency: 'UGX', amount: '100000', channel: CHANNEL, externalRef: 'OWNER-1', note: 'Owner capital for tests' });
     expect(capital.status, JSON.stringify(capital.body)).toBe(201);
@@ -486,6 +481,11 @@ describe('treasury and task budget', () => {
     const own = await adminClient.post<Body>('/api/admin/payments/treasury', { kind: 'fund_budget', currency: 'UGX', amount: '5000', source: 'owner_capital', budget: 'promotions_budget', note: 'Task budget' });
     expect((await adminClient.post<Body>(`/api/admin/payments/treasury/${own.body.id}/decide`, { approve: true }, key())).body.error?.code).toBe('treasury.same_person');
     expect((await admin2Client.post<Body>(`/api/admin/payments/treasury/${own.body.id}/decide`, { approve: true }, key())).status).toBe(200);
+    expect((await adminClient.post<Body>('/api/admin/tasks', videoTask, key())).status).toBe(201);
+    expect((await adminClient.post<Body>('/api/admin/tasks', {
+      module: 'trivia', title: 'A test question', description: 'Which is the capital of Uganda?', reward: '500', budget: '500', currency: 'UGX', options: ['Kampala', 'Nairobi'], answer: 'Kampala',
+    }, key())).status).toBe(201);
+    const task = (await member.client.get<Body>('/api/tasks?module=youtube')).body.tasks.find((t: Body) => t.title === videoTask.title);
 
     const done = await member.client.post<Body>(`/api/tasks/${task.id}/complete`, { answer: 'done' }, key());
     expect(done.status, JSON.stringify(done.body)).toBe(200);
@@ -506,7 +506,10 @@ describe('treasury and task budget', () => {
     expect((await admin2Client.post<Body>(`/api/admin/payments/treasury/${budget.body.id}/decide`, { approve: true }, key())).status).toBe(200);
     const promotions = async () => BigInt((await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'promotions_budget' AND currency_code = 'UGX'`)).rows[0]!.balance_minor);
     const before = await promotions();
-    await app.owner.query(`INSERT INTO tasks (module, title, description, reward_minor, currency_code, url, duration_sec, details) VALUES ('ads', 'Converted ad', 'A UGX task.', 1000, 'UGX', NULL, NULL, '{}')`);
+    const ad = await adminClient.post<Body>('/api/admin/tasks', { module: 'ads', title: 'Converted ad', description: 'A UGX task.', reward: '1000', budget: '1000', currency: 'UGX' }, key());
+    expect(ad.status, JSON.stringify(ad.body)).toBe(201);
+    expect(await promotions()).toBe(before - 1000n);
+    const escrow = async () => BigInt((await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'campaign_escrow' AND task_id = (SELECT id FROM tasks WHERE public_id = $1)`, [ad.body.task.id])).rows[0]!.balance_minor);
 
     const kenyan = await verifiedMember({ country: 'KE', phone: kenyanPhone() });
     expect((await adminClient.post<Body>(`/api/admin/payments/members/${kenyan.user.id}/activate`, { note: 'Paid me by phone' }, key())).status).toBe(201);
@@ -518,7 +521,7 @@ describe('treasury and task budget', () => {
     expect(done.status, JSON.stringify(done.body)).toBe(200);
     expect(done.body.rewardMinor).toBe('3486');
     expect((await summary(kenyan)).taskBalancesMinor.ads).toBe('3486');
-    expect(await promotions()).toBe(before - 1000n);
+    expect(await escrow()).toBe(0n);
     const subs = (await kenyan.client.get<Body>('/api/tasks/submissions?module=ads')).body.submissions;
     expect(subs.map((s: Body) => [s.rewardMinor, s.currency])).toEqual([['3486', 'KES']]);
     // Done once only, also in another currency.
