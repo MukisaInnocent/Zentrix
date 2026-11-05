@@ -5,6 +5,7 @@ import { bindPasswordToggles } from '../core/forms.js';
 
 // Picks the visitor's country (from the network when known, else the browser time zone, else the browser
 // language), shows its country code in front of the mobile number, and shows its currency and activation fee.
+// Choosing a country code picks its country, and choosing a country picks its code (owner, 2026-11-06).
 let countries = [];
 let dial = '';
 
@@ -39,10 +40,11 @@ async function applyCountry(code) {
   const hint = $('#country-hint');
   if (!country) {
     hint.textContent = '';
+    $('#phone-dial').value = '';
     return;
   }
   dial = `+${country.dialCode}`;
-  $('#phone-dial').textContent = dial;
+  $('#phone-dial').value = country.code;
   try {
     await loadCurrencies();
     const { config } = await api.get(`/api/reference/config/${country.code}`, { noRedirect: true });
@@ -58,6 +60,14 @@ async function loadCountries() {
   select.replaceChildren(h('option', { value: '' }, 'Choose your country'), ...countries.map(c => h('option', { value: c.code }, `${c.name} (${c.currency})`)));
   const wanted = new URLSearchParams(location.search).get('country')?.toUpperCase() ?? (await detectCountry());
   if (wanted && countries.some(c => c.code === wanted)) select.value = wanted;
+  // One choice per country (several countries share a code, such as +1), sorted by code.
+  const dialSelect = $('#phone-dial');
+  const byCode = [...countries].sort((a, b) => Number(a.dialCode) - Number(b.dialCode) || a.name.localeCompare(b.name));
+  dialSelect.replaceChildren(h('option', { value: '' }, '+'), ...byCode.map(c => h('option', { value: c.code, title: c.name }, `+${c.dialCode} ${c.code}`)));
+  dialSelect.addEventListener('change', () => {
+    select.value = dialSelect.value;
+    void applyCountry(select.value);
+  });
   select.addEventListener('change', () => void applyCountry(select.value));
   await applyCountry(select.value);
 }

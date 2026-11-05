@@ -6,10 +6,10 @@ import { toast } from '../core/toast.js';
 
 // Member chat. "Invite chat" lists the person who invited you and the people you invited; "Chat with foreigners"
 // pairs you with a random activated member from another country. Chat is free and shows usernames only. Messages
-// arrive by polling while a chat is open.
+// arrive by polling while a chat is open. Messenger layout (owner, 2026-11-06): chat list, bubbles, composer bar.
 const TABS = {
-  invite: { title: 'Invite chat', lead: 'Chat with the person who invited you and the people you invited.', list: 'Invite conversations' },
-  foreign: { title: 'Chat with foreigners', lead: 'Chat with members in other countries, found by random match.', list: 'Conversations with foreigners' },
+  invite: { title: 'Invite chat', lead: 'Chat with the person who invited you and the people you invited.', list: 'Chats' },
+  foreign: { title: 'Chat with foreigners', lead: 'Chat with members in other countries, found by random match.', list: 'Chats with foreigners' },
 };
 const POLL_MS = 5000;
 
@@ -18,6 +18,27 @@ let open = null; // { id, username, blocked, lastId }
 
 const errorText = err => (err instanceof ApiError ? err.message : 'Connection error. Please try again.');
 const emptyRow = (cols, text) => h('tr', {}, h('td', { colspan: String(cols), class: 'zx-td-empty' }, text));
+const emptyItem = text => h('li', { class: 'zx-wa__empty' }, text);
+const avatar = username => h('span', { class: 'zx-wa__avatar', 'aria-hidden': 'true' }, (username || '?').slice(0, 1));
+
+// Time for today, else the date, like a phone's chat list.
+function shortWhen(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : formatDate(value);
+}
+
+function listItem({ username, last, when, unread, current, disabled, onClick }) {
+  const btn = h('button', { type: 'button', class: 'zx-wa__item', 'aria-current': current ? 'true' : 'false' },
+    avatar(username),
+    h('span', { class: 'zx-wa__text' }, h('span', { class: 'zx-wa__name' }, username), h('span', { class: 'zx-wa__last' }, last)),
+    h('span', { class: 'zx-wa__aside' }, when, unread ? h('span', { class: 'zx-wa__unread' }, String(unread)) : ''));
+  if (disabled) btn.disabled = true;
+  else btn.addEventListener('click', onClick);
+  return h('li', {}, btn);
+}
 
 function chatButton(label, onClick) {
   const btn = h('button', { type: 'button', class: 'zx-btn zx-btn--secondary zx-btn--sm' }, label);
@@ -27,34 +48,37 @@ function chatButton(label, onClick) {
 
 async function loadContacts() {
   const { contacts } = await api.get('/api/chat/contacts');
-  $('#contacts-body').replaceChildren(...(contacts.length
-    ? contacts.map(c => h('tr', {},
-      h('td', { class: 'zx-td-strong' }, `@${c.username}`),
-      h('td', {}, c.relation === 'inviter' ? 'Invited you' : 'You invited'),
-      h('td', {}, c.country),
-      h('td', {}, c.blocked ? 'Blocked' : chatButton('Chat', async () => {
+  $('#contacts-list').replaceChildren(...(contacts.length
+    ? contacts.map(c => listItem({
+      username: c.username,
+      last: `${c.relation === 'inviter' ? 'Invited you' : 'You invited'} · ${c.country}`,
+      when: c.blocked ? 'Blocked' : '',
+      disabled: c.blocked,
+      onClick: async () => {
         try {
           const res = await api.post('/api/chat/conversations', { username: c.username });
           await openConversation(res.conversation.id);
         } catch (err) {
           toast.error(errorText(err));
         }
-      }))))
-    : [emptyRow(4, 'No contacts yet. People appear here once they have activated their account.')]));
+      },
+    }))
+    : [emptyItem('No contacts yet. People appear here once they have activated their account.')]));
 }
 
 async function loadConversations() {
   const { conversations } = await api.get('/api/chat/conversations');
   const list = conversations.filter(c => c.kind === tab);
-  $('#conversations-body').replaceChildren(...(list.length
-    ? list.map(c => h('tr', {},
-      h('td', { class: 'zx-td-strong' }, `@${c.username}`),
-      h('td', {}, c.country),
-      h('td', { class: 'zx-td-muted' }, c.lastMessage ?? 'No messages yet'),
-      h('td', {}, c.unread ? h('span', { class: 'zx-badge zx-badge--brand' }, String(c.unread)) : '0'),
-      h('td', { class: 'zx-td-muted' }, c.lastMessageAt ? formatDate(c.lastMessageAt, { withTime: true }) : '-'),
-      h('td', {}, chatButton('Open', () => void openConversation(c.id)))))
-    : [emptyRow(6, tab === 'invite' ? 'No conversations yet. Start one from your contacts above.' : 'No conversations yet. Press the button above to meet someone.')]));
+  $('#conversations-list').replaceChildren(...(list.length
+    ? list.map(c => listItem({
+      username: c.username,
+      last: c.lastMessage ?? `${c.country} · No messages yet`,
+      when: shortWhen(c.lastMessageAt),
+      unread: open?.id === c.id ? 0 : c.unread,
+      current: open?.id === c.id,
+      onClick: () => void openConversation(c.id),
+    }))
+    : [emptyItem(tab === 'invite' ? 'No chats yet. Start one from your contacts below.' : 'No chats yet. Press the button above to meet someone.')]));
 }
 
 async function loadBlocked() {
@@ -75,13 +99,23 @@ async function loadBlocked() {
     : [emptyRow(3, 'You have not blocked anyone.')]));
 }
 
-function messageEl(m) {
-  return h('div', { class: `zx-msg${m.mine ? ' zx-msg--mine' : ''}` },
-    h('span', { class: 'zx-msg__meta' }, `${m.mine ? 'You' : `@${m.username}`} · ${formatDate(m.createdAt, { withTime: true })}`), m.body);
+// A day label before the first message of each day, then the bubble with its time inside.
+function messageEls(m) {
+  const day = new Date(m.createdAt).toDateString();
+  const out = [];
+  if (day !== open.lastDay) {
+    open.lastDay = day;
+    out.push(h('div', { class: 'zx-wa__day' }, day === new Date().toDateString() ? 'Today' : formatDate(m.createdAt)));
+  }
+  const time = new Date(m.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  out.push(h('div', { class: `zx-bubble${m.mine ? ' zx-bubble--mine' : ''}` }, m.body, h('span', { class: 'zx-bubble__time' }, time)));
+  return out;
 }
 
 function renderThreadHeader() {
-  $('#thread-title').textContent = `@${open.username} (${open.country})`;
+  $('#thread-title').textContent = open.username;
+  $('#thread-sub').textContent = open.country;
+  $('#thread-avatar').textContent = (open.username || '?').slice(0, 1);
   $('#block-btn').textContent = open.blocked ? 'Blocked' : 'Block';
   $('#block-btn').disabled = open.blocked;
   $('#send-btn').disabled = open.blocked;
@@ -106,22 +140,23 @@ async function fetchNewMessages() {
   Object.assign(open, { username: data.conversation.username, country: data.conversation.country, blocked: data.conversation.blocked });
   renderThreadHeader();
   const thread = $('#thread');
-  if (open.lastId === 0 && !data.messages.length) thread.replaceChildren(h('p', { class: 'zx-hint' }, 'No messages yet. Say hello.'));
+  if (open.lastId === 0 && !data.messages.length) thread.replaceChildren(h('p', { class: 'zx-wa__hint' }, 'No messages yet. Say hello.'));
   if (data.messages.length) {
     if (open.lastId === 0) thread.replaceChildren();
-    thread.append(...data.messages.map(messageEl));
+    thread.append(...data.messages.flatMap(messageEls));
     open.lastId = Number(data.messages.at(-1).id);
     thread.scrollTop = thread.scrollHeight;
   }
 }
 
 async function openConversation(id) {
-  open = { id, username: '', country: '', blocked: false, lastId: 0 };
-  $('#thread').replaceChildren(h('p', { class: 'zx-hint' }, 'Loading...'));
-  $('#thread-card').hidden = false;
+  open = { id, username: '', country: '', blocked: false, lastId: 0, lastDay: '' };
+  $('#thread').replaceChildren(h('p', { class: 'zx-wa__hint' }, 'Loading...'));
+  $('#thread-placeholder').hidden = true;
+  $('#thread-view').hidden = false;
+  $('#messenger').classList.add('zx-wa--open');
   try {
     await pullMessages();
-    $('#thread-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     $('#message-body').focus();
     await loadConversations();
   } catch (err) {
@@ -210,7 +245,10 @@ export async function init() {
 
   $('#close-btn').addEventListener('click', () => {
     open = null;
-    $('#thread-card').hidden = true;
+    $('#thread-view').hidden = true;
+    $('#thread-placeholder').hidden = false;
+    $('#messenger').classList.remove('zx-wa--open');
+    void loadConversations().catch(() => undefined);
   });
 
   await refreshAll().catch(err => toast.error(errorText(err)));

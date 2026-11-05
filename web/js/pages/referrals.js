@@ -1,6 +1,6 @@
 import { api } from '../core/api.js';
 import { $, h } from '../core/dom.js';
-import { formatMoney } from '../core/format.js';
+import { formatDate, formatMoney } from '../core/format.js';
 
 // Referrals by level, shown as tables. Every level has an overview (that level's figures only) and lists of its
 // active and inactive usernames. A username is Active once its activation fee is confirmed.
@@ -75,11 +75,15 @@ async function loadList(level, config, q) {
   $('#count-inactive').textContent = String(data.counts.inactive);
   const body = $('#ref-body');
   if (!data.members.length) {
-    body.replaceChildren(h('tr', {}, h('td', { colspan: '2', class: 'zx-td-empty' }, q ? `No username at this level contains "${q}".` : config.empty)));
+    body.replaceChildren(h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, q ? `No username at this level contains "${q}".` : config.empty)));
     return;
   }
-  // Username and phone number only (owner, 2026-11-03).
-  body.replaceChildren(...data.members.map(m => h('tr', {},
+  // Numbered, with username, phone number, country, date joined and status (owner, 2026-11-06).
+  body.replaceChildren(...data.members.map((m, i) => h('tr', {},
+    h('td', { class: 'zx-td-mono' }, String(i + 1)),
     h('td', { class: 'zx-td-strong' }, m.username),
-    h('td', { class: 'zx-td-mono' }, m.phone ?? '-'))));
+    h('td', { class: 'zx-td-mono' }, m.phone ?? '-'),
+    h('td', {}, m.country),
+    h('td', {}, formatDate(m.joinedAt)),
+    h('td', {}, h('span', { class: `zx-badge zx-badge--${m.status === 'Active' ? 'success' : 'warning'}` }, m.status)))));
 }
