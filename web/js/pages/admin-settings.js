@@ -16,6 +16,17 @@ const KNOWN = {
     show: v => `Level 1: UGX ${v.level1.toLocaleString()} · Level 2: UGX ${v.level2.toLocaleString()} · Level 3: UGX ${v.level3.toLocaleString()}`,
     read: v => ({ level1: Number(v.level1), level2: Number(v.level2), level3: Number(v.level3) }),
   },
+  'chat.foreign_reward': {
+    title: 'Chat with foreigners reward',
+    fields: [
+      { name: 'amountUgx', label: 'Reward per chat (UGX)', type: 'number' },
+      { name: 'minMessages', label: 'Messages the member must send first', type: 'number' },
+      { name: 'dailyLimit', label: 'Rewards a member can claim per day', type: 'number' },
+    ],
+    hint: 'Virtual money, not withdrawable. Paid once per chat after the other member replies. Other currencies get the converted amount. 0 turns it off.',
+    show: v => `UGX ${v.amountUgx.toLocaleString()} per chat · after ${v.minMessages} messages · ${v.dailyLimit} a day`,
+    read: v => ({ amountUgx: Number(v.amountUgx), minMessages: Number(v.minMessages), dailyLimit: Number(v.dailyLimit) }),
+  },
   'voucher.value_multiples': {
     title: 'Voucher values',
     fields: [{ name: 'list', label: 'Multiples of the activation fee, separated by commas', hint: 'For example 1, 2, 3, 5. 1 means exactly the fee; values are never below it.' }],
