@@ -12,6 +12,8 @@ import { requireActivated, requireAuth, requireStaff } from '../auth/middleware.
 
 // Videos (owner, 2026-11-03): admins add links to videos on YouTube, TikTok or any other site for members to watch.
 // No files are uploaded and videos pay nothing. Links to adult content are refused. Every change is audited.
+// Owner, 2026-11-05: every video plays on the site, never as an outside link. Only links to one YouTube or TikTok
+// video are accepted; members get only the player address, and older links that cannot play are not shown.
 
 interface VideoRow {
   public_id: string; title: string; description: string; link_url: string; published: boolean; sort: number;
@@ -22,11 +24,21 @@ const COLUMNS = 'public_id, title, description, link_url, published, sort, creat
 
 const memberView = (v: VideoRow) => {
   const { platform, embedUrl } = videoEmbed(new URL(v.link_url));
-  return { id: v.public_id, title: v.title, description: v.description, linkUrl: v.link_url, platform, embedUrl };
+  return { id: v.public_id, title: v.title, description: v.description, platform, embedUrl };
 };
 const staffView = (v: VideoRow) => ({
-  ...memberView(v), published: v.published, sort: v.sort, createdAt: v.created_at, updatedAt: v.updated_at, removedAt: v.removed_at,
+  ...memberView(v), linkUrl: v.link_url, published: v.published, sort: v.sort, createdAt: v.created_at, updatedAt: v.updated_at, removedAt: v.removed_at,
 });
+
+// A link to one YouTube or TikTok video, which plays on the member's page.
+function playableLink(raw: string): string {
+  const link = safeLink(raw);
+  if (!videoEmbed(new URL(link)).embedUrl) {
+    const message = 'Use the link to one YouTube or TikTok video, so it plays on the site.';
+    throw badRequest('validation_failed', message, { linkUrl: [message] });
+  }
+  return link;
+}
 
 const VideoBody = z.strictObject({
   title: z.string().trim().min(2).max(120),
@@ -62,7 +74,7 @@ export function videosRouter(services: Services): Router {
   router.use(requireAuth, requireActivated(services));
   router.get('/', async (_req, res) => {
     const list = await rows<VideoRow>(services.pool, `SELECT ${COLUMNS} FROM videos WHERE published AND removed_at IS NULL ORDER BY sort, id DESC`);
-    res.json({ videos: list.map(memberView) });
+    res.json({ videos: list.map(memberView).filter(v => v.embedUrl) });
   });
   return router;
 }
@@ -80,7 +92,7 @@ export function videosAdminRouter(services: Services): Router {
 
   router.post('/', requireStaff('admin'), async (req, res) => {
     const body = parse(VideoBody, req.body);
-    const link = safeLink(body.linkUrl);
+    const link = playableLink(body.linkUrl);
     const video = await withTransaction(pool, async db => {
       const row = await one<VideoRow>(
         db,
@@ -96,7 +108,7 @@ export function videosAdminRouter(services: Services): Router {
   router.put('/:id', requireStaff('admin'), async (req, res) => {
     const id = videoId(req.params.id);
     const body = parse(VideoBody, req.body);
-    const link = safeLink(body.linkUrl);
+    const link = playableLink(body.linkUrl);
     const video = await withTransaction(pool, async db => {
       const before = await lockVideo(db, id);
       if (before.removed_at) throw badRequest('video.removed', 'Restore this video before editing it.');

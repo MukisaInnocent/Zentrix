@@ -73,7 +73,8 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
     if (rewardMinor > 0n) shown.push({ task: t, rewardMinor });
   }
 
-  return shown.map(({ task: t, rewardMinor }) => ({
+  // An older YouTube or TikTok task whose link cannot play on the page is left out until an admin fixes the link.
+  return shown.filter(({ task: t }) => !(t.module === 'youtube' || t.module === 'tiktok') || (t.url && videoEmbed(new URL(t.url)).embedUrl)).map(({ task: t, rewardMinor }) => ({
     id: t.id,
     module: t.module,
     title: t.title,
@@ -81,8 +82,8 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
     rewardMinor: rewardMinor.toString(),
     currency,
     url: t.url,
-    // YouTube and TikTok tasks play on the member's page (owner, 2026-11-05).
-    embedUrl: t.url && (t.module === 'youtube' || t.module === 'tiktok') ? videoEmbed(new URL(t.url)).embedUrl : null,
+    // A task video plays on the member's page, never as an outside link (owner, 2026-11-05).
+    embedUrl: t.url ? videoEmbed(new URL(t.url)).embedUrl : null,
     durationSec: t.duration_sec,
     // Never send a trivia answer to the browser.
     details: Object.fromEntries(Object.entries(t.details || {}).filter(([key]) => key !== 'answer')),

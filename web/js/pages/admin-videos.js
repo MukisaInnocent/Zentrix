@@ -13,7 +13,7 @@ const yesNo = on => h('span', { class: `zx-badge ${on ? 'zx-badge--success' : ''
 function videoFields(v = {}) {
   return [
     { name: 'title', label: 'Title', required: true, minLength: 2, maxLength: 120, value: v.title },
-    { name: 'linkUrl', label: 'Link to the video', type: 'url', required: true, maxLength: 500, value: v.linkUrl, hint: 'A full https:// link from YouTube, TikTok or any other site. Links to adult content are refused.' },
+    { name: 'linkUrl', label: 'Link to the video', type: 'url', required: true, maxLength: 500, value: v.linkUrl, hint: 'The link to one YouTube or TikTok video; it plays on the site. Links to adult content are refused.' },
     { name: 'description', label: 'Short description (optional)', type: 'textarea', maxLength: 600, value: v.description },
     { name: 'sort', label: 'Order (optional)', inputmode: 'numeric', value: v.sort ?? 0, hint: 'Lower numbers show first.' },
     {
@@ -61,7 +61,7 @@ async function load() {
   const { videos } = await api.get(`/api/admin/videos${state.removed ? '?removed=1' : ''}`);
   $('#rows').replaceChildren(...(videos.length ? videos.map(v => h('tr', {},
     h('td', { class: 'zx-td-strong' }, v.title, v.description ? h('div', { class: 'zx-hint' }, v.description) : null, v.removedAt ? h('div', { class: 'zx-hint' }, 'Removed') : null),
-    h('td', {}, SITES[v.platform] ?? v.platform, v.platform !== 'other' && !v.embedUrl ? h('div', { class: 'zx-hint' }, 'Opens on its site') : null),
+    h('td', {}, SITES[v.platform] ?? v.platform, !v.embedUrl ? h('div', { class: 'zx-hint' }, 'Cannot play on the site: members do not see it. Edit the link.') : null),
     h('td', {}, h('a', { href: v.linkUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open')),
     h('td', {}, yesNo(v.published)),
     h('td', {}, String(v.sort)),

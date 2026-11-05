@@ -155,7 +155,7 @@ describe('task budgets (owner, 2026-11-05)', () => {
 });
 
 describe('videos', () => {
-  it('lets an admin add video links from any site but not adult ones, and shows activated members the published ones', async () => {
+  it('accepts only YouTube and TikTok videos that play on the site, and shows activated members the published ones without the outside link', async () => {
     const member = await activated();
     const waiting = await registerMember(app);
     expect((await support.post<Body>('/api/admin/videos', { title: 'Intro', linkUrl: 'https://youtu.be/dQw4w9WgXcQ' })).status).toBe(403);
@@ -165,20 +165,24 @@ describe('videos', () => {
     const yt = await admin.post<Body>('/api/admin/videos', { title: 'How to start', description: 'Our first lesson.', linkUrl: 'https://youtu.be/dQw4w9WgXcQ', sort: 1 });
     expect(yt.status, JSON.stringify(yt.body)).toBe(201);
     await admin.post<Body>('/api/admin/videos', { title: 'On TikTok', linkUrl: 'https://www.tiktok.com/@creator/video/7212345678901234567', sort: 2 });
-    await admin.post<Body>('/api/admin/videos', { title: 'Elsewhere', linkUrl: 'https://vimeo.com/123456', sort: 3 });
-    await admin.post<Body>('/api/admin/videos', { title: 'Draft', linkUrl: 'https://vimeo.com/999', published: false });
+    // Owner, 2026-11-05: every video plays on the site, so other sites and channel pages are refused.
+    expect((await admin.post<Body>('/api/admin/videos', { title: 'Elsewhere', linkUrl: 'https://vimeo.com/123456' })).body.error?.fields?.linkUrl).toBeDefined();
+    expect((await admin.post<Body>('/api/admin/videos', { title: 'Channel', linkUrl: 'https://www.youtube.com/@somechannel' })).body.error?.fields?.linkUrl).toBeDefined();
+    await admin.post<Body>('/api/admin/videos', { title: 'Draft', linkUrl: 'https://youtu.be/abcdefghijk', published: false });
+    // An older link saved before the rule stays hidden from members.
+    await app.owner.query(`INSERT INTO videos (title, link_url, sort, created_by) SELECT 'Old link', 'https://vimeo.com/1', 3, id FROM users ORDER BY id LIMIT 1`);
 
     const videos = (await member.client.get<Body>('/api/videos')).body.videos;
     expect(videos.map((v: Body) => [v.title, v.platform, v.embedUrl])).toEqual([
       ['How to start', 'youtube', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'],
       ['On TikTok', 'tiktok', 'https://www.tiktok.com/embed/v2/7212345678901234567'],
-      ['Elsewhere', 'other', null],
     ]);
+    expect(videos.some((v: Body) => 'linkUrl' in v)).toBe(false);
     expect((await waiting.client.get<Body>('/api/videos')).status).toBe(403);
 
     const id = yt.body.video.id as string;
     await admin.post<Body>(`/api/admin/videos/${id}/remove`, { note: 'Old' });
-    expect((await member.client.get<Body>('/api/videos')).body.videos.map((v: Body) => v.title)).toEqual(['On TikTok', 'Elsewhere']);
+    expect((await member.client.get<Body>('/api/videos')).body.videos.map((v: Body) => v.title)).toEqual(['On TikTok']);
     expect((await admin.put<Body>(`/api/admin/videos/${id}`, { title: 'New title', linkUrl: 'https://youtu.be/dQw4w9WgXcQ' })).body.error?.code).toBe('video.removed');
     expect((await support.get<Body>('/api/admin/videos?removed=1')).body.videos).toHaveLength(4);
   });

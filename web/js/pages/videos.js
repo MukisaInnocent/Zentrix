@@ -1,23 +1,18 @@
 import { api, ApiError } from '../core/api.js';
 import { $, h } from '../core/dom.js';
 
-// Videos (owner, 2026-11-03): the links an admin adds in the staff console. YouTube and TikTok play in their own
-// players on the page (the server builds the player address); every other link opens on its own site. Videos pay
-// nothing. All text goes in as DOM text, never HTML.
+// Videos (owner, 2026-11-03): the videos an admin adds in the staff console. Every video plays on the page in the
+// YouTube or TikTok player (the server builds the player address); none opens an outside link (owner, 2026-11-05).
+// Videos pay nothing. All text goes in as DOM text, never HTML.
 function card(v) {
-  const player = v.embedUrl
-    ? h('div', { class: `zx-video__frame${v.platform === 'tiktok' ? ' zx-video__frame--tall' : ''}` },
+  return h('article', { class: 'zx-card zx-video' },
+    h('div', { class: `zx-video__frame${v.platform === 'tiktok' ? ' zx-video__frame--tall' : ''}` },
       h('iframe', {
         src: v.embedUrl, title: v.title, loading: 'lazy', allowfullscreen: true, referrerpolicy: 'strict-origin-when-cross-origin',
-        allow: 'encrypted-media; picture-in-picture; fullscreen', sandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups',
-      }))
-    : null;
-  return h('article', { class: 'zx-card zx-video' },
-    player,
+        allow: 'encrypted-media; picture-in-picture; fullscreen', sandbox: 'allow-scripts allow-same-origin allow-presentation',
+      })),
     h('h2', { class: 'zx-video__title' }, v.title),
-    v.description ? h('p', { class: 'zx-hint' }, v.description) : null,
-    h('a', { class: `zx-btn ${player ? 'zx-btn--ghost' : ''} zx-btn--sm`, href: v.linkUrl, target: '_blank', rel: 'noopener noreferrer' },
-      player ? 'Open on its site' : 'Watch video'));
+    v.description ? h('p', { class: 'zx-hint' }, v.description) : null);
 }
 
 export async function init() {
