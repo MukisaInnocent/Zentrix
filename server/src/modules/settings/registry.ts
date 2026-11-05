@@ -52,6 +52,17 @@ export const SETTING_DEFS = {
     fallback: { daily: 100, monthly: 3_000, reserved: 40 },
     description: 'Emails the provider allows per day and per month, and how many of each day stay free for the emails members need (sign-up, payments, rewards). Announcements use the rest.',
   },
+  // Chat with foreigners reward (owner, 2026-11-06): virtual money (not withdrawable), claimed once per chat after the
+  // member sent `minMessages` and the other member replied. Converted from UGX into the member's currency.
+  'chat.foreign_reward': {
+    schema: z.strictObject({
+      amountUgx: z.int().min(0).max(100_000),
+      minMessages: z.int().min(1).max(100),
+      dailyLimit: z.int().min(0).max(1_000),
+    }),
+    fallback: { amountUgx: 200, minMessages: 3, dailyLimit: 5 },
+    description: "Chat with foreigners reward: UGX amount per chat (converted to each member's currency, not withdrawable), messages the member must send first (the other member must reply), and claims allowed per day. TODO(owner): amounts.",
+  },
   'community.url': {
     schema: z.url({ protocol: /^https$/ }).nullable(),
     fallback: null,

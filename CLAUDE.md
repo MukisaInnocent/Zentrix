@@ -37,6 +37,8 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
 - 2026-10-26: the site is renamed Pexerearn (visible text only; internal identifiers stay `zentrix`). Vouchers (worth at least the activation fee) now activate other members' accounts; redeeming into a wallet is removed. Tables stay tables on phones. The "internal chat" request waits for the owner to say who chats with whom.
 - 2026-10-24: the owner made deposits and withdrawals manual, confirmed the UGX 19,000 membership fee and asked for an admin dashboard. Phase 2 (ledger, manual payments, staff console) is on branch `rebuild/phase-2-ledger-manual-payments`.
 
+- 2026-11-06 (owner): rule 4 removed. Task and ad money is not real yet: admins set any task budget directly (issued from `task_credit`, migration 0033, debit-normal), task earnings stay non-withdrawable, and the balance check leaves task earnings out of what members are owed. The sign-up country code is a dropdown tied to the country (both detected, both editable). Referral tables show No., username, phone, country, date joined and status. Chat is a messenger layout. The Withdraw page shows a status card for the latest withdrawal. Waiting on the owner: TikTok live (members watch a live and earn), betting tips, Aviator, quick loans.
+
 ## How to operate
 
 1. Plan before code. Update `docs/PLAN.md` and this file whenever a decision changes.
@@ -59,7 +61,7 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
 1. No payouts funded by other members' deposits. Membership fees are platform revenue. Member earnings come only from funded advertiser campaign budgets, the flat referral reward, and platform promotions budgeted in advance.
 2. No multi-level commissions. Referral rewards are single-level (direct referrer only), flat, and never a share of anyone's deposit.
 3. No rewards or contests ranked by recruiting: ranking high never pays a prize or bonus. Leaderboards may rank referrals (owner changed this rule on 2026-10-26); the member leaderboard ranks activated direct invites and shows usernames and countries only, never phone numbers or earnings.
-4. No gambling or lending: no Fixed Bets, Aviator, cash-prize spin wheels, loans ("Request Loan"), Trixcoin or any coin or investment product. "Chat With Foreigners" is built only as the owner specified it on 2026-10-26 (free random-match chat, no money, see `docs/PLAN.md` section 12); its "CWF" earnings stay out of scope.
+4. Removed by the owner on 2026-11-06. Betting tips, Aviator and quick loans ("coming soon") may be built once the owner gives their logic; Chat With Foreigners may pay virtual (not withdrawable) rewards. Build each only to the owner's specification, and keep the other rules (ledger, solvency, no secrets) for them.
 5. No income promises. Show real task rates and real balances only. Keep Terms, Risk and Refund pages, and show what the membership fee buys.
 6. Solvency, per currency: member withdrawable balances plus pending withdrawals must never exceed funds actually held. A reconciliation job and admin alarm enforce it, and withdrawals pause automatically when it fails.
 7. Every balance change goes through the double-entry ledger. No code path changes a balance directly.

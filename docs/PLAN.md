@@ -78,8 +78,8 @@ The screenshots show another earning platform. Section 1 of the master prompt al
 |---|---|
 | Level 1, 2 and 3 downlines, "Team Earnings" | Rule 3.2: single-level referral only. The Team page lists direct referrals. |
 | "Referral Contest" and the "you brought in N downlines today, reach the Top 5 for a weekly bonus" banner | Rule 3.3: no rewards ranked by recruiting |
-| Spins, Trixcoin, Request Loan | Rule 3.4: no gambling, coin or investment products, or lending |
-| Chat With Foreigners "CWF" earnings | Out of scope (rule 3.4). The chat itself is built to the owner's spec of 2026-10-26 (section 12) |
+| Spins, Trixcoin, Request Loan | Rule 3.4 was removed by the owner on 2026-11-06; betting tips, Aviator and quick loans wait for the owner's logic |
+| Chat With Foreigners "CWF" earnings | Owner, 2026-11-06: virtual rewards (not withdrawable), claimed by the member |
 | A "Profits" figure and "grow your income effortlessly" copy | Rule 3.5: no income claims |
 | "Activate User" (paying another member's fee from your balance) | Not in the spec. Vouchers already let a member pay for someone else's membership. |
 | Claim Cashback, Welcome Bonus, TikTok Pay | Not in the spec. A cashback or welcome bonus could later run as a pre-budgeted promotion under rule 3.1(c). |

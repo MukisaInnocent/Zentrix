@@ -6,7 +6,8 @@ import { badRequest } from '../../lib/errors.js';
 // The only module that writes ledger rows (section 5). Callers run inside a SERIALIZABLE transaction
 // (moneyTx); post() locks every account it touches in ascending id order before writing.
 
-export const TASK_MODULES = ['youtube', 'tiktok', 'ads', 'trivia', 'fixtap', 'music'] as const;
+// 'chat': Chat with foreigners rewards (owner, 2026-11-06), virtual and not withdrawable like the others.
+export const TASK_MODULES = ['youtube', 'tiktok', 'ads', 'trivia', 'fixtap', 'music', 'chat'] as const;
 export type TaskModule = (typeof TASK_MODULES)[number];
 
 export const SYSTEM_KINDS = [

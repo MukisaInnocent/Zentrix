@@ -1,7 +1,7 @@
-import { api, ApiError } from '../core/api.js';
+import { api, ApiError, newIdempotencyKey } from '../core/api.js';
 import { $, h, setBusy } from '../core/dom.js';
 import { askForm } from '../core/dialogs.js';
-import { formatDate } from '../core/format.js';
+import { formatDate, formatMoney } from '../core/format.js';
 import { toast } from '../core/toast.js';
 
 // Member chat. "Invite chat" lists the person who invited you and the people you invited; "Chat with foreigners"
@@ -112,6 +112,17 @@ function messageEls(m) {
   return out;
 }
 
+// Chat with foreigners reward (owner, 2026-11-06): the server says the amount and whether it can be claimed.
+function renderReward(reward) {
+  const bar = $('#reward-bar');
+  bar.hidden = !reward;
+  if (!reward) return;
+  const amount = formatMoney(reward.amountMinor, reward.currency);
+  $('#reward-text').textContent = reward.claimed ? `Reward claimed: ${amount}` : reward.claimable ? `Chat reward: ${amount}` : `Chat reward ${amount}. ${reward.needs ?? ''}`;
+  $('#claim-btn').hidden = reward.claimed;
+  $('#claim-btn').disabled = !reward.claimable;
+}
+
 function renderThreadHeader() {
   $('#thread-title').textContent = open.username;
   $('#thread-sub').textContent = open.country;
@@ -139,6 +150,7 @@ async function fetchNewMessages() {
   if (open !== current) return; // the member opened another chat meanwhile
   Object.assign(open, { username: data.conversation.username, country: data.conversation.country, blocked: data.conversation.blocked });
   renderThreadHeader();
+  renderReward(data.reward);
   const thread = $('#thread');
   if (open.lastId === 0 && !data.messages.length) thread.replaceChildren(h('p', { class: 'zx-wa__hint' }, 'No messages yet. Say hello.'));
   if (data.messages.length) {
@@ -215,6 +227,21 @@ export async function init() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       $('#message-form').requestSubmit();
+    }
+  });
+
+  $('#claim-btn').addEventListener('click', async e => {
+    if (!open) return;
+    const btn = e.currentTarget;
+    setBusy(btn, true);
+    try {
+      const res = await api.post(`/api/chat/conversations/${open.id}/claim`, {}, { idempotencyKey: newIdempotencyKey() });
+      toast.success(`${formatMoney(res.reward.amountMinor, res.reward.currency)} added to your chat rewards.`);
+      renderReward(res.reward);
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setBusy(btn, false);
     }
   });
 

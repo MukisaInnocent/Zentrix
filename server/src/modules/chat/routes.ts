@@ -6,7 +6,9 @@ import { parse } from '../../http/validate.js';
 import { badRequest } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
-import { block, listBlocked, listContacts, listConversations, matchForeign, openInviteConversation, readConversation, report, sendMessage, unblock } from './service.js';
+import { idempotent } from '../ledger/idempotency.js';
+import { chatReward, claimChatReward } from './rewards.js';
+import { block, findConversation, listBlocked, listContacts, listConversations, matchForeign, openInviteConversation, readConversation, report, sendMessage, unblock } from './service.js';
 
 const Username = z.strictObject({ username: z.string().trim().min(3, { error: 'Enter a username.' }).max(40) });
 const MessageBody = z.strictObject({ body: z.string().trim().min(1, { error: 'Write a message.' }).max(1000, { error: 'Keep messages under 1,000 characters.' }) });
@@ -49,7 +51,18 @@ export function chatRouter(services: Services): Router {
 
   router.get('/conversations/:id', async (req, res) => {
     const { after } = parse(AfterQuery, req.query);
-    res.json(await withTransaction(pool, db => readConversation(db, me(req), conversationId(req.params.id), after)));
+    res.json(await withTransaction(pool, async db => {
+      const id = conversationId(req.params.id);
+      const data = await readConversation(db, me(req), id, after);
+      return { ...data, reward: await chatReward(db, me(req), await findConversation(db, me(req), id)) };
+    }));
+  });
+
+  // Chat with foreigners reward (owner, 2026-11-06): virtual money, paid at once when the member claims it.
+  router.post('/conversations/:id/claim', limiter(pool, { name: 'chat-claim', windowMs: 60 * 60_000, limit: 30, key: byUser }), async (req, res) => {
+    const id = conversationId(req.params.id);
+    const result = await idempotent(pool, req, `chat.claim.${id}`, async db => ({ status: 201, body: { reward: await claimChatReward(db, me(req), id) } }));
+    res.status(result.status).json(result.body);
   });
 
   router.post('/conversations/:id/messages', limiter(pool, { name: 'chat-message', windowMs: 60_000, limit: 30, key: byUser }), async (req, res) => {

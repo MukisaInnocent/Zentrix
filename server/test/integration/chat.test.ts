@@ -119,3 +119,50 @@ describe('chat reports', () => {
     await expect(app.owner.query(`UPDATE chat_messages SET body = 'x'`)).rejects.toBeDefined();
   });
 });
+
+describe('chat with foreigners rewards (owner, 2026-11-06)', () => {
+  it('pays a virtual, non-withdrawable reward once per chat when claimed, after the member chatted and the other replied', async () => {
+    const me = await member();
+    const them = await member({ country: 'KE', phone: kenyanPhone() });
+    const idOf = async (m: Member) => Number((await app.owner.query<{ id: string }>('SELECT id FROM users WHERE username = $1', [m.input.username])).rows[0]!.id);
+    const [a, b] = [await idOf(me), await idOf(them)].sort((x, y) => x - y);
+    const id = (await app.owner.query<{ public_id: string }>(
+      `INSERT INTO chat_conversations (kind, user_a_id, user_b_id) VALUES ('foreign', $1, $2) RETURNING public_id`, [a, b],
+    )).rows[0]!.public_id;
+    const claim = () => me.client.post<Body>(`/api/chat/conversations/${id}/claim`, {}, key());
+    const say = async (who: Member, body: string) => expect((await who.client.post<Body>(`/api/chat/conversations/${id}/messages`, { body })).status).toBe(201);
+
+    // UGX 200 by default, for a UGX member.
+    expect((await me.client.get<Body>(`/api/chat/conversations/${id}`)).body.reward).toMatchObject({ amountMinor: '200', currency: 'UGX', claimed: false, claimable: false });
+    expect((await me.client.post<Body>(`/api/chat/conversations/${id}/claim`, {})).body.error?.code).toBe('idempotency.missing');
+    await say(me, 'Hello');
+    await say(me, 'Where are you from?');
+    expect((await claim()).body.error?.code).toBe('chat.reward_not_ready');
+    await say(me, 'I am in Kampala');
+    expect((await me.client.get<Body>(`/api/chat/conversations/${id}`)).body.reward.needs).toBe('Wait for a reply to claim.');
+    await say(them, 'Nairobi');
+
+    const before = (await me.client.get<Body>('/api/wallet/summary')).body;
+    const paid = await claim();
+    expect(paid.status, JSON.stringify(paid.body)).toBe(201);
+    expect(paid.body.reward).toMatchObject({ amountMinor: '200', claimed: true });
+    const after = (await me.client.get<Body>('/api/wallet/summary')).body;
+    expect(BigInt(after.taskBalancesMinor.chat) - BigInt(before.taskBalancesMinor.chat ?? '0')).toBe(200n);
+    expect(after.availableBalanceMinor).toBe(before.availableBalanceMinor); // never the withdrawable balance
+    expect((await claim()).body.error?.code).toBe('chat.reward_claimed');
+
+    // Issued from task_credit, through the ledger.
+    const txn = await app.owner.query(`SELECT kind FROM ledger_transactions WHERE ref_type = 'chat' AND ref_id = $1`, [id]);
+    expect(txn.rows.map(r => r.kind)).toEqual(['chat_reward']);
+    // Chat earnings cannot be withdrawn.
+    expect((await me.client.post<Body>('/api/payments/withdrawals', { source: 'chat', amount: '200' }, key())).body.error?.code).toBe('withdrawal.task_balance');
+  });
+
+  it('pays nothing for invite chats', async () => {
+    const inviter = await member();
+    const me = await member({ referralCode: inviter.input.username });
+    const id = (await me.client.post<Body>('/api/chat/conversations', { username: inviter.input.username })).body.conversation.id as string;
+    expect((await me.client.get<Body>(`/api/chat/conversations/${id}`)).body.reward).toBeNull();
+    expect((await me.client.post<Body>(`/api/chat/conversations/${id}/claim`, {}, key())).body.error?.code).toBe('chat.no_reward');
+  });
+});

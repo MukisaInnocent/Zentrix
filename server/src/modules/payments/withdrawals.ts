@@ -96,6 +96,8 @@ export interface WithdrawalView {
   payoutPhone: string;
   amountMinor: string;
   feeMinor: string;
+  // Amount plus fee: what was taken from the balance.
+  totalMinor: string;
   currency: string;
   status: string;
   needsAdminApproval: boolean;
@@ -124,7 +126,7 @@ export interface WithdrawalRow {
 
 export const withdrawalView = (w: WithdrawalRow): WithdrawalView => ({
   id: w.public_id, reference: w.reference, source: w.source, channel: { code: w.channel_code, name: w.channel_name }, payoutPhone: w.payout_phone,
-  amountMinor: w.amount_minor, feeMinor: w.fee_minor, currency: w.currency_code, status: w.status, needsAdminApproval: w.needs_two_people,
+  amountMinor: w.amount_minor, feeMinor: w.fee_minor, totalMinor: (BigInt(w.amount_minor) + BigInt(w.fee_minor)).toString(), currency: w.currency_code, status: w.status, needsAdminApproval: w.needs_two_people,
   payoutMethod: w.payout_method,
   payoutTxnId: w.payout_txn_id, closedReason: w.closed_reason, createdAt: w.created_at, approvedAt: w.approved_at,
   processingAt: w.processing_at, paidAt: w.paid_at, closedAt: w.closed_at,
