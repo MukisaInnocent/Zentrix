@@ -43,7 +43,7 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
 - **Visitor counts are off until switched on** (`visitor_logs_enabled`, default false). The 2026-11-05 staging deploy
   failed because the deploy role's guardrail refuses every action outside eu-west-1, and CloudFront log delivery can
   only be set up in us-east-1. To switch on: (1) the owner applies the global stack by hand (its guardrail now allows
-  only the CloudWatch Logs delivery actions in us-east-1): `cd infra	erraform\global; terraform plan -out=tfplan;
+  only the CloudWatch Logs delivery actions in us-east-1): `cd infra\terraform\global; terraform plan -out=tfplan;
   terraform apply tfplan`; (2) set `visitor_logs_enabled = true` in `envs/staging` and `envs/production`
   (`terraform.tfvars` or the module call) and deploy. Until then the Events page shows registrations and activations
   and says visitor counts have not started.
