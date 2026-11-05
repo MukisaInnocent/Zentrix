@@ -88,6 +88,20 @@ describe('tasks in the staff console', () => {
   });
 });
 
+describe('TikTok LIVE tasks (owner, 2026-11-06)', () => {
+  it('accepts a TikTok LIVE link, which members open on TikTok, and still refuses other non-video links', async () => {
+    const member = await activated();
+    const live = { ...task, module: 'tiktok', title: `Live ${randomUUID().slice(0, 6)}`, linkUrl: 'https://www.tiktok.com/@pexerearn/live' };
+    const created = await addTask(live);
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const shown = (await member.client.get<Body>('/api/tasks?module=tiktok')).body.tasks.find((t: Body) => t.title === live.title);
+    expect(shown).toMatchObject({ live: true, embedUrl: null, url: live.linkUrl });
+    expect((await addTask({ ...live, linkUrl: 'https://www.tiktok.com/@pexerearn' })).body.error?.fields?.linkUrl).toBeDefined();
+    expect((await addTask({ ...live, module: 'youtube' })).body.error?.fields?.linkUrl).toBeDefined();
+    expect((await member.client.post<Body>(`/api/tasks/${shown.id}/complete`, {}, key())).status).toBe(200);
+  });
+});
+
 describe('task budgets (owner, 2026-11-05)', () => {
   it('issues any budget the admin sets into the task (not real money), pays each member from it and hides the task when it runs out', async () => {
     const promotions = await balanceOf('promotions_budget');

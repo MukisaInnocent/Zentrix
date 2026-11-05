@@ -24,7 +24,7 @@ function taskFields(t = {}) {
         : 'Set it to any amount. Members stop seeing the task when what is left is less than one reward.',
     },
     { name: 'currency', label: 'Currency', required: true, minLength: 3, maxLength: 3, value: t.currency ?? 'UGX', hint: t.id ? 'Fixed once the task has a budget.' : 'Members see the reward in their own currency, converted at the latest rate.' },
-    { name: 'linkUrl', label: 'Link (YouTube and TikTok: required; Ads: optional; Trivia: leave empty)', type: 'url', maxLength: 500, value: t.linkUrl ?? '', hint: 'YouTube and TikTok: the link to one video; it plays on the member\'s page. Links to adult content are refused.' },
+    { name: 'linkUrl', label: 'Link (YouTube and TikTok: required; Ads: optional; Trivia: leave empty)', type: 'url', maxLength: 500, value: t.linkUrl ?? '', hint: 'YouTube and TikTok: the link to one video; it plays on the member\'s page. TikTok can also link a LIVE (tiktok.com/@name/live), which opens on TikTok. Links to adult content are refused.' },
     { name: 'durationSec', label: 'Seconds before Done unlocks (optional, 5 to 3600)', inputmode: 'numeric', value: t.durationSec ?? '' },
     { name: 'options', label: 'Trivia only: answer choices, one per line', type: 'textarea', maxLength: 800, value: (t.options ?? []).join('\n') },
     { name: 'answer', label: 'Trivia only: the correct answer (one of the choices)', maxLength: 120, value: t.answer ?? '' },

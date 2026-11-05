@@ -66,7 +66,8 @@ export async function initTaskPage({ module, ids, verb, proof, empty, defaultSec
       slot.append(watch);
       return slot;
     }
-    const open = h('a', { class: 'zx-btn zx-btn--sm', href: t.url, target: '_blank', rel: 'noopener noreferrer' }, verb);
+    // A TikTok LIVE opens on TikTok (owner, 2026-11-06); TikTok has no player for lives on other sites.
+    const open = h('a', { class: 'zx-btn zx-btn--sm', href: t.url, target: '_blank', rel: 'noopener noreferrer' }, t.live ? 'Watch the LIVE on TikTok' : verb);
     open.addEventListener('click', () => open.replaceWith(doneButton(t, seconds)), { once: true });
     slot.append(open);
     return slot;
@@ -84,7 +85,7 @@ export async function initTaskPage({ module, ids, verb, proof, empty, defaultSec
     container.replaceChildren(...(tasks.length ? tasks.map(t => {
       const tile = h('div', { class: `zx-tile${t.embedUrl ? ' zx-tile--video' : ''}` },
         h('div', {},
-          h('div', { class: 'zx-tile__title' }, t.title),
+          h('div', { class: 'zx-tile__title' }, t.live ? h('span', { class: 'zx-badge zx-badge--danger' }, 'LIVE') : '', t.live ? ' ' : '', t.title),
           h('div', { class: 'zx-hint zx-tile__meta' }, t.description),
           h('div', { class: 'zx-tile__reward' }, `Reward: +${formatMoney(t.rewardMinor, t.currency)}`)));
       tile.append(h('div', {}, actions(t, tile)));

@@ -2,7 +2,7 @@ import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, notFound } from '../../lib/errors.js';
-import { videoEmbed } from '../../lib/safe-links.js';
+import { isTiktokLive, videoEmbed } from '../../lib/safe-links.js';
 import { convert } from '../fx/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post, type TaskModule } from '../ledger/ledger.js';
 
@@ -15,6 +15,8 @@ export interface TaskItem {
   currency: string;
   url: string | null;
   embedUrl: string | null;
+  // A TikTok LIVE: the link opens on TikTok (owner, 2026-11-06).
+  live: boolean;
   durationSec: number | null;
   details: Record<string, unknown>;
   completed: boolean;
@@ -74,7 +76,8 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
   }
 
   // An older YouTube or TikTok task whose link cannot play on the page is left out until an admin fixes the link.
-  return shown.filter(({ task: t }) => !(t.module === 'youtube' || t.module === 'tiktok') || (t.url && videoEmbed(new URL(t.url)).embedUrl)).map(({ task: t, rewardMinor }) => ({
+  const live = (t: { module: string; url: string | null }) => t.module === 'tiktok' && Boolean(t.url) && isTiktokLive(new URL(t.url!));
+  return shown.filter(({ task: t }) => !(t.module === 'youtube' || t.module === 'tiktok') || live(t) || (t.url && videoEmbed(new URL(t.url)).embedUrl)).map(({ task: t, rewardMinor }) => ({
     id: t.id,
     module: t.module,
     title: t.title,
@@ -84,6 +87,7 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
     url: t.url,
     // A task video plays on the member's page, never as an outside link (owner, 2026-11-05).
     embedUrl: t.url ? videoEmbed(new URL(t.url)).embedUrl : null,
+    live: live(t),
     durationSec: t.duration_sec,
     // Never send a trivia answer to the browser.
     details: Object.fromEntries(Object.entries(t.details || {}).filter(([key]) => key !== 'answer')),

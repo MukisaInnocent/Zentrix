@@ -46,6 +46,13 @@ export function checkMemberLink(raw: string): LinkCheck {
 // page (their own embed players); every other link opens on its own site.
 export type VideoPlatform = 'youtube' | 'tiktok' | 'other';
 
+// A TikTok LIVE link (https://www.tiktok.com/@name/live). TikTok offers no player for lives on other sites, so
+// these open on TikTok (owner, 2026-11-06), unlike videos, which play on the page.
+export function isTiktokLive(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/^www\.|^m\./, '');
+  return (host === 'tiktok.com' || host.endsWith('.tiktok.com')) && /^\/@[A-Za-z0-9._]{1,40}\/live\/?$/.test(url.pathname);
+}
+
 export function videoEmbed(url: URL): { platform: VideoPlatform; embedUrl: string | null } {
   const host = url.hostname.toLowerCase().replace(/^www\.|^m\./, '');
   if (host === 'youtu.be' || host === 'youtube.com' || host === 'youtube-nocookie.com') {
