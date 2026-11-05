@@ -5,7 +5,7 @@ import { toast } from '../core/toast.js';
 
 // Tasks (owner, 2026-11-03): add, edit, hide and show the tasks on the member YouTube, TikTok, Ads and Trivia pages.
 // The server checks the reward, refuses links to adult content and audits every change. Each task has its own budget
-// (owner, 2026-11-05), taken from the promotions budget; a completed task pays from it into the member's task earnings,
+// (owner, 2026-11-05), set by the admin; a completed task pays from it into the member's task earnings,
 // which cannot be withdrawn yet. Members stop seeing the task when what is left is less than one reward.
 const PAGES = { youtube: 'YouTube', tiktok: 'TikTok', ads: 'Ads', trivia: 'Trivia' };
 const state = { module: '' };
@@ -20,8 +20,8 @@ function taskFields(t = {}) {
     {
       name: 'budget', label: 'Total budget', required: true, inputmode: 'decimal', value: t.budget,
       hint: t.id
-        ? `Already paid: ${money(t.spentMinor, t.currency)}. Raising it takes more from the promotions budget; lowering it (not below what was paid) gives the rest back. Set it to what was paid to end the task.`
-        : 'Taken from the promotions budget now. Members stop seeing the task when what is left is less than one reward.',
+        ? `Already paid: ${money(t.spentMinor, t.currency)}. Raising it adds more; lowering it (not below what was paid) gives the rest back. Set it to what was paid to end the task.`
+        : 'Set it to any amount. Members stop seeing the task when what is left is less than one reward.',
     },
     { name: 'currency', label: 'Currency', required: true, minLength: 3, maxLength: 3, value: t.currency ?? 'UGX', hint: t.id ? 'Fixed once the task has a budget.' : 'Members see the reward in their own currency, converted at the latest rate.' },
     { name: 'linkUrl', label: 'Link (YouTube and TikTok: required; Ads: optional; Trivia: leave empty)', type: 'url', maxLength: 500, value: t.linkUrl ?? '', hint: 'YouTube and TikTok: the link to one video; it plays on the member\'s page. Links to adult content are refused.' },

@@ -89,23 +89,23 @@ describe('tasks in the staff console', () => {
 });
 
 describe('task budgets (owner, 2026-11-05)', () => {
-  it('moves the budget from the promotions budget into the task, pays each member from it and hides the task when it runs out', async () => {
-    await fundPromotions('3000');
+  it('issues any budget the admin sets into the task (not real money), pays each member from it and hides the task when it runs out', async () => {
     const promotions = await balanceOf('promotions_budget');
+    const issued = await balanceOf('task_credit');
     const members = [await activated(), await activated(), await activated()];
     const body = { ...task, title: `Budget ${randomUUID().slice(0, 6)}`, reward: '1000', budget: '2500' };
 
-    // More than the promotions budget holds is refused, with nothing moved.
-    expect((await addTask({ ...body, budget: (promotions + 1n).toString() })).body.error?.fields?.budget).toBeDefined();
     expect((await addTask({ ...body, budget: '900' })).body.error?.fields?.budget).toBeDefined(); // below one reward
     expect((await admin.post<Body>('/api/admin/tasks', body)).body.error?.code).toBe('idempotency.missing');
-    expect(await balanceOf('promotions_budget')).toBe(promotions);
+    expect(await balanceOf('task_credit')).toBe(issued);
 
     const created = await addTask(body);
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const id = created.body.task.id as string;
     expect(created.body.task).toMatchObject({ budgetMinor: '2500', remainingMinor: '2500', spentMinor: '0' });
-    expect(await balanceOf('promotions_budget')).toBe(promotions - 2500n);
+    // No promotions budget needed: the budget is issued from task_credit (owner, 2026-11-05).
+    expect(await balanceOf('task_credit')).toBe(issued + 2500n);
+    expect(await balanceOf('promotions_budget')).toBe(promotions);
 
     const complete = async (m: Member) => {
       const shown = (await m.client.get<Body>('/api/tasks?module=youtube')).body.tasks.find((t: Body) => t.title === body.title);
@@ -118,15 +118,16 @@ describe('task budgets (owner, 2026-11-05)', () => {
     const after = (await support.get<Body>('/api/admin/tasks?module=youtube')).body.tasks.find((t: Body) => t.id === id);
     expect(after).toMatchObject({ budgetMinor: '2500', remainingMinor: '500', spentMinor: '2000', completions: 2 });
 
-    // Raising the budget takes more from the promotions budget and shows the task again.
+    // Raising the budget issues more and shows the task again.
     expect((await editTask(id, { ...body, budget: '3500' })).body.task).toMatchObject({ remainingMinor: '1500', spentMinor: '2000' });
-    expect(await balanceOf('promotions_budget')).toBe(promotions - 3500n);
+    expect(await balanceOf('task_credit')).toBe(issued + 3500n);
     expect((await complete(members[2]!))?.status).toBe(200);
 
     // The budget cannot go below what was paid; lowering it returns the unspent part.
     expect((await editTask(id, { ...body, budget: '2999' })).body.error?.fields?.budget).toBeDefined();
     expect((await editTask(id, { ...body, budget: '3000' })).body.task).toMatchObject({ remainingMinor: '0', spentMinor: '3000' });
-    expect(await balanceOf('promotions_budget')).toBe(promotions - 3000n);
+    expect(await balanceOf('task_credit')).toBe(issued + 3000n);
+    expect(await balanceOf('promotions_budget')).toBe(promotions);
     // The currency is fixed once a budget is set.
     expect((await editTask(id, { ...body, budget: '3000', currency: 'KES' })).body.error?.fields?.currency).toBeDefined();
 

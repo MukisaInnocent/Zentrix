@@ -469,9 +469,8 @@ describe('treasury and task budget', () => {
     await activate(member);
     // The site makes up no tasks (owner, 2026-11-01): only tasks in the table are listed.
     expect((await member.client.get<Body>('/api/tasks')).body.tasks).toEqual([]);
-    // A task's budget comes out of the promotions budget (owner, 2026-11-05): none there yet, so no task can be added.
+    // Task budgets are issued by the admin (not real money yet, owner 2026-11-05); the treasury still needs two admins.
     const videoTask = { module: 'youtube', title: 'Watch a sponsored video', description: 'A test video task.', reward: '1500', budget: '1500', currency: 'UGX', linkUrl: 'https://youtu.be/dQw4w9WgXcQ', durationSec: 60 };
-    expect((await adminClient.post<Body>('/api/admin/tasks', videoTask, key())).body.error?.fields?.budget).toBeDefined();
 
     const capital = await financeClient.post<Body>('/api/admin/payments/treasury', { kind: 'capital_in', currency: 'UGX', amount: '100000', channel: CHANNEL, externalRef: 'OWNER-1', note: 'Owner capital for tests' });
     expect(capital.status, JSON.stringify(capital.body)).toBe(201);
@@ -508,7 +507,7 @@ describe('treasury and task budget', () => {
     const before = await promotions();
     const ad = await adminClient.post<Body>('/api/admin/tasks', { module: 'ads', title: 'Converted ad', description: 'A UGX task.', reward: '1000', budget: '1000', currency: 'UGX' }, key());
     expect(ad.status, JSON.stringify(ad.body)).toBe(201);
-    expect(await promotions()).toBe(before - 1000n);
+    expect(await promotions()).toBe(before); // issued from task_credit, not the promotions budget
     const escrow = async () => BigInt((await app.owner.query<{ balance_minor: string }>(`SELECT balance_minor FROM accounts WHERE kind = 'campaign_escrow' AND task_id = (SELECT id FROM tasks WHERE public_id = $1)`, [ad.body.task.id])).rows[0]!.balance_minor);
 
     const kenyan = await verifiedMember({ country: 'KE', phone: kenyanPhone() });

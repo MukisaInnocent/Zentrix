@@ -12,17 +12,17 @@ import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
 import { idempotent } from '../ledger/idempotency.js';
-import { accountId, InsufficientFundsError, move, post } from '../ledger/ledger.js';
+import { accountId, move, post } from '../ledger/ledger.js';
 import { safeLink } from '../videos/routes.js';
 
 // Tasks in the staff console (owner, 2026-11-03): admins add, edit, hide and show the tasks on the member YouTube,
 // TikTok, Ads and Trivia pages. Links are https and never to adult content; YouTube and TikTok tasks link one video,
 // which plays on the member's page (owner, 2026-11-05). Every change is audited.
-// Budgets (owner, 2026-11-05): each task has its own budget, moved from the promotions budget into the task's account
-// (campaign_escrow) when the admin sets it, and each completed task pays from there (completeTask). Members see a task
-// only while what is left covers one reward. Lowering the budget returns the unspent part; it cannot go below what was
-// paid. The promotions budget itself is funded through a treasury request a second admin approves, so setting a task's
-// budget needs one admin.
+// Budgets (owner, 2026-11-05): each task has its own budget in the task's account (campaign_escrow), and each completed
+// task pays from there (completeTask). Members see a task only while what is left covers one reward. Lowering the
+// budget returns the unspent part; it cannot go below what was paid. Task money is not real money yet (owner): the
+// admin's budget is issued from task_credit, with no promotions budget to fund first, and task earnings cannot be
+// withdrawn (withdrawal.task_balance).
 
 const MODULES = ['youtube', 'tiktok', 'ads', 'trivia'] as const;
 
@@ -106,7 +106,7 @@ async function columns(db: Db, body: TaskInput) {
 }
 
 // Brings the task's account to the new budget less what was already paid, moving the difference from or back to the
-// promotions budget. Runs inside the request's SERIALIZABLE transaction.
+// task credit. Runs inside the request's SERIALIZABLE transaction.
 async function setBudget(
   db: PoolClient, actorUserId: number, task: { id: string; title: string; currency: string; exponent: number; budgetMinor: bigint }, budgetMinor: bigint,
 ): Promise<void> {
@@ -119,16 +119,18 @@ async function setBudget(
   }
   const change = budgetMinor - spent - remaining;
   if (change !== 0n) {
-    const promotions = await accountId(db, { kind: 'promotions_budget', currency: task.currency });
-    try {
-      await post(db, {
-        kind: 'task_budget', memo: `${change > 0n ? 'Budget for' : 'Budget returned from'} task: ${task.title}`, refType: 'task', refId: task.id,
-        actorUserId, legs: change > 0n ? move(promotions, escrow, change) : move(escrow, promotions, -change),
-      });
-    } catch (err) {
-      if (err instanceof InsufficientFundsError) throw field('budget', 'The promotions budget does not hold that much. Fund it on Balances first (Fund a budget).');
-      throw err;
+    // Issued from task_credit (not real money yet). A returned part goes back to task_credit, and any part that was
+    // funded from the promotions budget before task_credit existed goes back there.
+    const credit = await accountId(db, { kind: 'task_credit', currency: task.currency });
+    const memo = `${change > 0n ? 'Budget for' : 'Budget returned from'} task: ${task.title}`;
+    let legs = change > 0n ? move(credit, escrow, change) : [];
+    if (change < 0n) {
+      const issued = await one<{ balance_minor: string }>(db, 'SELECT balance_minor FROM accounts WHERE id = $1 FOR UPDATE', [credit]);
+      const back = -change < BigInt(issued.balance_minor) ? -change : BigInt(issued.balance_minor);
+      if (back > 0n) legs = move(escrow, credit, back);
+      if (-change - back > 0n) legs = [...legs, ...move(escrow, await accountId(db, { kind: 'promotions_budget', currency: task.currency }), -change - back)];
     }
+    await post(db, { kind: 'task_budget', memo, refType: 'task', refId: task.id, actorUserId, legs });
   }
   await db.query('UPDATE tasks SET budget_minor = $2 WHERE id = $1', [task.id, budgetMinor.toString()]);
 }
