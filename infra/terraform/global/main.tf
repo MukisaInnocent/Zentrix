@@ -135,9 +135,16 @@ resource "aws_iam_role_policy" "github_deploy_guardrails" {
         Resource = "*"
       },
       {
-        Sid       = "NoOtherRegions"
-        Effect    = "Deny"
-        NotAction = ["iam:*", "sts:*", "cloudfront:*", "budgets:*", "route53:*", "acm:*", "wafv2:*", "support:*", "health:*"]
+        Sid    = "NoOtherRegions"
+        Effect = "Deny"
+        # CloudFront access-log delivery (visitor counts, owner 2026-11-05) can be set up only in us-east-1.
+        NotAction = [
+          "iam:*", "sts:*", "cloudfront:*", "budgets:*", "route53:*", "acm:*", "wafv2:*", "support:*", "health:*",
+          "logs:PutDeliverySource", "logs:GetDeliverySource", "logs:DeleteDeliverySource", "logs:DescribeDeliverySources",
+          "logs:PutDeliveryDestination", "logs:GetDeliveryDestination", "logs:DeleteDeliveryDestination", "logs:DescribeDeliveryDestinations",
+          "logs:CreateDelivery", "logs:GetDelivery", "logs:DeleteDelivery", "logs:DescribeDeliveries", "logs:UpdateDeliveryConfiguration",
+          "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource",
+        ]
         Resource  = "*"
         Condition = { StringNotEquals = { "aws:RequestedRegion" = "eu-west-1" } }
       },

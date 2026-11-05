@@ -40,6 +40,13 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
   The log delivery resources live in us-east-1 (CloudFront's log sources), the bucket in eu-west-1. Counts start from
   the day this is applied (no history). After the first apply, check that files appear under `cloudfront/` within an
   hour and that the visits function's log shows `files` above zero.
+- **Visitor counts are off until switched on** (`visitor_logs_enabled`, default false). The 2026-11-05 staging deploy
+  failed because the deploy role's guardrail refuses every action outside eu-west-1, and CloudFront log delivery can
+  only be set up in us-east-1. To switch on: (1) the owner applies the global stack by hand (its guardrail now allows
+  only the CloudWatch Logs delivery actions in us-east-1): `cd infra	erraform\global; terraform plan -out=tfplan;
+  terraform apply tfplan`; (2) set `visitor_logs_enabled = true` in `envs/staging` and `envs/production`
+  (`terraform.tfvars` or the module call) and deploy. Until then the Events page shows registrations and activations
+  and says visitor counts have not started.
 - The SMS forwarder's HMAC secret is not created: SMS forwarding was removed by the owner (see CLAUDE.md).
 - Staff pages (`/admin/*`) are served by the API so it can check the staff session before sending them.
 

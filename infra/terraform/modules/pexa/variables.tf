@@ -230,3 +230,9 @@ variable "access_log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "visitor_logs_enabled" {
+  description = "Count site visitors for the staff Events page from CloudFront logs (visits.tf). Needs the global stack's guardrail to allow CloudFront log delivery in us-east-1 first."
+  type        = bool
+  default     = false
+}

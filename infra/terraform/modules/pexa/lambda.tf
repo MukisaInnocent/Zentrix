@@ -40,7 +40,7 @@ locals {
     FX_PROVIDER  = "s3"
     FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
     # Site visitor counts for the staff Events page: the visits function leaves them under stats/visits/.
-    VISITS_S3_BUCKET = aws_s3_bucket.outbox.bucket
+    VISITS_S3_BUCKET = var.visitor_logs_enabled ? aws_s3_bucket.outbox.bucket : ""
     # Mobile money (paygate.tf): off (manual payments) until enabled; then LivePay through the S3 handoff.
     PAYMENT_PROVIDER            = var.livepay_enabled ? "livepay" : "none"
     PAYGATE_S3_BUCKET           = var.livepay_enabled ? aws_s3_bucket.outbox.bucket : ""
@@ -137,7 +137,7 @@ resource "aws_iam_role_policy" "fxfetch" {
 
 # ---- Log groups (created first so retention applies from the start) ----
 resource "aws_cloudwatch_log_group" "fn" {
-  for_each          = toset(["api", "jobs", "migrate", "mailer", "fxfetch", "visits"])
+  for_each          = toset(concat(["api", "jobs", "migrate", "mailer", "fxfetch"], var.visitor_logs_enabled ? ["visits"] : []))
   name              = "/aws/lambda/${local.name}-${each.key}"
   retention_in_days = var.log_retention_days
 }
