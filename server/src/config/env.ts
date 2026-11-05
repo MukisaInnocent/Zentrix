@@ -45,6 +45,8 @@ const EnvSchema = z.object({
   // internet in the VPC) the snapshot the fetcher function leaves in FX_S3_BUCKET. 'none' stores no rates.
   FX_PROVIDER: z.enum(['open-er-api', 's3', 'none']).default('open-er-api'),
   FX_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
+  // AWS: the bucket where the visits function leaves the daily visitor counts for the staff Events page. Empty: none.
+  VISITS_S3_BUCKET: z.string().regex(/^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
   GEOIP_PROVIDER: z.enum(['none', 'test-header']).default('none'),
   // Mobile-money provider API (owner, 2026-10-30: LivePay). Default: the simulator in test mode, none in live mode.
   // LivePay has no sandbox, so its keys carry LIVE in their names and test mode refuses to start with them.
@@ -96,6 +98,7 @@ export interface Config {
   mailS3Bucket: string | null;
   fxProvider: 'open-er-api' | 's3' | 'none';
   fxS3Bucket: string | null;
+  visitsS3Bucket: string | null;
   geoipProvider: 'none' | 'test-header';
   paymentProvider: 'none' | 'simulator' | 'livepay';
   livepayApiKey: string | null;
@@ -186,6 +189,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mailS3Bucket: e.MAIL_S3_BUCKET && e.MAIL_S3_BUCKET.length > 0 ? e.MAIL_S3_BUCKET : null,
     fxProvider: e.FX_PROVIDER,
     fxS3Bucket: e.FX_S3_BUCKET && e.FX_S3_BUCKET.length > 0 ? e.FX_S3_BUCKET : null,
+    visitsS3Bucket: e.VISITS_S3_BUCKET && e.VISITS_S3_BUCKET.length > 0 ? e.VISITS_S3_BUCKET : null,
     geoipProvider: e.GEOIP_PROVIDER,
     // The simulator activates members without money, so it is not the default on a production deployment (the launch
     // runs in test mode on AWS with manual payments).

@@ -17,10 +17,11 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
                                                                     └── dead-letter queue + alarm (mailer is outside the VPC)
    EventBridge Scheduler ──> Lambda jobs (balance check hourly, clean-up daily, exchange rates when new ones arrive)
    EventBridge Scheduler ──> Lambda "fxfetch" (outside the VPC) ──> open.er-api.com, snapshot to S3 fx/latest.json
+   CloudFront access logs (v2) ──> S3 access-logs bucket ──> Lambda "visits" hourly (outside the VPC) ──> S3 stats/visits/
 ```
 
-- One code package, five functions (ARM64): `api` (the Express app through serverless-http), `jobs`,
-  `migrate` (migrations and test seed, run by the pipeline), `mailer` and `fxfetch`. Locally the same app still runs with
+- One code package, six functions (ARM64): `api` (the Express app through serverless-http), `jobs`,
+  `migrate` (migrations and test seed, run by the pipeline), `mailer`, `fxfetch` and `visits`. Locally the same app still runs with
   `npm run dev` as a normal Node server.
 - All money data stays in Aurora PostgreSQL (no DynamoDB).
 - Secrets live in Secrets Manager (`pexa-<env>/database`, `pexa-<env>/app`). The functions in the VPC have no route
@@ -31,6 +32,14 @@ Browser ──HTTPS──> CloudFront ──> S3 (private, Origin Access Control
   after its announced daily update. When the rates are new it writes them to the outbox bucket under `fx/`, and that
   write starts the `fxrates` job (S3 notification; a daily backup schedule too), which stores them in `fx_rates`. A
   reward uses the latest stored rate however old, so it is paid at once; only a currency with no rate yet waits.
+- Site visitors for the staff Events page (owner, 2026-11-05; `visits.tf`): CloudFront writes its access logs
+  (standard logging v2, JSON, only the fields the count needs, including the visitor's country) to the private
+  `access-logs` bucket under `cloudfront/yyyy/MM/dd/HH/`. The `visits` function counts yesterday and today (East Africa
+  Time) every hour into `stats/visits/index.json` in the outbox bucket, which the API reads; no visit wakes the
+  database. The raw logs hold IP addresses and expire after `access_log_retention_days` (14); the daily counts stay.
+  The log delivery resources live in us-east-1 (CloudFront's log sources), the bucket in eu-west-1. Counts start from
+  the day this is applied (no history). After the first apply, check that files appear under `cloudfront/` within an
+  hour and that the visits function's log shows `files` above zero.
 - The SMS forwarder's HMAC secret is not created: SMS forwarding was removed by the owner (see CLAUDE.md).
 - Staff pages (`/admin/*`) are served by the API so it can check the staff session before sending them.
 

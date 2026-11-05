@@ -25,7 +25,7 @@ resource "aws_iam_role_policy" "scheduler" {
   role = aws_iam_role.scheduler.id
   policy = jsonencode({
     Version   = "2012-10-17"
-    Statement = [{ Effect = "Allow", Action = "lambda:InvokeFunction", Resource = concat([aws_lambda_function.jobs.arn, aws_lambda_function.fxfetch.arn], aws_lambda_function.paygate[*].arn) }]
+    Statement = [{ Effect = "Allow", Action = "lambda:InvokeFunction", Resource = concat([aws_lambda_function.jobs.arn, aws_lambda_function.fxfetch.arn, aws_lambda_function.visits.arn], aws_lambda_function.paygate[*].arn) }]
   })
 }
 

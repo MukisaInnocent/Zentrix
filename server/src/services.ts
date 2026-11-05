@@ -6,6 +6,7 @@ import { createGeoIp, type GeoIp } from './providers/geoip.js';
 import { createGateway, type PaymentGateway } from './providers/livepay.js';
 import { createMailer, type Mailer } from './providers/mail.js';
 import { createSmsSender, type SmsSender } from './providers/sms.js';
+import { createVisitsSource, type VisitsSource } from './providers/visits.js';
 
 // Everything a request handler or job needs, created once per process and passed explicitly.
 export interface Services {
@@ -18,6 +19,8 @@ export interface Services {
   fx: FxSource | null;
   // Mobile-money provider (LivePay or the simulator); null when payments are manual only.
   payments: PaymentGateway | null;
+  // Daily site visitor counts (AWS only); null elsewhere.
+  visits: VisitsSource | null;
   now: () => Date;
 }
 
@@ -41,6 +44,7 @@ export function createServices(config: Config, logger: Logger, overrides: Partia
     geoip: overrides.geoip ?? createGeoIp(config),
     fx: overrides.fx !== undefined ? overrides.fx : createFxSource(config),
     payments: overrides.payments !== undefined ? overrides.payments : createGateway(config),
+    visits: overrides.visits !== undefined ? overrides.visits : createVisitsSource(config),
     now: overrides.now ?? (() => new Date()),
   };
 }

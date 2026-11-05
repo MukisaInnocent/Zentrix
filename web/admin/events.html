@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Events · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-events" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Events</h1>
+      <p>How many people visit the site, and how many members register and pay the activation fee, per day and overall. A day runs midnight to midnight East Africa Time. Visitors are people counted once a day by device; known bots and link previews are left out. Visitor counts are updated every hour. Staff and system accounts are left out.</p>
+    </div>
+    <div class="zx-page-head__actions">
+      <select id="days" class="zx-select" aria-label="Period">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="366">Last 12 months</option>
+      </select>
+    </div>
+  </div>
+  <div id="visits-note"></div>
+  <div id="stats" class="zx-stat-grid"></div>
+  <div class="zx-card zx-stack-3">
+    <h2>Per day</h2>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Visitors</th><th scope="col">Pages viewed</th><th scope="col">Registered</th><th scope="col">Activated</th></tr></thead>
+        <tbody id="daily"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <h2>By country</h2>
+    <p class="zx-hint">For the period chosen above. A visitor's country comes from their internet address.</p>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Country</th><th scope="col">Visitors</th><th scope="col">Pages viewed</th><th scope="col">Registered</th><th scope="col">Activated</th></tr></thead>
+        <tbody id="countries"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

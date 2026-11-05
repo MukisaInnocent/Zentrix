@@ -218,3 +218,15 @@ variable "keep_temporary_links" {
   type        = bool
   default     = true
 }
+
+variable "visits_schedule" {
+  description = "How often the visits function counts the CloudFront logs for the staff Events page. It reads S3 only and needs no database."
+  type        = string
+  default     = "rate(1 hour)"
+}
+
+variable "access_log_retention_days" {
+  description = "Days the raw CloudFront access logs (which hold IP addresses) are kept before S3 deletes them. The daily counts are kept."
+  type        = number
+  default     = 14
+}

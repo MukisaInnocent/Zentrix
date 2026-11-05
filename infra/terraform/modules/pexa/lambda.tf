@@ -4,6 +4,7 @@
 #   migrate  migrations and test seed, run by deploy inside the VPC (database)
 #   mailer   sends queued email with Resend          outside the VPC (internet, no database)
 #   fxfetch  fetches exchange rates into S3           outside the VPC (internet, no database)
+#   visits   counts site visitors from CloudFront logs outside the VPC (S3 only, no database; visits.tf)
 data "archive_file" "package" {
   type        = "zip"
   source_dir  = var.lambda_package_dir
@@ -38,6 +39,8 @@ locals {
     # Exchange rates: fxfetch leaves the latest snapshot in the outbox bucket under fx/.
     FX_PROVIDER  = "s3"
     FX_S3_BUCKET = aws_s3_bucket.outbox.bucket
+    # Site visitor counts for the staff Events page: the visits function leaves them under stats/visits/.
+    VISITS_S3_BUCKET = aws_s3_bucket.outbox.bucket
     # Mobile money (paygate.tf): off (manual payments) until enabled; then LivePay through the S3 handoff.
     PAYMENT_PROVIDER            = var.livepay_enabled ? "livepay" : "none"
     PAYGATE_S3_BUCKET           = var.livepay_enabled ? aws_s3_bucket.outbox.bucket : ""
@@ -79,6 +82,7 @@ resource "aws_iam_role_policy" "vpc_fn_outbox" {
     Statement = [
       { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/outbox/*" },
       { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.outbox.arn}/fx/*" },
+      { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.outbox.arn}/stats/visits/*" },
       { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/commands/*" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:DeleteObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/results/*" },
       { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/watch/*" },
@@ -133,7 +137,7 @@ resource "aws_iam_role_policy" "fxfetch" {
 
 # ---- Log groups (created first so retention applies from the start) ----
 resource "aws_cloudwatch_log_group" "fn" {
-  for_each          = toset(["api", "jobs", "migrate", "mailer", "fxfetch"])
+  for_each          = toset(["api", "jobs", "migrate", "mailer", "fxfetch", "visits"])
   name              = "/aws/lambda/${local.name}-${each.key}"
   retention_in_days = var.log_retention_days
 }

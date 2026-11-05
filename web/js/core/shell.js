@@ -97,7 +97,10 @@ function accountItems(locked = false) {
 }
 
 const ADMIN_NAV = [
-  { group: 'admin.nav.group.overview', items: [{ id: 'admin-home', href: '/admin/index.html', icon: 'grid', label: 'admin.nav.overview', bottom: true }] },
+  { group: 'admin.nav.group.overview', items: [
+    { id: 'admin-home', href: '/admin/index.html', icon: 'grid', label: 'admin.nav.overview', bottom: true },
+    { id: 'admin-events', href: '/admin/events.html', icon: 'chart', label: 'admin.nav.events' },
+  ] },
   {
     group: 'admin.nav.group.money',
     items: [

@@ -5,6 +5,7 @@ import { configAdminRouter } from './config.js';
 import { announcementsAdminRouter } from './announcements.js';
 import { emailTemplatesAdminRouter } from './email-templates.js';
 import { emailsAdminRouter } from './emails.js';
+import { eventsAdminRouter } from './events.js';
 import { ebooksAdminRouter } from '../ebooks/routes.js';
 import { membersRouter } from './members.js';
 import { paymentsAdminRouter } from './payments.js';
@@ -25,6 +26,7 @@ export function adminRouter(services: Services): Router {
   router.use('/ebooks', ebooksAdminRouter(services));
   router.use('/tasks', tasksAdminRouter(services));
   router.use('/videos', videosAdminRouter(services));
+  router.use('/events', eventsAdminRouter(services));
   router.use('/', configAdminRouter(services));
   router.use('/', systemRouter(services));
   return router;
