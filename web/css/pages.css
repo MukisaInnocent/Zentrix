@@ -329,3 +329,4 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 .zx-wd-status__details { display: grid; grid-template-columns: max-content 1fr; gap: 4px var(--zx-space-4); margin: var(--zx-space-3) 0 0; padding-block-start: var(--zx-space-3); border-block-start: 1px solid rgb(255 255 255 / .35); font-size: .95rem; }
 .zx-wd-status__details dt { opacity: .9; }
 .zx-wd-status__details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.zx-wa__live[hidden] { display: none; }

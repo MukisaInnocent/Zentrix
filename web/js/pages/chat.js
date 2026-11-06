@@ -189,6 +189,8 @@ export async function init() {
   $('#conversations-title').textContent = TABS[tab].list;
   $('#contacts-card').hidden = tab !== 'invite';
   $('#match-card').hidden = tab !== 'foreign';
+  // Live chat sits under Chat with foreigners (owner, 2026-11-06).
+  $('#live-chat').hidden = tab !== 'foreign';
 
   $('#match-btn').addEventListener('click', async e => {
     const btn = e.currentTarget;
