@@ -193,6 +193,7 @@
 .zx-strong { font-weight: 700; }
 .zx-text-brand { color: var(--zx-brand); }
 .zx-text-danger { color: var(--zx-danger); }
+.zx-text-success { color: var(--zx-success); }
 
 /* Module tiles on the dashboard. */
 .zx-module {

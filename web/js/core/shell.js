@@ -57,9 +57,9 @@ const MEMBER_NAV = [
       { id: 'ads', href: '/adsearn.html', icon: 'pointer', label: 'nav.ads' },
       { id: 'trivia', href: '/trivia.html', icon: 'help', label: 'nav.trivia' },
       { id: 'leaderboard', href: '/leaderboard.html', icon: 'trophy', label: 'nav.leaderboard' },
-      // Owner, 2026-11-06: Betting tips; Aviator and Quick loans are coming-soon pages (the Aviator game is built, not shown).
+      // Owner, 2026-11-06: Betting tips, Aviator (the owner's project, demo credits) and a Quick loans coming-soon page.
       { id: 'betting-tips', href: '/betting-tips.html', icon: 'chart', label: 'nav.bettingTips' },
-      { id: 'aviator-soon', href: '/aviator.html', icon: 'send', label: 'nav.aviator' },
+      { id: 'aviator', href: '/aviator.html', icon: 'send', label: 'nav.aviator' },
       { id: 'quick-loans', href: '/quick-loans.html', icon: 'coins', label: 'nav.quickLoans' },
     ],
   },

@@ -1,4 +1,4 @@
-/* Aviator: the owner's Aviator project stylesheet (app/static/style.css), brought over as it is (owner, 2026-11-06).
+/* Aviator: the owner's Aviator project stylesheet (app/static/style.css), brought over as it is (owner, 2026-11-06; updated 2026-11-06, later).
    Every rule is scoped to .avx so it styles only the Aviator page. The project's web fonts are not loaded (the site's
    CSP allows its own fonts only), so the system font is used. */
 .avx {
@@ -49,7 +49,10 @@
 }
 .avx a { color: var(--cyan); }
 .avx h1, .avx h2, .avx h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
-.avx .nav-balance {
+.avx font-size: 0.78rem;
+    color: var(--text-dim);
+}
+.nav-balance {
     color: var(--green);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -168,6 +171,44 @@
 .avx .avx-alert.error::before { background: var(--red); box-shadow: 0 0 10px var(--red); }
 .avx .avx-alert.success { border-color: rgba(61, 255, 168, 0.45); }
 .avx .avx-alert.success::before { background: var(--green); box-shadow: 0 0 10px var(--green); }
+.avx .table-wrap { overflow-x: auto; }
+.avx table { width: 100%; border-collapse: collapse; }
+.avx th, .avx td {
+    padding: 0.85rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.88rem;
+}
+.avx th {
+    color: var(--text-mute);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.avx tbody tr { transition: background 0.15s; }
+.avx tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+.avx td.num { font-variant-numeric: tabular-nums; font-weight: 700; }
+.avx td.actions { display: flex; gap: 0.4rem; }
+.avx .empty-row td { color: var(--text-mute); text-align: center; padding: 2rem; }
+.avx .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: capitalize;
+    background: var(--panel-2);
+    color: var(--text-dim);
+}
+.avx .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.avx .status-pending { color: var(--amber); background: rgba(255, 181, 71, 0.12); }
+.avx .status-approved, .avx .status-completed, .avx .status-win, .avx .status-active { color: var(--green); background: rgba(61, 255, 168, 0.1); }
+.avx .status-rejected, .avx .status-loss, .avx .status-suspended { color: var(--red); background: rgba(255, 77, 109, 0.12); }
+.avx .status-admin { color: var(--violet); background: rgba(139, 92, 255, 0.15); }
 .avx .game-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
@@ -490,6 +531,48 @@
 .avx .history-item.m-high { color: var(--amber); }
 .avx .history-item > span { color: var(--text-mute); }
 .avx .history-empty { padding: 0.75rem; color: var(--text-mute); font-size: 0.82rem; text-align: center; }
+.avx .page-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.avx .page-head h1 { margin: 0.2rem 0 0; font-size: 1.8rem; }
+.avx .page-head p { margin: 0.3rem 0 0; color: var(--text-dim); font-size: 0.9rem; }
+.avx .wallet-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+.avx .balance-card {
+    padding: 1.6rem;
+    overflow: hidden;
+    background:
+        radial-gradient(500px 200px at 100% 0%, rgba(139, 92, 255, 0.35), transparent 70%),
+        radial-gradient(400px 200px at 0% 100%, rgba(62, 232, 255, 0.2), transparent 70%),
+        var(--panel);
+}
+.avx .balance-card .big {
+    margin: 0.4rem 0 0.2rem;
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+}
+.avx .balance-card .big small { color: var(--text-dim); font-size: 1rem; font-weight: 600; }
+.avx .balance-card .note { color: var(--text-dim); font-size: 0.82rem; }
+.avx .balance-card .card-jet {
+    position: absolute;
+    right: -10px;
+    top: 18px;
+    width: 160px;
+    height: 64px;
+    opacity: 0.18;
+    transform: rotate(-14deg);
+}
 .avx .segmented {
     display: inline-flex;
     padding: 4px;
@@ -538,6 +621,67 @@
 .avx .tx-main { display: grid; gap: 0.1rem; font-size: 0.85rem; }
 .avx .tx-main span { color: var(--text-mute); font-size: 0.74rem; }
 .avx .tx-right { display: grid; justify-items: end; gap: 0.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.avx .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.avx .stat-card { padding: 1.1rem 1.2rem; overflow: hidden; }
+.avx .stat-card b { display: block; margin-top: 0.35rem; font-family: var(--font-display); font-size: 1.8rem; font-variant-numeric: tabular-nums; }
+.avx .stat-card::after {
+    content: '';
+    position: absolute;
+    right: -30px;
+    top: -30px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--accent-glow, rgba(62, 232, 255, 0.18));
+    filter: blur(20px);
+}
+.avx .stat-card.amber { --accent-glow: rgba(255, 181, 71, 0.25); }
+.avx .stat-card.violet { --accent-glow: rgba(139, 92, 255, 0.28); }
+.avx .stat-card.green { --accent-glow: rgba(61, 255, 168, 0.2); }
+.avx .tabs {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+}
+.avx .tabs button {
+    padding: 0.55rem 1rem;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+.avx .tabs button.active { background: rgba(62, 232, 255, 0.1); color: var(--text); }
+.avx .tabs .count {
+    min-width: 20px;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: var(--amber);
+    color: #1d0a00;
+    font-size: 0.68rem;
+}
+.avx .tabs .count:empty { display: none; }
+.avx .admin-section { padding: 0.4rem 0.6rem 0.8rem; }
+.avx .admin-section h3 { margin: 0.8rem 0.4rem 0.4rem; font-size: 1rem; }
+.avx .flight-status[data-status="paused"] { color: var(--amber); }
+.avx .limits-hint { margin: -0.9rem 0 0; padding: 0 1.25rem 1rem; color: var(--text-mute); font-size: 0.74rem; text-align: center; }
+.avx .limits-hint:empty { display: none; }
+.avx .history-item { cursor: pointer; }
+.avx .fair-box { margin: 0.4rem 0.9rem 0.9rem; padding: 0.7rem 0.9rem; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 0.8rem; }
+.avx .fair-box summary { color: var(--text-dim); font-weight: 700; cursor: pointer; }
+.avx .fair-box p { margin: 0.6rem 0 0; color: var(--text-dim); line-height: 1.5; }
+.avx .fair-box .input-row { margin-top: 0.6rem; }
+.avx .fair-box .input-row input { padding: 0.5rem 0.8rem; }
+.avx .verify-result p { margin: 0.4rem 0 0; }
+.avx .verify-result .ok { color: var(--green); font-weight: 800; }
+.avx .verify-result .bad { color: var(--red); font-weight: 800; }
 @media (max-width: 980px) {
 .avx .game-layout, .avx .wallet-layout, .avx .auth-layout { grid-template-columns: minmax(0, 1fr); }
 .avx .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -561,11 +705,14 @@
 .avx .demo-note { display: none; }
 .avx .page-head { flex-direction: column; align-items: start; }
 .avx .avx-alert { top: 66px; right: 1rem; }
+.avx .two-col { grid-template-columns: minmax(0, 1fr); }
+.avx .adjust-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.avx .adjust-form input[name="reason"], .avx .adjust-form button { grid-column: 1 / -1; }
+.avx .head-actions { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
 .avx *, .avx *::before, .avx *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
-
 /* Inside the site's page (owner, 2026-11-06): the project's full-page backdrop becomes a panel. */
 .avx { min-height: auto; display: block; padding: 1rem; border-radius: var(--radius); }
 .avx .avx-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
@@ -584,3 +731,7 @@
 .avx .tx-status.rejected { color: var(--red); }
 .avx .tx-status.pending { color: var(--amber); }
 @media (max-width: 980px) { .avx .wallet-layout { grid-template-columns: minmax(0, 1fr); } }
+.avx .tx-status.completed { color: var(--green); }
+/* The bet amount fits its box with the site's system font (2026-11-06, later). */
+.avx .stepper input { padding-inline: .25rem; -moz-appearance: textfield; appearance: textfield; }
+.avx .stepper input::-webkit-inner-spin-button, .avx .stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

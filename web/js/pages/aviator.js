@@ -1,7 +1,7 @@
 import { api, ApiError } from '../core/api.js';
 
 // Aviator: the owner's Aviator project (app/templates/dashboard.html and app/static/main.js) brought over as it is
-// (owner, 2026-11-06). The game script below is the project's, with three changes the site needs: it runs as this
+// (owner, 2026-11-06; updated from the project 2026-11-06, later). The game script below is the project's, with three changes the site needs: it runs as this
 // page's module (no inline scripts or onclick handlers under the site's CSP), requests go to /api/aviator with the
 // site's session and CSRF token, and the demo-credit wallet (the project's wallet page) sits on the same page.
 
@@ -69,7 +69,7 @@ function relativeTime(iso) {
     return new Date(then).toLocaleDateString();
 }
 
-// The project's wallet page: ask for demo credits or to remove them (staff approve), and the request list.
+// The project's wallet page: add or remove demo credits (demo mode: they apply at once), and the activity list.
 function initWallet(refreshBalance) {
     const list = document.getElementById('trans-list');
     async function loadTransactions() {
@@ -79,7 +79,7 @@ function initWallet(refreshBalance) {
             if (!trans.length) {
                 const li = document.createElement('li');
                 li.className = 'history-empty';
-                li.textContent = 'No requests yet.';
+                li.textContent = 'No activity yet. Add some demo credits to start flying.';
                 list.appendChild(li);
                 return;
             }
@@ -87,9 +87,9 @@ function initWallet(refreshBalance) {
                 const li = document.createElement('li');
                 li.className = `tx-item ${t.type}`;
                 const what = document.createElement('span');
-                what.textContent = `${t.type === 'deposit' ? 'Credit request' : 'Removal request'} · ${relativeTime(t.date)}`;
+                what.textContent = `${{ deposit: 'Credits added', withdrawal: 'Credits removed', adjustment: 'Changed by staff' }[t.type] ?? t.type} · ${relativeTime(t.date)}`;
                 const amount = document.createElement('strong');
-                amount.textContent = `${t.type === 'deposit' ? '+' : '-'}${formatCredits(t.amount)}`;
+                amount.textContent = `${t.type === 'deposit' ? '+' : t.type === 'withdrawal' ? '-' : ''}${formatCredits(t.amount)}`;
                 const status = document.createElement('em');
                 status.className = `tx-status ${t.status}`;
                 status.textContent = t.status;
@@ -101,8 +101,8 @@ function initWallet(refreshBalance) {
         }
     }
     for (const [formId, inputId, endpoint, done] of [
-        ['dep-form', 'dep-amount', '/wallet/deposit', 'Credit request sent. Staff will approve it soon.'],
-        ['with-form', 'with-amount', '/wallet/withdraw', 'Removal request sent.'],
+        ['dep-form', 'dep-amount', '/wallet/deposit', 'Credits added to your wallet'],
+        ['with-form', 'with-amount', '/wallet/withdraw', 'Credits removed from your wallet'],
     ]) {
         document.getElementById(formId).addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -129,12 +129,13 @@ function initWallet(refreshBalance) {
 
 export function init() {
     // ------------------------------------------------------------------
-    // Constants (must match app/routes/game.py)
+    // Round timing (sent by the server with every state update)
     // ------------------------------------------------------------------
-    const GROWTH = 1.1;
-    const LN_GROWTH = Math.log(GROWTH);
-    const BETTING_MS = 8000;
-    const CRASH_DISPLAY_MS = 3000;
+    let growth = 1.1;
+    let lnGrowth = Math.log(growth);
+    let bettingMs = 8000;
+    let crashDisplayMs = 3000;
+    let limits = { min_bet: 0.01, max_bet: Infinity, max_win: Infinity };
 
     // ------------------------------------------------------------------
     // DOM
@@ -177,7 +178,7 @@ export function init() {
     } catch { /* storage unavailable */ }
 
     function setBetAmount(value) {
-        const v = Math.max(0.01, Math.round(value * 100) / 100);
+        const v = Math.min(limits.max_bet, Math.max(limits.min_bet, Math.round(value * 100) / 100));
         betInput.value = v.toFixed(2);
         try { localStorage.setItem('aviator.bet', betInput.value); } catch { /* ignore */ }
         syncButtons();
@@ -220,6 +221,8 @@ export function init() {
             setBetButton('Place bet', `${formatCredits(parseFloat(betInput.value) || 0)} credits`);
         } else if (gameState === 'waiting') {
             setBetButton('Bet placed', 'Waiting for takeoff…');
+        } else if (gameState === 'paused') {
+            setBetButton('Game paused', 'Betting is closed');
         } else if (gameState === 'active') {
             setBetButton('Betting closed', 'Wait for the next round');
         } else {
@@ -248,7 +251,46 @@ export function init() {
         }
     }
 
+    function applyServerSettings(data) {
+        if (data.growth_rate) {
+            growth = data.growth_rate;
+            lnGrowth = Math.log(growth);
+        }
+        if (data.betting_seconds) bettingMs = data.betting_seconds * 1000;
+        if (data.crash_display_seconds) crashDisplayMs = data.crash_display_seconds * 1000;
+        if (data.limits) {
+            const changed = data.limits.min_bet !== limits.min_bet || data.limits.max_bet !== limits.max_bet
+                || data.limits.max_win !== limits.max_win;
+            limits = data.limits;
+            if (changed) {
+                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits · max win ${formatCredits(limits.max_win)} per bet`;
+                betInput.min = limits.min_bet;
+                betInput.max = limits.max_bet;
+            }
+        }
+        $('current-hash').textContent = data.hash || '–';
+        $('current-hash').title = data.hash || '';
+    }
+
+    function renderPaused(data) {
+        const prevState = gameState;
+        gameState = 'paused';
+        statusEl.dataset.status = 'paused';
+        statusEl.textContent = 'PAUSED';
+        multiplierEl.textContent = '—';
+        multiplierEl.classList.remove('crashed', 'hot');
+        captionEl.textContent = data.message;
+        countdownEl.hidden = true;
+        if (prevState !== 'paused') scene.onStateChange(prevState, 'paused', false);
+        syncButtons();
+    }
+
     function renderState(data) {
+        applyServerSettings(data);
+        if (data.status === 'paused') {
+            renderPaused(data);
+            return;
+        }
         const prevState = gameState;
         const isNewRound = roundId !== data.round_id;
         roundId = data.round_id;
@@ -263,7 +305,7 @@ export function init() {
         }
         if (data.status === 'crashed') {
             crashPoint = data.crash_point;
-            crashT = Math.log(Math.max(1, crashPoint)) / LN_GROWTH;
+            crashT = Math.log(Math.max(1, crashPoint)) / lnGrowth;
         }
         if (data.my_bet) renderBet(data.my_bet);
 
@@ -300,7 +342,7 @@ export function init() {
             const remaining = Math.max(0, startTime - serverNow);
             multiplierEl.textContent = `${Math.ceil(remaining / 1000)}s`;
             captionEl.textContent = remaining > 0 ? 'Place your bet before takeoff' : 'Taking off…';
-            countdownBar.style.transform = `scaleX(${Math.min(1, remaining / BETTING_MS)})`;
+            countdownBar.style.transform = `scaleX(${Math.min(1, remaining / bettingMs)})`;
         } else if (gameState === 'active') {
             multiplierEl.textContent = `${multiplier.toFixed(2)}x`;
             multiplierEl.classList.toggle('hot', multiplier >= 2);
@@ -308,7 +350,7 @@ export function init() {
                 cashoutAmountEl.textContent = formatCredits(currentBet.amount * multiplier);
             }
         } else if (gameState === 'crashed' && crashT !== null) {
-            const next = Math.max(0, startTime + crashT * 1000 + CRASH_DISPLAY_MS - serverNow);
+            const next = Math.max(0, startTime + crashT * 1000 + crashDisplayMs - serverNow);
             captionEl.textContent = `Next flight boarding in ${Math.ceil(next / 1000)}s`;
         }
     }
@@ -404,7 +446,7 @@ export function init() {
                 wreck = { x: plane.x, y: plane.y, vx: 60, vy: -120, angle: plane.angle, va: 2.8, alpha: 1 };
                 plane.visible = false;
                 setTimeout(refreshHistory, 400);
-            } else if (next === 'crashed') {
+            } else if (next === 'crashed' || next === 'paused') {
                 plane.visible = false;
             } else if (next === 'waiting' && (isNewRound || prev !== 'waiting')) {
                 plane.visible = true;
@@ -504,7 +546,7 @@ export function init() {
             const pts = [];
             for (let i = 0; i <= n; i++) {
                 const ti = (t * i) / n;
-                pts.push(toPx(ti, Math.pow(GROWTH, ti)));
+                pts.push(toPx(ti, Math.pow(growth, ti)));
             }
             const end = pts[pts.length - 1];
             const base = H - PAD.b;
@@ -638,7 +680,7 @@ export function init() {
             let t = 0, m = 1;
             if (gameState === 'active' && startTime !== null) {
                 t = Math.max(0, (serverNow - startTime) / 1000);
-                m = Math.pow(GROWTH, t);
+                m = Math.pow(growth, t);
             } else if (gameState === 'crashed' && crashT !== null) {
                 t = crashT;
                 m = crashPoint;
@@ -666,7 +708,7 @@ export function init() {
                 const p = toPx(t, m);
                 let angle = -0.04;
                 if (t > 0.05) {
-                    const q = toPx(t - 0.05, Math.pow(GROWTH, t - 0.05));
+                    const q = toPx(t - 0.05, Math.pow(growth, t - 0.05));
                     angle = Math.max(-1.1, Math.min(0, Math.atan2(p.y - q.y, p.x - q.x)));
                 }
                 // The jet's tail sits on the tip of the curve, nose pointing along it.
@@ -677,7 +719,7 @@ export function init() {
                     const ease = 1 - Math.pow(1 - e, 3);
                     x = -80 + (x + 80) * ease;
                     y += Math.sin(now / 320) * 2;
-                    const remaining = startTime ? startTime - serverNow : BETTING_MS;
+                    const remaining = startTime ? startTime - serverNow : bettingMs;
                     emitExhaust(remaining < 1500 ? 70 : 18, dt, remaining < 1500 ? 1.2 : 0.5);
                 } else {
                     y += Math.sin(now / 140) * 1.5;
@@ -768,6 +810,12 @@ export function init() {
                 bar.className = 'history-bar';
                 bar.style.width = `${Math.max(4, (Math.log(round.crash_point) / Math.log(Math.max(2, maxM))) * 100)}%`;
                 item.append(label, result, bar);
+                item.title = 'Verify this round';
+                item.addEventListener('click', () => {
+                    $('verify-round').value = round.round_id;
+                    document.querySelector('.fair-box').open = true;
+                    verifyRound();
+                });
                 log.appendChild(item);
 
                 const pill = document.createElement('span');
@@ -831,6 +879,43 @@ export function init() {
         await updateState();
         window.setTimeout(pollGame, 400);
     }
+
+    async function verifyRound() {
+        const id = parseInt($('verify-round').value, 10);
+        const out = $('verify-result');
+        if (!id) { out.textContent = 'Enter a round number.'; return; }
+        try {
+            const r = await fetchAPI(`/game/verify/${id}`);
+            out.replaceChildren();
+            const line = (label, value, ok) => {
+                const p = document.createElement('p');
+                const b = document.createElement('b');
+                b.textContent = `${label}: `;
+                const v = document.createElement('code');
+                v.textContent = value;
+                p.append(b, v);
+                if (ok !== undefined) {
+                    const mark = document.createElement('span');
+                    mark.className = ok ? 'ok' : 'bad';
+                    mark.textContent = ok ? ' matches' : ' does not match';
+                    p.append(mark);
+                }
+                out.append(p);
+            };
+            if (!r.verifiable) {
+                line(`Round #${r.round_id}`, r.reason);
+                return;
+            }
+            line('Crash point', `${r.crash_point.toFixed(2)}x`, r.crash_matches);
+            line('Server seed', r.server_seed);
+            line('Published hash', r.hash, r.hash_matches);
+            line('House edge', `${r.house_edge_percent}%`);
+        } catch (e) {
+            out.textContent = e.message;
+        }
+    }
+    $('verify-btn').addEventListener('click', () => void verifyRound());
+    $('verify-round').addEventListener('keydown', (e) => { if (e.key === 'Enter') void verifyRound(); });
 
     btnBet.addEventListener('click', () => void placeBet());
     btnCashout.addEventListener('click', () => void cashout());

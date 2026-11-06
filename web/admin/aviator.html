@@ -16,20 +16,141 @@
 <div class="zx-page">
   <div class="zx-page-head">
     <div>
-      <h1>Aviator credit requests</h1>
-      <p>Members ask for Aviator demo credits or ask to remove them. Approving a credit request adds the credits; approving a removal takes them off (checked against the member's credits again). Demo credits have no cash value and never touch member balances.</p>
-    </div>
-    
-  </div>
-  <div class="zx-card zx-stack-3">
-    
-    <div class="zx-table-wrap">
-      <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">Member</th><th scope="col">Request</th><th scope="col">Credits</th><th scope="col">Member's credits now</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="7" class="zx-td-empty">Loading...</td></tr></tbody>
-      </table>
+      <h1>Aviator</h1>
+      <p>The Aviator game's dashboard (the owner's project). Members play with demo credits that have no cash value and never touch member balances. There is deliberately no control to choose or change a round's crash point.</p>
     </div>
   </div>
+
+  <div class="zx-tabs" role="tablist" aria-label="Aviator sections">
+    <button class="zx-tab" type="button" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="live" aria-selected="false">Live round</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="rounds" aria-selected="false">Rounds</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="players" aria-selected="false">Players</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="flags" aria-selected="false">Flags</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="settings" aria-selected="false">Game settings</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="audit" aria-selected="false">Audit</button>
+  </div>
+
+  <section data-panel="overview" class="zx-stack-4">
+    <div class="zx-section-title">
+      <h2>Overview</h2>
+      <label class="zx-filters">Period
+        <select id="ov-days" class="zx-select">
+          <option value="1">24 hours</option><option value="7">7 days</option><option value="30" selected>30 days</option>
+          <option value="90">90 days</option><option value="365">1 year</option>
+        </select>
+      </label>
+    </div>
+    <div class="zx-kpis" id="ov-kpis"></div>
+    <div class="zx-card zx-stack-3">
+      <h3>By day (East Africa Time)</h3>
+      <div class="zx-table-wrap"><table class="zx-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Bets</th><th scope="col">Players</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">House profit</th><th scope="col">Return</th></tr></thead>
+        <tbody id="ov-daily"></tbody>
+      </table></div>
+    </div>
+    <div class="zx-cols">
+      <div class="zx-card zx-stack-3">
+        <h3>Biggest wins</h3>
+        <div class="zx-table-wrap"><table class="zx-table">
+          <thead><tr><th scope="col">Member</th><th scope="col">Bet</th><th scope="col">Cashed out</th><th scope="col">Profit</th><th scope="col">When</th></tr></thead>
+          <tbody id="ov-wins"></tbody>
+        </table></div>
+      </div>
+      <div class="zx-card zx-stack-3">
+        <h3>Top winners and losers</h3>
+        <div class="zx-table-wrap"><table class="zx-table">
+          <thead><tr><th scope="col">Member</th><th scope="col">Bets</th><th scope="col">Net</th></tr></thead>
+          <tbody id="ov-players"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <section data-panel="live" class="zx-stack-4" hidden>
+    <div class="zx-kpis" id="live-kpis"></div>
+    <div class="zx-card zx-stack-3">
+      <h3>Bets in this round</h3>
+      <div class="zx-table-wrap"><table class="zx-table">
+        <thead><tr><th scope="col">Member</th><th scope="col">Bet</th><th scope="col">Result</th><th scope="col">Cashed out at</th><th scope="col">Payout</th></tr></thead>
+        <tbody id="live-bets"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section data-panel="rounds" class="zx-card zx-stack-3" hidden>
+    <div class="zx-section-title"><h2>Recent rounds</h2><a class="zx-btn zx-btn--secondary zx-btn--sm" href="/api/admin/aviator/export/rounds.csv" data-admin-only>Export CSV</a></div>
+    <div class="zx-table-wrap"><table class="zx-table">
+      <thead><tr><th scope="col">Round</th><th scope="col">Started</th><th scope="col">Status</th><th scope="col">Crash point</th><th scope="col">Bets</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">House profit</th><th scope="col"></th></tr></thead>
+      <tbody id="rounds-rows"></tbody>
+    </table></div>
+  </section>
+
+  <section data-panel="players" class="zx-card zx-stack-3" hidden>
+    <div class="zx-section-title">
+      <h2>Players</h2>
+      <input id="players-q" class="zx-input" type="search" placeholder="Search by username" aria-label="Search players by username" maxlength="40">
+    </div>
+    <div class="zx-table-wrap"><table class="zx-table">
+      <thead><tr><th scope="col">Member</th><th scope="col">Account</th><th scope="col">Credits</th><th scope="col">Bets</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">Net</th><th scope="col">Last bet</th><th scope="col"></th></tr></thead>
+      <tbody id="players-rows"></tbody>
+    </table></div>
+  </section>
+
+  <section data-panel="transactions" class="zx-card zx-stack-3" hidden>
+    <div class="zx-section-title">
+      <h2>Credit transactions</h2>
+      <span class="zx-row-actions">
+        <a class="zx-btn zx-btn--secondary zx-btn--sm" href="/api/admin/aviator/export/transactions.csv" data-admin-only>Export CSV</a>
+        <a class="zx-btn zx-btn--secondary zx-btn--sm" href="/api/admin/aviator/export/bets.csv" data-admin-only>Export bets</a>
+      </span>
+    </div>
+    <p class="zx-hint">Members add and remove demo credits instantly. Older pending requests can still be approved or rejected.</p>
+    <div class="zx-table-wrap"><table class="zx-table">
+      <thead><tr><th scope="col">Date</th><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Credits</th><th scope="col">Reason</th><th scope="col">Member's credits now</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+      <tbody id="tx-rows"></tbody>
+    </table></div>
+  </section>
+
+  <section data-panel="flags" class="zx-card zx-stack-3" hidden>
+    <h2>Review flags</h2>
+    <p class="zx-hint" id="flags-rule"></p>
+    <p class="zx-hint">Hints for review, not proof. Shared devices and sign-in addresses are on the member's own page in Members.</p>
+    <div class="zx-table-wrap"><table class="zx-table">
+      <thead><tr><th scope="col">Member</th><th scope="col">Bets</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">Return</th><th scope="col"></th></tr></thead>
+      <tbody id="flags-rows"></tbody>
+    </table></div>
+  </section>
+
+  <section data-panel="settings" class="zx-card zx-stack-3" hidden>
+    <h2>Game settings</h2>
+    <p class="zx-hint">Changes apply from the next round. Every change is kept in the audit log.</p>
+    <form id="settings-form" class="zx-form zx-stack-3" novalidate>
+      <div class="zx-error" data-form-error hidden role="alert"></div>
+      <div class="zx-check-grid">
+        <div class="zx-field"><label for="s-betting">Betting window (seconds)</label><input id="s-betting" name="betting_seconds" class="zx-input" type="number" min="3" max="60" step="1" required><span class="zx-hint">3 to 60</span></div>
+        <div class="zx-field"><label for="s-display">Pause after a crash (seconds)</label><input id="s-display" name="crash_display_seconds" class="zx-input" type="number" min="1" max="30" step="1" required><span class="zx-hint">1 to 30</span></div>
+        <div class="zx-field"><label for="s-growth">Climb speed (multiplier growth per second)</label><input id="s-growth" name="growth_rate" class="zx-input" type="number" min="1.01" max="1.5" step="0.01" required><span class="zx-hint">1.01 to 1.5</span></div>
+        <div class="zx-field"><label for="s-edge">House edge (%)</label><input id="s-edge" name="house_edge_percent" class="zx-input" type="number" min="0" max="20" step="0.01" required><span class="zx-hint">0 to 20. Members get back 100% minus this on average.</span></div>
+        <div class="zx-field"><label for="s-min">Minimum bet (credits)</label><input id="s-min" name="min_bet" class="zx-input" type="number" min="0.01" step="0.01" required></div>
+        <div class="zx-field"><label for="s-max">Maximum bet (credits)</label><input id="s-max" name="max_bet" class="zx-input" type="number" min="0.01" step="0.01" required></div>
+        <div class="zx-field"><label for="s-win">Maximum win per bet (credits)</label><input id="s-win" name="max_win" class="zx-input" type="number" min="0.01" step="0.01" required></div>
+      </div>
+      <label class="zx-check"><input id="s-paused" name="paused" type="checkbox"> Pause the game (no new rounds start once the current one ends)</label>
+      <div class="zx-field"><label for="s-message">Message for members while paused</label><input id="s-message" name="pause_message" class="zx-input" type="text" maxlength="200"></div>
+      <p class="zx-hint" id="s-updated"></p>
+      <div><button class="zx-btn" type="submit" data-admin-only>Save settings</button></div>
+    </form>
+  </section>
+
+  <section data-panel="audit" class="zx-card zx-stack-3" hidden>
+    <h2>Aviator audit</h2>
+    <div class="zx-table-wrap"><table class="zx-table">
+      <thead><tr><th scope="col">When</th><th scope="col">Staff</th><th scope="col">Action</th><th scope="col">Details</th><th scope="col">Reason</th><th scope="col">IP address</th></tr></thead>
+      <tbody id="audit-rows"></tbody>
+    </table></div>
+  </section>
 </div>
 </main>
 </body>
