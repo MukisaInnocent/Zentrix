@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Betting tips · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-tips" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Betting tips</h1>
+      <p>Football tips on the members' Betting tips page. Add the match, kick-off time and tip, then mark it won, lost or void with the score after the game. Members see upcoming tips and the last 14 days of results. Tips only: nothing is staked on the site.</p>
+    </div>
+    <div class="zx-page-head__actions"><button id="add-btn" class="zx-btn" type="button">Add a tip</button></div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <div class="zx-filters">
+      <label class="zx-check"><input id="show-removed" type="checkbox"> Show removed tips</label>
+    </div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Kick-off</th><th scope="col">Match</th><th scope="col">Tip</th><th scope="col">Odds</th><th scope="col">Result</th><th scope="col">Members see it</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

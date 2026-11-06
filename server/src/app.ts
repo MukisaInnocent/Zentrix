@@ -21,6 +21,8 @@ import { clientPaymentsRouter, vouchersRouter } from './modules/vouchers/routes.
 import { supportRouter } from './modules/support/routes.js';
 import { ebooksRouter } from './modules/ebooks/routes.js';
 import { videosRouter } from './modules/videos/routes.js';
+import { aviatorRouter } from './modules/aviator/routes.js';
+import { tipsRouter } from './modules/tips/routes.js';
 import { walletRouter } from './modules/wallet/routes.js';
 import type { Services } from './services.js';
 
@@ -76,6 +78,8 @@ export function createApp(services: Services): express.Express {
   api.use('/support', supportRouter(services));
   api.use('/ebooks', ebooksRouter(services));
   api.use('/videos', videosRouter(services));
+  api.use('/tips', tipsRouter(services));
+  api.use('/aviator', aviatorRouter(services));
   api.use((_req: Request, _res: Response, next: NextFunction) => next(notFound('api.not_found', 'API endpoint not found.')));
   app.use('/api', api);
 

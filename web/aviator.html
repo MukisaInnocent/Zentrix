@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aviator · Pexerearn</title>
+<meta name="description" content="Aviator with free game points.">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="aviator" data-shell="app">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Aviator</h1>
+      <p>Place a stake, watch the multiplier climb and cash out before the plane flies away.</p>
+    </div>
+  </div>
+  <div class="zx-banner zx-banner--warning"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#info"></use></svg><span class="zx-banner__text">Played with free game points, not money. Your points are topped up to <span id="daily-points">1000</span> every day.</span></div>
+  <section class="zx-aviator">
+    <div id="sky" class="zx-aviator__sky" aria-live="polite">
+      <svg id="plane" class="zx-aviator__plane" viewBox="0 0 64 32" aria-hidden="true"><path d="M2 18 L22 16 L34 4 L40 4 L34 16 L54 15 Q62 16 54 19 L34 20 L40 30 L34 30 L22 20 Z" /></svg>
+      <div id="multiplier" class="zx-aviator__x">1.00x</div>
+      <div id="sky-note" class="zx-aviator__note">Place a stake to take off.</div>
+    </div>
+    <div class="zx-aviator__panel">
+      <div class="zx-stat"><span class="zx-stat__label">Your points</span><div id="points" class="zx-stat__value">-</div></div>
+      <form id="stake-form" class="zx-aviator__form" novalidate>
+        <label for="stake">Stake (points)</label>
+        <div class="zx-aviator__stake">
+          <button type="button" class="zx-btn zx-btn--secondary zx-btn--sm" data-step="-10">-</button>
+          <input id="stake" class="zx-input" name="stake" inputmode="numeric" value="50" autocomplete="off">
+          <button type="button" class="zx-btn zx-btn--secondary zx-btn--sm" data-step="10">+</button>
+        </div>
+        <div id="stake-error" class="zx-error zx-error--slot" role="alert"></div>
+        <button id="bet-btn" class="zx-btn zx-btn--lg zx-btn--block" type="submit">Bet</button>
+        <button id="cash-btn" class="zx-btn zx-btn--lg zx-btn--block zx-aviator__cash" type="button" hidden>Cash out</button>
+      </form>
+    </div>
+  </section>
+  <section class="zx-card">
+    <div class="zx-section-title"><h2>Your last rounds</h2></div>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Time</th><th scope="col">Stake</th><th scope="col">Flew away at</th><th scope="col">Cashed out at</th><th scope="col">Won</th></tr></thead>
+        <tbody id="history"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</main>
+</body>
+</html>

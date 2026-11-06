@@ -57,10 +57,10 @@ const MEMBER_NAV = [
       { id: 'ads', href: '/adsearn.html', icon: 'pointer', label: 'nav.ads' },
       { id: 'trivia', href: '/trivia.html', icon: 'help', label: 'nav.trivia' },
       { id: 'leaderboard', href: '/leaderboard.html', icon: 'trophy', label: 'nav.leaderboard' },
-      // Coming soon (owner, 2026-11-06): built once the owner gives their logic.
-      { id: 'betting', icon: 'chart', label: 'nav.bettingTips', soon: true },
-      { id: 'aviator', icon: 'send', label: 'nav.aviator', soon: true },
-      { id: 'loans', icon: 'coins', label: 'nav.quickLoans', soon: true },
+      // Owner, 2026-11-06: Betting tips and Aviator (free game points); Quick loans is a coming-soon page.
+      { id: 'betting-tips', href: '/betting-tips.html', icon: 'chart', label: 'nav.bettingTips' },
+      { id: 'aviator', href: '/aviator.html', icon: 'send', label: 'nav.aviator' },
+      { id: 'quick-loans', href: '/quick-loans.html', icon: 'coins', label: 'nav.quickLoans' },
     ],
   },
   {
@@ -138,6 +138,7 @@ const ADMIN_NAV = [
       { id: 'admin-settings', href: '/admin/settings.html', icon: 'settings', label: 'admin.nav.settings' },
       { id: 'admin-tasks', href: '/admin/tasks.html', icon: 'list', label: 'admin.nav.tasks' },
       { id: 'admin-videos', href: '/admin/videos.html', icon: 'play', label: 'admin.nav.videos' },
+      { id: 'admin-tips', href: '/admin/tips.html', icon: 'chart', label: 'admin.nav.tips' },
       { id: 'admin-ebooks', href: '/admin/ebooks.html', icon: 'book', label: 'admin.nav.ebooks' },
     ],
   },

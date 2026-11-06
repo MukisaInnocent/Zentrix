@@ -12,6 +12,7 @@ import { paymentsAdminRouter } from './payments.js';
 import { systemRouter } from './system.js';
 import { tasksAdminRouter } from '../tasks/admin.js';
 import { videosAdminRouter } from '../videos/routes.js';
+import { tipsAdminRouter } from '../tips/routes.js';
 
 // Every route below checks a staff role and a TOTP-verified session (requireStaff), and every change
 // writes the audit log in the same transaction.
@@ -26,6 +27,7 @@ export function adminRouter(services: Services): Router {
   router.use('/ebooks', ebooksAdminRouter(services));
   router.use('/tasks', tasksAdminRouter(services));
   router.use('/videos', videosAdminRouter(services));
+  router.use('/tips', tipsAdminRouter(services));
   router.use('/events', eventsAdminRouter(services));
   router.use('/', configAdminRouter(services));
   router.use('/', systemRouter(services));
