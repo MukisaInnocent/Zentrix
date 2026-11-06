@@ -331,22 +331,5 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 .zx-wd-status__details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .zx-wa__live[hidden] { display: none; }
 
-/* Aviator (owner, 2026-11-06). The plane's position comes from --zx-av-x and --zx-av-y (0 to 1), set by aviator.js. */
-.zx-aviator { display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: var(--zx-space-4); }
-.zx-aviator__sky { --zx-av-x: 0; --zx-av-y: 0; position: relative; overflow: hidden; min-block-size: 300px; border-radius: var(--zx-radius-lg); background: radial-gradient(circle at 20% 110%, #2a1360 0%, #0d0a1f 65%); color: #fff; }
-.zx-aviator__plane { position: absolute; inset-inline-start: calc(4% + var(--zx-av-x) * 70%); inset-block-end: calc(8% + var(--zx-av-y) * 65%); inline-size: 72px; fill: #ff3b5c; transition: opacity .3s; }
-.zx-aviator__sky--crashed .zx-aviator__plane { opacity: 0; }
-.zx-aviator__x { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(2.5rem, 8vw, 4.5rem); font-weight: 800; font-variant-numeric: tabular-nums; }
-.zx-aviator__sky--crashed .zx-aviator__x { color: #ff5c7a; }
-.zx-aviator__sky--won .zx-aviator__x { color: #3ee09a; }
-.zx-aviator__note { position: absolute; inset-inline: 0; inset-block-end: var(--zx-space-3); padding-inline: var(--zx-space-3); text-align: center; font-size: .95rem; opacity: .9; }
-.zx-aviator__panel { display: grid; align-content: start; gap: var(--zx-space-4); padding: var(--zx-space-4); border: 1px solid var(--zx-border); border-radius: var(--zx-radius-lg); background: var(--zx-surface); }
-.zx-aviator__form { display: grid; gap: var(--zx-space-2); }
-.zx-aviator__form label { font-weight: 700; }
-.zx-aviator__stake { display: grid; grid-template-columns: auto 1fr auto; gap: var(--zx-space-2); align-items: center; }
-.zx-aviator__stake .zx-input { text-align: center; font-weight: 700; }
-.zx-aviator__cash { background: #e8590c; }
-.zx-aviator__cash[hidden], #bet-btn[hidden] { display: none; }
-@media (max-width: 767px) { .zx-aviator { grid-template-columns: 1fr; } }
 .zx-soon-card { justify-items: center; text-align: center; padding-block: var(--zx-space-6, 32px); }
 .zx-soon-card > .zx-icon { inline-size: 48px; block-size: 48px; color: var(--zx-brand); }

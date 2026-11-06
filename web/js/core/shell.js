@@ -57,7 +57,7 @@ const MEMBER_NAV = [
       { id: 'ads', href: '/adsearn.html', icon: 'pointer', label: 'nav.ads' },
       { id: 'trivia', href: '/trivia.html', icon: 'help', label: 'nav.trivia' },
       { id: 'leaderboard', href: '/leaderboard.html', icon: 'trophy', label: 'nav.leaderboard' },
-      // Owner, 2026-11-06: Betting tips and Aviator (free game points); Quick loans is a coming-soon page.
+      // Owner, 2026-11-06: Betting tips, Aviator (the owner's project, demo credits) and a Quick loans coming-soon page.
       { id: 'betting-tips', href: '/betting-tips.html', icon: 'chart', label: 'nav.bettingTips' },
       { id: 'aviator', href: '/aviator.html', icon: 'send', label: 'nav.aviator' },
       { id: 'quick-loans', href: '/quick-loans.html', icon: 'coins', label: 'nav.quickLoans' },
@@ -139,6 +139,7 @@ const ADMIN_NAV = [
       { id: 'admin-tasks', href: '/admin/tasks.html', icon: 'list', label: 'admin.nav.tasks' },
       { id: 'admin-videos', href: '/admin/videos.html', icon: 'play', label: 'admin.nav.videos' },
       { id: 'admin-tips', href: '/admin/tips.html', icon: 'chart', label: 'admin.nav.tips' },
+      { id: 'admin-aviator', href: '/admin/aviator.html', icon: 'send', label: 'admin.nav.aviator' },
       { id: 'admin-ebooks', href: '/admin/ebooks.html', icon: 'book', label: 'admin.nav.ebooks' },
     ],
   },

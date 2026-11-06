@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { drawCrash, multiplierAt } from '../../src/modules/aviator/service.js';
+import { generateCrashPoint, parseAmount } from '../../src/modules/aviator/service.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
 import type { TestClient } from '../helpers/client.js';
 import { createStaff, loginStaff, registerMember, type Member } from '../helpers/factories.js';
@@ -47,42 +47,63 @@ describe('betting tips', () => {
   });
 });
 
-describe('aviator (free game points)', () => {
-  it('chooses crash points with a 3% edge and grows the multiplier with time', () => {
-    expect(drawCrash(() => 0)).toBe(100); // 0.97 rounds up to the 1.00x floor
-    expect(drawCrash(() => 0.5)).toBe(194);
-    expect(drawCrash(() => 0.999999)).toBe(10_000);
-    expect(multiplierAt(0)).toBe(100);
-    expect(multiplierAt(10_000)).toBe(201);
+describe("aviator (the owner's project, demo credits)", () => {
+  it('draws crash points and reads amounts as the project does', () => {
+    expect(generateCrashPoint(99)).toBe(1);
+    expect(generateCrashPoint(50)).toBe(2);
+    expect(generateCrashPoint(0)).toBe(1);
+    expect([parseAmount('10'), parseAmount('10.5'), parseAmount('0.01'), parseAmount('1.234'), parseAmount('0'), parseAmount(true)]).toEqual([1000n, 1050n, 1n, null, null, null]);
   });
 
-  it('takes the stake, pays stake x multiplier on cash-out before the crash, and loses it after', async () => {
+  it('runs shared rounds: bets only in the window, cash-out at the server multiplier, losses on the crash', async () => {
     const m = await activated();
-    const state = (await m.client.get<Body>('/api/aviator')).body;
-    expect(state.points).toBe('1000');
-    expect((await m.client.post<Body>('/api/aviator/rounds', { stake: 5 })).body.error?.fields?.stake).toBeDefined();
-    expect((await m.client.post<Body>('/api/aviator/rounds', { stake: 5000 })).body.error?.fields?.stake).toBeDefined();
+    // A test clock from the real time (sessions check the clock too).
+    const base = Date.now();
+    let clock = new Date(base);
+    app.services.now = () => clock;
+    const at = (seconds: number) => { clock = new Date(base + seconds * 1000); };
 
-    const started = await m.client.post<Body>('/api/aviator/rounds', { stake: 100 });
-    expect(started.status, JSON.stringify(started.body)).toBe(201);
-    expect(started.body.points).toBe('900');
-    expect(started.body.round.crashX100).toBeNull(); // never sent while flying
-    const id = started.body.round.id as string;
-    await app.owner.query('UPDATE aviator_rounds SET crash_x100 = 10000 WHERE public_id = $1', [id]);
-    expect((await m.client.post<Body>('/api/aviator/rounds', { stake: 100 })).body.error?.code).toBe('aviator.flying');
-    const cashed = await m.client.post<Body>(`/api/aviator/rounds/${id}/cashout`, {});
-    expect(cashed.body.round).toMatchObject({ status: 'cashed', crashX100: 10000 });
-    expect(BigInt(cashed.body.points)).toBe(900n + BigInt(cashed.body.round.payout));
-    expect(BigInt(cashed.body.round.payout)).toBeGreaterThanOrEqual(100n);
+    // Demo credits come from a request staff approve, as in the project.
+    expect((await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '100' })).status).toBe(201);
+    const pending = (await admin.get<Body>('/api/admin/aviator/requests')).body.requests.find((r: Body) => r.username === m.input.username);
+    expect((await support.post<Body>(`/api/admin/aviator/requests/${pending.id}/process`, { action: 'approve' })).status).toBe(403);
+    expect((await admin.post<Body>(`/api/admin/aviator/requests/${pending.id}/process`, { action: 'approve' })).status).toBe(200);
+    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body.balance).toBe(100);
 
-    const lost = await m.client.post<Body>('/api/aviator/rounds', { stake: 200 });
-    const lostId = lost.body.round.id as string;
-    await app.owner.query(`UPDATE aviator_rounds SET crash_x100 = 100 WHERE public_id = $1`, [lostId]);
-    expect((await m.client.get<Body>(`/api/aviator/rounds/${lostId}`)).body.round).toMatchObject({ status: 'crashed', crashX100: 100, payout: '0' });
-    const after = await m.client.post<Body>(`/api/aviator/rounds/${lostId}/cashout`, {});
-    expect(after.body.round.status).toBe('crashed');
-    expect(after.body.points).toBe((BigInt(cashed.body.points) - 200n).toString());
-    // Points are not money: no ledger rows.
+    const state = (await m.client.get<Body>('/api/aviator/game/state')).body;
+    expect(state.status).toBe('waiting');
+    await app.owner.query('UPDATE aviator_rounds SET crash_point = 5 WHERE id = $1', [state.round_id]);
+    const bet = await m.client.post<Body>('/api/aviator/game/bet', { amount: '10' });
+    expect(bet.status, JSON.stringify(bet.body)).toBe(200);
+    expect(bet.body.balance).toBe(90);
+    expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '10' })).status).toBe(409);
+    expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '1.234' })).status).toBe(400);
+
+    at(9); // one second after take-off: 1.1x
+    expect((await m.client.get<Body>('/api/aviator/game/state')).body.status).toBe('active');
+    expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '10' })).status).toBe(409);
+    const cash = await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bet.body.bet_id });
+    expect(cash.status, JSON.stringify(cash.body)).toBe(200);
+    expect(cash.body.multiplier).toBeCloseTo(1.1);
+    expect([cash.body.payout, cash.body.balance]).toEqual([11, 101]);
+
+    // Next round: the plane flies away at 1.00x and the bet is lost.
+    at(8 + Math.log(5) / Math.log(1.1) + 3.5);
+    // As in the project, one poll settles the crash and the next opens the new round.
+    expect((await m.client.get<Body>('/api/aviator/game/state')).body.status).toBe('crashed');
+    const next = (await m.client.get<Body>('/api/aviator/game/state')).body;
+    expect(next.status).toBe('waiting');
+    expect(next.round_id).not.toBe(state.round_id);
+    await app.owner.query('UPDATE aviator_rounds SET crash_point = 1.5 WHERE id = $1', [next.round_id]);
+    const lost = await m.client.post<Body>('/api/aviator/game/bet', { amount: '20' });
+    at(8 + Math.log(5) / Math.log(1.1) + 3.5 + 8 + 2); // in flight at 1.21x
+    expect((await m.client.get<Body>('/api/aviator/game/state')).body.status).toBe('active');
+    at(8 + Math.log(5) / Math.log(1.1) + 3.5 + 8 + 10); // past the 1.5x crash
+    expect((await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: lost.body.bet_id })).body.status).toBe('crashed');
+    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body.balance).toBe(81);
+    expect((await m.client.get<Body>('/api/aviator/game/history')).body.map((r: Body) => r.crash_point)).toContain(1.5);
+    // Demo credits are not money: no ledger rows.
     expect((await app.owner.query(`SELECT 1 FROM ledger_transactions WHERE ref_type = 'aviator'`)).rowCount).toBe(0);
+    app.services.now = () => new Date();
   });
 });
