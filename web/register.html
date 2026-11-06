@@ -49,9 +49,19 @@
 
         <div class="zx-field">
           <label for="phone">Mobile Number</label>
+          <div class="zx-dialpick">
           <div class="zx-input-group zx-phone">
-            <select id="phone-dial" class="zx-input-group__addon zx-phone__dial zx-phone__dial--select" aria-label="Country code"><option value="">+</option></select>
+            <button id="phone-dial" class="zx-input-group__addon zx-phone__dial zx-dialpick__btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="dial-panel" aria-label="Country code">
+              <img id="dial-flag" class="zx-flag" alt="" width="24" height="18" hidden>
+              <span id="dial-code">+</span>
+              <svg class="zx-icon zx-dialpick__chev" aria-hidden="true"><use href="/img/icons.svg#chevron-down"></use></svg>
+            </button>
             <input id="phone" class="zx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" required placeholder="700 123456">
+          </div>
+          <div id="dial-panel" class="zx-dialpick__panel" hidden>
+            <input id="dial-search" class="zx-input" type="search" autocomplete="off" placeholder="Search country or code" aria-label="Search country or code">
+            <ul id="dial-list" class="zx-dialpick__list" aria-label="Countries"></ul>
+          </div>
           </div>
           <div class="zx-hint">Payouts go to this number.</div>
         </div>

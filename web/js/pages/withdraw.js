@@ -19,7 +19,8 @@ function statusText(w) {
   const fee = formatMoney(w.feeMinor, w.currency);
   switch (w.status) {
     case 'requested':
-      return ['Withdrawal Initiated Successfully', ['Your request for ', amount, ' has been queued for processing. A total of ', total, ` (incl. ${fee} in fees) was deducted from your balance.`]];
+      // The owner's wording (2026-11-06).
+      return ['Congratulations, Withdrawal Initiated Successfully', ['Your request for ', amount, ' has been processed. A total of ', total, ` (including charges of ${fee}) was deducted from your balance.`]];
     case 'approved':
       return ['Withdrawal Approved', ['Your request for ', amount, ` is approved and will be sent to ${w.payoutPhone} shortly.`]];
     case 'processing':
@@ -44,8 +45,18 @@ function showStatus(w) {
     return;
   }
   box.className = `zx-wd-status zx-wd-status--${w.status}`;
+  // The transaction details under the message (owner, 2026-11-06).
+  const row = (label, value) => [h('dt', {}, label), h('dd', {}, value)];
   box.replaceChildren(h('h2', { class: 'zx-wd-status__title' }, text[0]), h('p', { class: 'zx-wd-status__text' }, ...text[1]),
-    h('p', { class: 'zx-wd-status__ref' }, `Reference ${w.reference}`));
+    h('dl', { class: 'zx-wd-status__details' },
+      ...row('Reference', w.reference),
+      ...row('Date', formatDate(w.createdAt, { withTime: true })),
+      ...row('Amount', formatMoney(w.amountMinor, w.currency)),
+      ...row('Charges', formatMoney(w.feeMinor, w.currency)),
+      ...row('Total deducted', formatMoney(w.totalMinor, w.currency)),
+      ...row('Sent to', w.payoutPhone),
+      ...row('Method', w.channel?.name ?? '-'),
+      ...row('Status', w.status.charAt(0).toUpperCase() + w.status.slice(1))));
   box.hidden = false;
 }
 

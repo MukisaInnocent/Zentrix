@@ -35,16 +35,74 @@ async function detectCountry() {
   return guessFromLanguage();
 }
 
+// The country code picker (owner, 2026-11-06): each country's flag, full name and code. Choosing one also picks the
+// country below. Flags are local images (web/img/flags, flag-icons, MIT).
+const flagSrc = code => `/img/flags/${code.toLowerCase()}.svg`;
+
+function showDial(country) {
+  const flag = $('#dial-flag');
+  flag.hidden = !country;
+  if (country) flag.src = flagSrc(country.code);
+  $('#dial-code').textContent = country ? `+${country.dialCode}` : '+';
+  $('#phone-dial').setAttribute('aria-label', country ? `Country code: ${country.name} +${country.dialCode}` : 'Country code');
+}
+
+function bindDialPicker(onPick) {
+  const btn = $('#phone-dial');
+  const panel = $('#dial-panel');
+  const search = $('#dial-search');
+  const list = $('#dial-list');
+  const items = countries.map(c => {
+    const item = h('button', { type: 'button', class: 'zx-dialpick__item', dataset: { code: c.code } },
+      h('img', { class: 'zx-flag', src: flagSrc(c.code), alt: '', width: '24', height: '18', loading: 'lazy' }),
+      h('span', { class: 'zx-dialpick__name' }, c.name),
+      h('span', { class: 'zx-dialpick__code' }, `+${c.dialCode}`));
+    return { c, li: h('li', {}, item), text: `${c.name} +${c.dialCode} ${c.code}`.toLowerCase() };
+  });
+  list.replaceChildren(...items.map(i => i.li));
+
+  const close = (focusBtn = false) => {
+    panel.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    if (focusBtn) btn.focus();
+  };
+  const open = () => {
+    panel.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    search.value = '';
+    for (const i of items) i.li.hidden = false;
+    search.focus();
+    list.querySelector(`[data-code="${$('#country').value}"]`)?.scrollIntoView({ block: 'center' });
+  };
+  btn.addEventListener('click', () => (panel.hidden ? open() : close()));
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    for (const i of items) i.li.hidden = q !== '' && !i.text.includes(q);
+  });
+  list.addEventListener('click', e => {
+    const item = e.target instanceof Element ? e.target.closest('[data-code]') : null;
+    if (!item) return;
+    onPick(item.dataset.code);
+    close(true);
+  });
+  panel.addEventListener('keydown', e => {
+    if (e.key === 'Escape') close(true);
+  });
+  document.addEventListener('click', e => {
+    if (!panel.hidden && e.target instanceof Node && !panel.contains(e.target) && !btn.contains(e.target)) close();
+  });
+}
+
 async function applyCountry(code) {
   const country = countries.find(c => c.code === code);
   const hint = $('#country-hint');
   if (!country) {
     hint.textContent = '';
-    $('#phone-dial').value = '';
+    showDial(null);
     return;
   }
   dial = `+${country.dialCode}`;
-  $('#phone-dial').value = country.code;
+  showDial(country);
   try {
     await loadCurrencies();
     const { config } = await api.get(`/api/reference/config/${country.code}`, { noRedirect: true });
@@ -60,13 +118,9 @@ async function loadCountries() {
   select.replaceChildren(h('option', { value: '' }, 'Choose your country'), ...countries.map(c => h('option', { value: c.code }, `${c.name} (${c.currency})`)));
   const wanted = new URLSearchParams(location.search).get('country')?.toUpperCase() ?? (await detectCountry());
   if (wanted && countries.some(c => c.code === wanted)) select.value = wanted;
-  // One choice per country (several countries share a code, such as +1), sorted by code.
-  const dialSelect = $('#phone-dial');
-  const byCode = [...countries].sort((a, b) => Number(a.dialCode) - Number(b.dialCode) || a.name.localeCompare(b.name));
-  dialSelect.replaceChildren(h('option', { value: '' }, '+'), ...byCode.map(c => h('option', { value: c.code, title: c.name }, `+${c.dialCode} ${c.code}`)));
-  dialSelect.addEventListener('change', () => {
-    select.value = dialSelect.value;
-    void applyCountry(select.value);
+  bindDialPicker(code => {
+    select.value = code;
+    void applyCountry(code);
   });
   select.addEventListener('change', () => void applyCountry(select.value));
   await applyCountry(select.value);

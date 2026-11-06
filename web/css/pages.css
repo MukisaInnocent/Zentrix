@@ -224,7 +224,20 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
   .zx-auth-layout--single { grid-template-columns: minmax(0, 1fr); }
 }
 .zx-phone__dial { min-inline-size: 64px; justify-content: center; border-inline-end: 1px solid var(--zx-border); font-variant-numeric: tabular-nums; }
-.zx-phone__dial--select { appearance: auto; border-block: 0; border-inline-start: 0; font: inherit; font-weight: 700; color: var(--zx-text); max-inline-size: 110px; cursor: pointer; }
+/* Country code picker on sign-up (owner, 2026-11-06): flag, full country name and code. */
+.zx-dialpick { position: relative; }
+.zx-dialpick__btn { gap: 6px; border-block: 0; border-inline-start: 0; font: inherit; font-weight: 700; color: var(--zx-text); cursor: pointer; }
+.zx-dialpick__chev { inline-size: 14px; block-size: 14px; opacity: .7; }
+.zx-flag { inline-size: 24px; block-size: 18px; border-radius: 2px; object-fit: cover; box-shadow: 0 0 0 1px rgb(0 0 0 / .12); flex: none; }
+.zx-flag[hidden] { display: none; }
+.zx-dialpick__panel { position: absolute; inset-inline: 0; inset-block-start: calc(100% + 4px); z-index: 20; display: grid; gap: var(--zx-space-2); padding: var(--zx-space-2); border: 1px solid var(--zx-border); border-radius: 12px; background: var(--zx-surface); box-shadow: 0 12px 32px rgb(0 0 0 / .18); }
+.zx-dialpick__panel[hidden] { display: none; }
+.zx-dialpick__list { list-style: none; margin: 0; padding: 0; max-block-size: 280px; overflow-y: auto; }
+.zx-dialpick__list li[hidden] { display: none; }
+.zx-dialpick__item { display: flex; align-items: center; gap: var(--zx-space-3); inline-size: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--zx-text); font: inherit; text-align: start; cursor: pointer; }
+.zx-dialpick__item:hover, .zx-dialpick__item:focus-visible { background: var(--zx-surface-2); }
+.zx-dialpick__name { flex: 1; }
+.zx-dialpick__code { color: var(--zx-text-muted); font-variant-numeric: tabular-nums; }
 .zx-invited { display: flex; align-items: center; gap: var(--zx-space-3); padding: var(--zx-space-2) var(--zx-space-3); }
 .zx-invited > .zx-icon { color: var(--zx-text-muted); }
 .zx-invited__label { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--zx-text-muted); }
@@ -311,3 +324,8 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 .zx-wd-status__title { margin: 0 0 var(--zx-space-2); font-size: 1.35rem; color: inherit; }
 .zx-wd-status__text { margin: 0; font-size: 1.05rem; line-height: 1.5; color: inherit; }
 .zx-wd-status__ref { margin: var(--zx-space-2) 0 0; font-size: .85rem; opacity: .9; color: inherit; }
+.zx-wa__live { text-decoration: none; }
+.zx-wa__avatar--live { background: var(--zx-success); }
+.zx-wd-status__details { display: grid; grid-template-columns: max-content 1fr; gap: 4px var(--zx-space-4); margin: var(--zx-space-3) 0 0; padding-block-start: var(--zx-space-3); border-block-start: 1px solid rgb(255 255 255 / .35); font-size: .95rem; }
+.zx-wd-status__details dt { opacity: .9; }
+.zx-wd-status__details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }

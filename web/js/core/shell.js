@@ -8,6 +8,8 @@ import { toast } from './toast.js';
 // children render as expandable groups, nested as deep as needed (Referrals > Level 1 > Overview). `bottom: true`
 // puts an item in the phone bar, using its href.
 const REF = '/referrals.html';
+// The owner's live chat page (2026-11-06).
+export const LIVE_CHAT_URL = 'https://share.google/KuuhsWdjmOoo1l9CD';
 const MEMBER_NAV = [
   { group: 'nav.group.main', items: [{ id: 'dashboard', href: '/dashboard.html', icon: 'home', label: 'nav.dashboard', bottom: true }] },
   {
@@ -41,6 +43,8 @@ const MEMBER_NAV = [
         children: [
           { id: 'chat-invite', href: '/chat.html?tab=invite', label: 'nav.inviteChat' },
           { id: 'chat-foreign', href: '/chat.html?tab=foreign', label: 'nav.foreignChat' },
+          // Live chat with support, on an outside page the owner chose (owner, 2026-11-06).
+          { id: 'chat-live', href: LIVE_CHAT_URL, label: 'nav.liveChat', external: true },
         ],
       },
     ],
@@ -53,6 +57,10 @@ const MEMBER_NAV = [
       { id: 'ads', href: '/adsearn.html', icon: 'pointer', label: 'nav.ads' },
       { id: 'trivia', href: '/trivia.html', icon: 'help', label: 'nav.trivia' },
       { id: 'leaderboard', href: '/leaderboard.html', icon: 'trophy', label: 'nav.leaderboard' },
+      // Coming soon (owner, 2026-11-06): built once the owner gives their logic.
+      { id: 'betting', icon: 'chart', label: 'nav.bettingTips', soon: true },
+      { id: 'aviator', icon: 'send', label: 'nav.aviator', soon: true },
+      { id: 'loans', icon: 'coins', label: 'nav.quickLoans', soon: true },
     ],
   },
   {
@@ -176,6 +184,9 @@ function navItem(item, page) {
   }
   if (item.action === 'logout') {
     return h('button', { type: 'button', class: 'zx-nav__item', dataset: { action: 'logout' } }, icon(item.icon), h('span', {}, label));
+  }
+  if (item.external) {
+    return h('a', { class: 'zx-nav__item', href: item.href, target: '_blank', rel: 'noopener noreferrer' }, item.icon ? icon(item.icon) : null, h('span', {}, label));
   }
   return h('a', { class: 'zx-nav__item', href: item.href, 'aria-current': isCurrent(item, page) ? 'page' : undefined }, item.icon ? icon(item.icon) : null, h('span', {}, label));
 }
