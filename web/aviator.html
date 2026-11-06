@@ -4,54 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aviator · Pexerearn</title>
-<meta name="description" content="Aviator with demo credits.">
+<meta name="description" content="Aviator is coming soon.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/aviator.css">
 <script src="/js/theme-init.js"></script>
 <script type="module" src="/js/app.js"></script>
 </head>
-<body data-page="aviator" data-shell="app">
+<body data-page="aviator-soon" data-shell="app">
 <main id="main">
 <div class="zx-page">
-<!-- The owner's Aviator project (dashboard and wallet pages), brought over as it is (owner, 2026-11-06). -->
-<div class="avx">
-  <div id="message-box" class="avx-alert" role="status" aria-live="polite"></div>
-  <div class="avx-top">
-    <h1>Aviator</h1>
-    <span class="avx-balance">Demo credits: <strong id="nav-balance" class="nav-balance" data-value="0">0.00 cr</strong></span>
+  <div class="zx-page-head">
+    <div>
+      <h1>Aviator</h1>
+      <p>Coming soon.</p>
+    </div>
   </div>
-
-
-  <div class="wallet-layout">
-    <section class="card">
-      <h2>Demo credits</h2>
-      <div class="segmented" role="tablist">
-        <button type="button" role="tab" data-tab="deposit" aria-selected="true">Request credits</button>
-        <button type="button" role="tab" data-tab="withdraw" aria-selected="false">Remove credits</button>
-      </div>
-      <form id="dep-form" class="request-form">
-        <p>Ask an administrator to top up your demo credits.</p>
-        <div class="input-row">
-          <input type="number" id="dep-amount" placeholder="Credits" min="0.01" step="0.01" aria-label="Credits to request">
-          <button type="submit" class="btn-success">Submit</button>
-        </div>
-      </form>
-      <form id="with-form" class="request-form" hidden>
-        <p>This only adjusts demo credits; it does not transfer or pay out money.</p>
-        <div class="input-row">
-          <input type="number" id="with-amount" placeholder="Credits" min="0.01" step="0.01" aria-label="Credits to remove">
-          <button type="submit">Submit</button>
-        </div>
-      </form>
-    </section>
-    <aside class="card">
-      <h2>Activity</h2>
-      <ul class="tx-list" id="trans-list"><li class="history-empty">Loading...</li></ul>
-    </aside>
-  </div>
-</div>
+  <section class="zx-card zx-stack-3 zx-soon-card">
+    <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#clock"></use></svg>
+    <h2>Aviator is coming soon</h2>
+    <p class="zx-hint">We are getting Aviator ready. We will tell you on the dashboard and by email when you can play.</p>
+    <a class="zx-btn zx-btn--fit" href="/dashboard.html">Back to the dashboard</a>
+  </section>
 </div>
 </main>
 </body>
