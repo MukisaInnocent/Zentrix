@@ -4,7 +4,7 @@ import { startTestApp, type TestApp } from '../helpers/app.js';
 import type { TestClient } from '../helpers/client.js';
 import { createStaff, loginStaff, registerMember, type Member } from '../helpers/factories.js';
 
-// Member chat: invite contacts, random matches across countries, blocks and reports. Activation runs through the
+// Member chat between a member and their direct inviter or direct invitees, blocks and reports (owner, 2026-11-08). Activation runs through the
 // test autopilot so each member is activated the real way.
 let app: TestApp;
 let support: TestClient;
@@ -71,27 +71,30 @@ describe('invite chat', () => {
   });
 });
 
-describe('chat with foreigners', () => {
-  it('matches a random activated member from another country, and never a blocked one', async () => {
-    // Every other member in this file is Ugandan, so the Kenyan is the only possible match for a Ugandan.
+describe('chat with foreigners (owner, 2026-11-08: an outside live chat page)', () => {
+  it('makes no random matches and pays no chat rewards; older foreign chats are closed; blocks still work for invite chats', async () => {
     const ugandan = await member();
     const kenyan = await member({ country: 'KE', phone: kenyanPhone() });
-    const match = await ugandan.client.post<Body>('/api/chat/match', {});
-    expect(match.status, JSON.stringify(match.body)).toBe(201);
-    expect(match.body.conversation).toMatchObject({ username: kenyan.input.username, country: 'KE' });
-    const id = match.body.conversation.id as string;
-    expect((await ugandan.client.get<Body>(`/api/chat/conversations/${id}`)).body.conversation.kind).toBe('foreign');
-    expect((await kenyan.client.post<Body>('/api/chat/match', {})).body.conversation.country).toBe('UG');
+    expect((await ugandan.client.post<Body>('/api/chat/match', {})).body.error?.code).toBe('chat.foreign_closed');
 
-    // The Kenyan blocks the Ugandan: no messages either way, and no more matches between them.
-    expect((await kenyan.client.post<Body>('/api/chat/blocks', { username: ugandan.input.username })).status).toBe(201);
-    expect((await ugandan.client.post<Body>(`/api/chat/conversations/${id}/messages`, { body: 'hello?' })).body.error?.code).toBe('chat.blocked');
-    expect((await kenyan.client.post<Body>(`/api/chat/conversations/${id}/messages`, { body: 'hello?' })).body.error?.code).toBe('chat.blocked');
-    expect((await ugandan.client.post<Body>('/api/chat/match', {})).body.error?.code).toBe('chat.no_match');
-    expect((await kenyan.client.get<Body>('/api/chat/blocks')).body.blocked.map((b: Body) => b.username)).toEqual([ugandan.input.username]);
+    // A foreign chat made before the change is no longer listed, opened, written to or rewarded.
+    const idOf = async (m: Member) => Number((await app.owner.query<{ id: string }>('SELECT id FROM users WHERE username = $1', [m.input.username])).rows[0]!.id);
+    const [a, b] = [await idOf(ugandan), await idOf(kenyan)].sort((x, y) => x - y);
+    const id = (await app.owner.query<{ public_id: string }>(
+      `INSERT INTO chat_conversations (kind, user_a_id, user_b_id) VALUES ('foreign', $1, $2) RETURNING public_id`, [a, b],
+    )).rows[0]!.public_id;
+    expect((await ugandan.client.get<Body>('/api/chat/conversations')).body.conversations).toEqual([]);
+    expect((await ugandan.client.get<Body>(`/api/chat/conversations/${id}`)).status).toBe(404);
+    expect((await kenyan.client.post<Body>(`/api/chat/conversations/${id}/messages`, { body: 'hello?' })).status).toBe(404);
+    expect((await ugandan.client.post<Body>(`/api/chat/conversations/${id}/claim`, {}, key())).body.error?.code).toBe('chat.foreign_closed');
 
-    expect((await kenyan.client.delete<Body>(`/api/chat/blocks/${ugandan.input.username}`)).status).toBe(200);
-    expect((await ugandan.client.post<Body>(`/api/chat/conversations/${id}/messages`, { body: 'Hi again' })).status).toBe(201);
+    // Invite chats keep blocks: the inviter blocks the member, so no messages either way until unblocked.
+    const invited = await member({ referralCode: ugandan.input.username });
+    const chat = (await invited.client.post<Body>('/api/chat/conversations', { username: ugandan.input.username })).body.conversation.id as string;
+    expect((await ugandan.client.post<Body>('/api/chat/blocks', { username: invited.input.username })).status).toBe(201);
+    expect((await invited.client.post<Body>(`/api/chat/conversations/${chat}/messages`, { body: 'hello?' })).body.error?.code).toBe('chat.blocked');
+    expect((await ugandan.client.delete<Body>(`/api/chat/blocks/${invited.input.username}`)).status).toBe(200);
+    expect((await invited.client.post<Body>(`/api/chat/conversations/${chat}/messages`, { body: 'Hi again' })).status).toBe(201);
   });
 });
 
@@ -117,52 +120,5 @@ describe('chat reports', () => {
     expect((await support.post<Body>(`/api/admin/chats/reports/${mine.id}/close`, { note: 'Again' })).body.error?.code).toBe('chat.report_closed');
     // Messages cannot be edited or deleted, even by the database owner.
     await expect(app.owner.query(`UPDATE chat_messages SET body = 'x'`)).rejects.toBeDefined();
-  });
-});
-
-describe('chat with foreigners rewards (owner, 2026-11-06)', () => {
-  it('pays a virtual, non-withdrawable reward once per chat when claimed, after the member chatted and the other replied', async () => {
-    const me = await member();
-    const them = await member({ country: 'KE', phone: kenyanPhone() });
-    const idOf = async (m: Member) => Number((await app.owner.query<{ id: string }>('SELECT id FROM users WHERE username = $1', [m.input.username])).rows[0]!.id);
-    const [a, b] = [await idOf(me), await idOf(them)].sort((x, y) => x - y);
-    const id = (await app.owner.query<{ public_id: string }>(
-      `INSERT INTO chat_conversations (kind, user_a_id, user_b_id) VALUES ('foreign', $1, $2) RETURNING public_id`, [a, b],
-    )).rows[0]!.public_id;
-    const claim = () => me.client.post<Body>(`/api/chat/conversations/${id}/claim`, {}, key());
-    const say = async (who: Member, body: string) => expect((await who.client.post<Body>(`/api/chat/conversations/${id}/messages`, { body })).status).toBe(201);
-
-    // UGX 200 by default, for a UGX member.
-    expect((await me.client.get<Body>(`/api/chat/conversations/${id}`)).body.reward).toMatchObject({ amountMinor: '200', currency: 'UGX', claimed: false, claimable: false });
-    expect((await me.client.post<Body>(`/api/chat/conversations/${id}/claim`, {})).body.error?.code).toBe('idempotency.missing');
-    await say(me, 'Hello');
-    await say(me, 'Where are you from?');
-    expect((await claim()).body.error?.code).toBe('chat.reward_not_ready');
-    await say(me, 'I am in Kampala');
-    expect((await me.client.get<Body>(`/api/chat/conversations/${id}`)).body.reward.needs).toBe('Wait for a reply to claim.');
-    await say(them, 'Nairobi');
-
-    const before = (await me.client.get<Body>('/api/wallet/summary')).body;
-    const paid = await claim();
-    expect(paid.status, JSON.stringify(paid.body)).toBe(201);
-    expect(paid.body.reward).toMatchObject({ amountMinor: '200', claimed: true });
-    const after = (await me.client.get<Body>('/api/wallet/summary')).body;
-    expect(BigInt(after.taskBalancesMinor.chat) - BigInt(before.taskBalancesMinor.chat ?? '0')).toBe(200n);
-    expect(after.availableBalanceMinor).toBe(before.availableBalanceMinor); // never the withdrawable balance
-    expect((await claim()).body.error?.code).toBe('chat.reward_claimed');
-
-    // Issued from task_credit, through the ledger.
-    const txn = await app.owner.query(`SELECT kind FROM ledger_transactions WHERE ref_type = 'chat' AND ref_id = $1`, [id]);
-    expect(txn.rows.map(r => r.kind)).toEqual(['chat_reward']);
-    // Chat earnings cannot be withdrawn.
-    expect((await me.client.post<Body>('/api/payments/withdrawals', { source: 'chat', amount: '200' }, key())).body.error?.code).toBe('withdrawal.task_balance');
-  });
-
-  it('pays nothing for invite chats', async () => {
-    const inviter = await member();
-    const me = await member({ referralCode: inviter.input.username });
-    const id = (await me.client.post<Body>('/api/chat/conversations', { username: inviter.input.username })).body.conversation.id as string;
-    expect((await me.client.get<Body>(`/api/chat/conversations/${id}`)).body.reward).toBeNull();
-    expect((await me.client.post<Body>(`/api/chat/conversations/${id}/claim`, {}, key())).body.error?.code).toBe('chat.no_reward');
   });
 });

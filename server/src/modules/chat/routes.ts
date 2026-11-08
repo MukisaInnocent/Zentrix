@@ -3,12 +3,10 @@ import { z } from 'zod';
 import { withTransaction } from '../../db/tx.js';
 import { limiter } from '../../http/rate-limit.js';
 import { parse } from '../../http/validate.js';
-import { badRequest } from '../../lib/errors.js';
+import { badRequest, conflict } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
-import { idempotent } from '../ledger/idempotency.js';
-import { chatReward, claimChatReward } from './rewards.js';
-import { block, findConversation, listBlocked, listContacts, listConversations, matchForeign, openInviteConversation, readConversation, report, sendMessage, unblock } from './service.js';
+import { block, listBlocked, listContacts, listConversations, openInviteConversation, readConversation, report, sendMessage, unblock } from './service.js';
 
 const Username = z.strictObject({ username: z.string().trim().min(3, { error: 'Enter a username.' }).max(40) });
 const MessageBody = z.strictObject({ body: z.string().trim().min(1, { error: 'Write a message.' }).max(1000, { error: 'Keep messages under 1,000 characters.' }) });
@@ -22,7 +20,7 @@ function conversationId(value: unknown): string {
   return id.data;
 }
 
-// Member chat: invite contacts and random matches with members in other countries. See service.ts.
+// Member chat between a member and their direct inviter or direct invitees only (owner, 2026-11-08). See service.ts.
 export function chatRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
@@ -44,9 +42,10 @@ export function chatRouter(services: Services): Router {
     res.status(201).json({ conversation: { id } });
   });
 
-  router.post('/match', limiter(pool, { name: 'chat-match', windowMs: 60 * 60_000, limit: 20, key: byUser }), async (req, res) => {
-    const match = await withTransaction(pool, db => matchForeign(db, me(req)));
-    res.status(201).json({ conversation: { id: match.conversationId, username: match.username, country: match.country } });
+  // Chat with foreigners is an outside live chat page now (owner, 2026-11-08): no random matches and no new rewards.
+  const closed = () => conflict('chat.foreign_closed', 'Chat with foreigners is on the live chat page now.');
+  router.post('/match', () => {
+    throw closed();
   });
 
   router.get('/conversations/:id', async (req, res) => {
@@ -54,15 +53,13 @@ export function chatRouter(services: Services): Router {
     res.json(await withTransaction(pool, async db => {
       const id = conversationId(req.params.id);
       const data = await readConversation(db, me(req), id, after);
-      return { ...data, reward: await chatReward(db, me(req), await findConversation(db, me(req), id)) };
+      return { ...data, reward: null };
     }));
   });
 
   // Chat with foreigners reward (owner, 2026-11-06): virtual money, paid at once when the member claims it.
-  router.post('/conversations/:id/claim', limiter(pool, { name: 'chat-claim', windowMs: 60 * 60_000, limit: 30, key: byUser }), async (req, res) => {
-    const id = conversationId(req.params.id);
-    const result = await idempotent(pool, req, `chat.claim.${id}`, async db => ({ status: 201, body: { reward: await claimChatReward(db, me(req), id) } }));
-    res.status(result.status).json(result.body);
+  router.post('/conversations/:id/claim', () => {
+    throw closed();
   });
 
   router.post('/conversations/:id/messages', limiter(pool, { name: 'chat-message', windowMs: 60_000, limit: 30, key: byUser }), async (req, res) => {

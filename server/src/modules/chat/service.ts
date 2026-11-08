@@ -80,6 +80,12 @@ export async function matchForeign(db: Db, userId: number): Promise<{ conversati
   return { conversationId: await conversationFor(db, 'foreign', userId, Number(match.id)), username: match.username, country: match.country_code };
 }
 
+// Members chat only with their direct inviter and the people they invited directly (owner, 2026-11-08). Chats with
+// foreigners moved to an outside live chat page, so older foreign chats (and any chat whose invite link changed)
+// are no longer listed or opened.
+const DIRECT = `c.kind = 'invite' AND EXISTS (SELECT 1 FROM users x WHERE (x.id = c.user_a_id AND x.referred_by_user_id = c.user_b_id)
+  OR (x.id = c.user_b_id AND x.referred_by_user_id = c.user_a_id))`;
+
 export async function listConversations(db: Db, userId: number) {
   const list = await rows<{
     public_id: string; kind: ChatKind; username: string; country_code: string; last_body: string | null; last_message_at: Date | null; unread: string; blocked: boolean;
@@ -90,7 +96,7 @@ export async function listConversations(db: Db, userId: number) {
             (SELECT count(*) FROM chat_messages m WHERE m.conversation_id = c.id AND m.sender_user_id <> $1
                AND m.id > CASE WHEN c.user_a_id = $1 THEN c.a_last_read_id ELSE c.b_last_read_id END) AS unread
      FROM chat_conversations c JOIN users u ON u.id = CASE WHEN c.user_a_id = $1 THEN c.user_b_id ELSE c.user_a_id END
-     WHERE c.user_a_id = $1 OR c.user_b_id = $1
+     WHERE (c.user_a_id = $1 OR c.user_b_id = $1) AND ${DIRECT}
      ORDER BY coalesce(c.last_message_at, c.created_at) DESC LIMIT 100`,
     [userId],
   );
@@ -102,7 +108,7 @@ export async function listConversations(db: Db, userId: number) {
 
 // A conversation the member is part of (anyone else gets "not found").
 export async function findConversation(db: Db, userId: number, publicId: string): Promise<ConversationRow & { other_id: number }> {
-  const c = await maybeOne<ConversationRow>(db, 'SELECT * FROM chat_conversations WHERE public_id = $1', [publicId]);
+  const c = await maybeOne<ConversationRow>(db, `SELECT * FROM chat_conversations c WHERE c.public_id = $1 AND ${DIRECT}`, [publicId]);
   if (!c || (Number(c.user_a_id) !== userId && Number(c.user_b_id) !== userId)) throw notFound();
   return { ...c, other_id: Number(c.user_a_id) === userId ? Number(c.user_b_id) : Number(c.user_a_id) };
 }

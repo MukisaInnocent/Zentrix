@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chat · Pexerearn</title>
-<meta name="description" content="Chat with the people you invited, the person who invited you, and members in other countries.">
+<meta name="description" content="Chat with the person who invited you and the people you invited.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -16,8 +16,8 @@
 <div class="zx-page">
   <div class="zx-page-head">
     <div>
-      <h1 id="chat-title">Chat</h1>
-      <p id="chat-lead"></p>
+      <h1 id="chat-title">Invite chat</h1>
+      <p id="chat-lead">Chat with the person who invited you and the people you invited directly.</p>
     </div>
   </div>
   <div class="zx-banner zx-banner--warning"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#shield"></use></svg><span class="zx-banner__text">Chat is free. Never share your PIN, password or sign-in codes, and never send money to someone because of a chat. Staff never ask for these. Report anyone who does.</span></div>
@@ -29,18 +29,8 @@
       <div class="zx-wa__side-head">
         <h2 id="conversations-title">Chats</h2>
       </div>
-      <a id="live-chat" class="zx-wa__item zx-wa__live" hidden href="https://share.google/KuuhsWdjmOoo1l9CD" target="_blank" rel="noopener noreferrer">
-        <span class="zx-wa__avatar zx-wa__avatar--live" aria-hidden="true"><svg class="zx-icon"><use href="/img/icons.svg#headphones"></use></svg></span>
-        <span class="zx-wa__text"><span class="zx-wa__name">Live chat</span><span class="zx-wa__last">Chat live with people from other countries</span></span>
-        <span class="zx-wa__aside"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#external"></use></svg></span>
-      </a>
-      <div id="match-card" class="zx-wa__match" hidden>
-        <p class="zx-hint">Meet an activated member from another country. You only see each other's username and country.</p>
-        <div id="match-alert" class="zx-error zx-error--slot" role="alert"></div>
-        <button id="match-btn" class="zx-btn" type="button">Find someone to chat with</button>
-      </div>
       <ul id="conversations-list" class="zx-wa__list" aria-label="Conversations"><li class="zx-wa__empty">Loading...</li></ul>
-      <div id="contacts-card" hidden>
+      <div id="contacts-card">
         <h3 class="zx-wa__group">Your invite contacts</h3>
         <ul id="contacts-list" class="zx-wa__list" aria-label="Invite contacts"><li class="zx-wa__empty">Loading...</li></ul>
       </div>
@@ -61,11 +51,6 @@
             <button id="report-btn" class="zx-btn zx-btn--ghost zx-btn--sm" type="button">Report</button>
           </span>
         </header>
-        <div id="reward-bar" class="zx-wa__reward" hidden>
-          <svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#gift"></use></svg>
-          <span id="reward-text" class="zx-wa__reward-text"></span>
-          <button id="claim-btn" class="zx-btn zx-btn--sm" type="button">Claim reward</button>
-        </div>
         <div id="thread" class="zx-wa__thread" aria-live="polite"></div>
         <form id="message-form" class="zx-wa__composer">
           <div id="message-alert" class="zx-error zx-error--slot zx-wa__alert" role="alert"></div>

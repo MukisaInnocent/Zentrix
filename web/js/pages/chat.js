@@ -1,19 +1,14 @@
-import { api, ApiError, newIdempotencyKey } from '../core/api.js';
+import { api, ApiError } from '../core/api.js';
 import { $, h, setBusy } from '../core/dom.js';
 import { askForm } from '../core/dialogs.js';
-import { formatDate, formatMoney } from '../core/format.js';
+import { formatDate } from '../core/format.js';
 import { toast } from '../core/toast.js';
 
-// Member chat. "Invite chat" lists the person who invited you and the people you invited; "Chat with foreigners"
-// pairs you with a random activated member from another country. Chat is free and shows usernames only. Messages
-// arrive by polling while a chat is open. Messenger layout (owner, 2026-11-06): chat list, bubbles, composer bar.
-const TABS = {
-  invite: { title: 'Invite chat', lead: 'Chat with the person who invited you and the people you invited.', list: 'Chats' },
-  foreign: { title: 'Chat with foreigners', lead: 'Chat with members in other countries, found by random match.', list: 'Chats with foreigners' },
-};
+// Member chat between a member and the person who invited them or the people they invited directly (owner,
+// 2026-11-08; Chat with foreigners is the outside live chat page, /chat-foreigners). Chat is free and shows usernames
+// only. Messages arrive by polling while a chat is open. Messenger layout (owner, 2026-11-06).
 const POLL_MS = 5000;
 
-let tab = 'invite';
 let open = null; // { id, username, blocked, lastId }
 
 const errorText = err => (err instanceof ApiError ? err.message : 'Connection error. Please try again.');
@@ -68,7 +63,7 @@ async function loadContacts() {
 
 async function loadConversations() {
   const { conversations } = await api.get('/api/chat/conversations');
-  const list = conversations.filter(c => c.kind === tab);
+  const list = conversations;
   $('#conversations-list').replaceChildren(...(list.length
     ? list.map(c => listItem({
       username: c.username,
@@ -78,7 +73,7 @@ async function loadConversations() {
       current: open?.id === c.id,
       onClick: () => void openConversation(c.id),
     }))
-    : [emptyItem(tab === 'invite' ? 'No chats yet. Start one from your contacts below.' : 'No chats yet. Press the button above to meet someone.')]));
+    : [emptyItem('No chats yet. Start one from your contacts below.')]));
 }
 
 async function loadBlocked() {
@@ -112,17 +107,6 @@ function messageEls(m) {
   return out;
 }
 
-// Chat with foreigners reward (owner, 2026-11-06): the server says the amount and whether it can be claimed.
-function renderReward(reward) {
-  const bar = $('#reward-bar');
-  bar.hidden = !reward;
-  if (!reward) return;
-  const amount = formatMoney(reward.amountMinor, reward.currency);
-  $('#reward-text').textContent = reward.claimed ? `Reward claimed: ${amount}` : reward.claimable ? `Chat reward: ${amount}` : `Chat reward ${amount}. ${reward.needs ?? ''}`;
-  $('#claim-btn').hidden = reward.claimed;
-  $('#claim-btn').disabled = !reward.claimable;
-}
-
 function renderThreadHeader() {
   $('#thread-title').textContent = open.username;
   $('#thread-sub').textContent = open.country;
@@ -150,7 +134,6 @@ async function fetchNewMessages() {
   if (open !== current) return; // the member opened another chat meanwhile
   Object.assign(open, { username: data.conversation.username, country: data.conversation.country, blocked: data.conversation.blocked });
   renderThreadHeader();
-  renderReward(data.reward);
   const thread = $('#thread');
   if (open.lastId === 0 && !data.messages.length) thread.replaceChildren(h('p', { class: 'zx-wa__hint' }, 'No messages yet. Say hello.'));
   if (data.messages.length) {
@@ -177,35 +160,12 @@ async function openConversation(id) {
 }
 
 async function refreshAll() {
-  await Promise.all([tab === 'invite' ? loadContacts() : null, loadConversations(), loadBlocked(), open ? pullMessages() : null]);
+  await Promise.all([loadContacts(), loadConversations(), loadBlocked(), open ? pullMessages() : null]);
 }
 
 export async function init() {
-  const wanted = new URLSearchParams(location.search).get('tab');
-  tab = TABS[wanted] ? wanted : 'invite';
-  if (wanted !== tab) history.replaceState(null, '', `${location.pathname}?tab=${tab}`);
-  $('#chat-title').textContent = TABS[tab].title;
-  $('#chat-lead').textContent = TABS[tab].lead;
-  $('#conversations-title').textContent = TABS[tab].list;
-  $('#contacts-card').hidden = tab !== 'invite';
-  $('#match-card').hidden = tab !== 'foreign';
-  // Live chat sits under Chat with foreigners (owner, 2026-11-06).
-  $('#live-chat').hidden = tab !== 'foreign';
-
-  $('#match-btn').addEventListener('click', async e => {
-    const btn = e.currentTarget;
-    $('#match-alert').textContent = '';
-    setBusy(btn, true);
-    try {
-      const res = await api.post('/api/chat/match', {});
-      toast.success(`You are matched with @${res.conversation.username} (${res.conversation.country}).`);
-      await openConversation(res.conversation.id);
-    } catch (err) {
-      $('#match-alert').textContent = errorText(err);
-    } finally {
-      setBusy(btn, false);
-    }
-  });
+  // Old links to the foreign tab go to the live chat page (owner, 2026-11-08).
+  if (new URLSearchParams(location.search).get('tab') === 'foreign') return void location.replace('/chat-foreigners');
 
   $('#message-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -232,26 +192,11 @@ export async function init() {
     }
   });
 
-  $('#claim-btn').addEventListener('click', async e => {
-    if (!open) return;
-    const btn = e.currentTarget;
-    setBusy(btn, true);
-    try {
-      const res = await api.post(`/api/chat/conversations/${open.id}/claim`, {}, { idempotencyKey: newIdempotencyKey() });
-      toast.success(`${formatMoney(res.reward.amountMinor, res.reward.currency)} added to your chat rewards.`);
-      renderReward(res.reward);
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setBusy(btn, false);
-    }
-  });
-
   $('#block-btn').addEventListener('click', async () => {
     if (!open) return;
     const { username } = open;
     const done = await askForm({
-      title: `Block @${username}?`, text: 'Neither of you will be able to send messages, and you will not be matched again. You can unblock later.',
+      title: `Block @${username}?`, text: 'Neither of you will be able to send messages. You can unblock later.',
       submitLabel: 'Block', tone: 'danger',
       submit: () => api.post('/api/chat/blocks', { username }),
     });

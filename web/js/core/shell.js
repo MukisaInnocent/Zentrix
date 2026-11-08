@@ -37,14 +37,13 @@ const MEMBER_NAV = [
           ],
         })),
       },
-      // Member chat (owner, 2026-10-26): invite contacts, and random matches with members in other countries.
+      // Member chat (owner, 2026-11-08): invite chat with direct inviter and invitees only; Chat with foreigners is a
+      // page with a button to the owner's outside live chat.
       {
         id: 'chat', icon: 'message', label: 'nav.chat',
         children: [
           { id: 'chat-invite', href: '/chat?tab=invite', label: 'nav.inviteChat' },
-          { id: 'chat-foreign', href: '/chat?tab=foreign', label: 'nav.foreignChat' },
-          // Live chat with support, on an outside page the owner chose (owner, 2026-11-06).
-          { id: 'chat-live', href: LIVE_CHAT_URL, label: 'nav.liveChat', external: true },
+          { id: 'chat-foreigners', href: '/chat-foreigners', label: 'nav.foreignChat' },
         ],
       },
     ],
