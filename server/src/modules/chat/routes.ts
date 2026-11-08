@@ -6,6 +6,8 @@ import { parse } from '../../http/validate.js';
 import { badRequest, conflict } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
+import { idempotent } from '../ledger/idempotency.js';
+import { claimDailyChatReward, dailyChatReward, recordChatOpened } from './rewards.js';
 import { block, listBlocked, listContacts, listConversations, openInviteConversation, readConversation, report, sendMessage, unblock } from './service.js';
 
 const Username = z.strictObject({ username: z.string().trim().min(3, { error: 'Enter a username.' }).max(40) });
@@ -57,9 +59,23 @@ export function chatRouter(services: Services): Router {
     }));
   });
 
-  // Chat with foreigners reward (owner, 2026-11-06): virtual money, paid at once when the member claims it.
+  // Older per-chat reward claims are closed; the daily reward below replaces them.
   router.post('/conversations/:id/claim', () => {
     throw closed();
+  });
+
+  // Chat with foreigners daily reward (owner, 2026-11-08): open the live chat link, then claim once a day. Virtual
+  // money in the chat task balance, not withdrawable.
+  router.get('/foreign/reward', async (req, res) => {
+    res.json({ reward: await dailyChatReward(pool, me(req)) });
+  });
+  router.post('/foreign/opened', limiter(pool, { name: 'chat-opened', windowMs: 60 * 60_000, limit: 60, key: byUser }), async (req, res) => {
+    await recordChatOpened(pool, me(req));
+    res.json({ reward: await dailyChatReward(pool, me(req)) });
+  });
+  router.post('/foreign/claim', limiter(pool, { name: 'chat-claim', windowMs: 60 * 60_000, limit: 30, key: byUser }), async (req, res) => {
+    const result = await idempotent(pool, req, 'chat.daily_claim', async db => ({ status: 201, body: { reward: await claimDailyChatReward(db, me(req)) } }));
+    res.status(result.status).json(result.body);
   });
 
   router.post('/conversations/:id/messages', limiter(pool, { name: 'chat-message', windowMs: 60_000, limit: 30, key: byUser }), async (req, res) => {

@@ -1,24 +1,23 @@
 import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one } from '../../db/sql.js';
-import { badRequest, conflict, forbidden } from '../../lib/errors.js';
+import { badRequest, conflict } from '../../lib/errors.js';
 import { convert } from '../fx/service.js';
 import { accountId, move, post } from '../ledger/ledger.js';
 import { getSetting } from '../settings/registry.js';
-import { findConversation } from './service.js';
 
-// Chat with foreigners rewards (owner, 2026-11-06). Virtual money, not real yet: issued from task_credit into the
-// member's 'chat' task balance, which cannot be withdrawn. Once per chat and member, after the member sent
-// `minMessages` messages and the other member replied, at most `dailyLimit` claims per East Africa Time day.
+// Chat with foreigners daily reward (owner, 2026-11-08). Once per East Africa Time day: the member opens the live chat
+// link (POST /api/chat/foreign/opened), then claims with the Claim reward button. Virtual money: issued from
+// task_credit into the member's 'chat' task balance, which cannot be withdrawn (withdrawal.task_balance).
 
-export interface ChatReward {
+export interface DailyChatReward {
   amountMinor: string;
   currency: string;
+  opened: boolean;
   claimed: boolean;
-  claimable: boolean;
-  // What is still missing, in words, when not claimable.
-  needs: string | null;
 }
+
+const TODAY = `(now() AT TIME ZONE 'Africa/Kampala')::date`;
 
 async function rewardAmount(db: Db, amountUgx: number, currency: string): Promise<bigint | null> {
   if (amountUgx <= 0) return null;
@@ -27,57 +26,41 @@ async function rewardAmount(db: Db, amountUgx: number, currency: string): Promis
   return c && c.amountMinor > 0n ? c.amountMinor : null;
 }
 
-export async function chatReward(db: Db, userId: number, conversation: { id: string; kind: string; other_id: number }): Promise<ChatReward | null> {
-  if (conversation.kind !== 'foreign') return null;
+// Today's reward for the member, or null when rewards are off (amount 0) or the currency has no rate yet.
+export async function dailyChatReward(db: Db, userId: number): Promise<DailyChatReward | null> {
   const rules = await getSetting(db, 'chat.foreign_reward');
   const member = await one<{ currency_code: string }>(db, 'SELECT currency_code FROM users WHERE id = $1', [userId]);
   const amount = await rewardAmount(db, rules.amountUgx, member.currency_code);
   if (amount === null) return null;
-  const view = (claimed: boolean, needs: string | null): ChatReward => ({
-    amountMinor: amount.toString(), currency: member.currency_code, claimed, claimable: !claimed && needs === null, needs,
-  });
-  if (await maybeOne(db, 'SELECT 1 FROM chat_reward_claims WHERE conversation_id = $1 AND user_id = $2', [conversation.id, userId])) return view(true, null);
-  const counts = await one<{ mine: string; theirs: string }>(
-    db,
-    `SELECT count(*) FILTER (WHERE sender_user_id = $2) AS mine, count(*) FILTER (WHERE sender_user_id = $3) AS theirs
-     FROM chat_messages WHERE conversation_id = $1`,
-    [conversation.id, userId, conversation.other_id],
+  const row = await maybeOne<{ claimed_at: Date | null; amount_minor: string | null; currency_code: string | null }>(
+    db, `SELECT claimed_at, amount_minor, currency_code FROM chat_daily_rewards WHERE user_id = $1 AND day = ${TODAY}`, [userId],
   );
-  const left = rules.minMessages - Number(counts.mine);
-  if (left > 0) return view(false, `Send ${left} more message${left === 1 ? '' : 's'} to claim.`);
-  if (Number(counts.theirs) === 0) return view(false, 'Wait for a reply to claim.');
-  const today = await one<{ n: string }>(
-    db,
-    `SELECT count(*) AS n FROM chat_reward_claims
-     WHERE user_id = $1 AND created_at >= (date_trunc('day', now() AT TIME ZONE 'Africa/Kampala') AT TIME ZONE 'Africa/Kampala')`,
-    [userId],
-  );
-  if (Number(today.n) >= rules.dailyLimit) return view(false, 'You have claimed the most chat rewards for today. Come back tomorrow.');
-  return view(false, null);
+  if (row?.claimed_at) return { amountMinor: String(row.amount_minor), currency: String(row.currency_code), opened: true, claimed: true };
+  return { amountMinor: amount.toString(), currency: member.currency_code, opened: row !== null, claimed: false };
+}
+
+export async function recordChatOpened(db: Db, userId: number): Promise<void> {
+  await db.query(`INSERT INTO chat_daily_rewards (user_id, day) VALUES ($1, ${TODAY}) ON CONFLICT DO NOTHING`, [userId]);
 }
 
 // Runs inside the request's SERIALIZABLE transaction (idempotent()).
-export async function claimChatReward(db: PoolClient, userId: number, publicId: string): Promise<ChatReward> {
-  const c = await findConversation(db, userId, publicId);
-  await db.query('SELECT id FROM chat_conversations WHERE id = $1 FOR UPDATE', [c.id]);
-  if (c.kind !== 'foreign') throw badRequest('chat.no_reward', 'Only chats with foreigners earn a reward.');
-  const blocked = await maybeOne(
-    db, 'SELECT 1 FROM chat_blocks WHERE (blocker_user_id = $1 AND blocked_user_id = $2) OR (blocker_user_id = $2 AND blocked_user_id = $1)', [userId, c.other_id],
-  );
-  if (blocked) throw forbidden('chat.blocked', 'One of you has blocked the other.');
-  const reward = await chatReward(db, userId, c);
+export async function claimDailyChatReward(db: PoolClient, userId: number): Promise<DailyChatReward> {
+  const reward = await dailyChatReward(db, userId);
   if (!reward) throw badRequest('chat.no_reward', 'Chat rewards are not available right now.');
-  if (reward.claimed) throw conflict('chat.reward_claimed', 'You have already claimed the reward for this chat.');
-  if (!reward.claimable) throw badRequest('chat.reward_not_ready', reward.needs ?? 'This reward cannot be claimed yet.');
+  const row = await maybeOne<{ claimed_at: Date | null }>(
+    db, `SELECT claimed_at FROM chat_daily_rewards WHERE user_id = $1 AND day = ${TODAY} FOR UPDATE`, [userId],
+  );
+  if (!row) throw badRequest('chat.open_link_first', 'Open the live chat link first, then claim your reward.');
+  if (row.claimed_at) throw conflict('chat.reward_claimed', 'You have claimed today\'s reward. Come back tomorrow.');
   const amount = BigInt(reward.amountMinor);
   const credit = await accountId(db, { kind: 'task_credit', currency: reward.currency });
   const earnings = await accountId(db, { kind: 'member_task', userId, module: 'chat', currency: reward.currency });
   const txn = await post(db, {
-    kind: 'chat_reward', memo: 'Chat with foreigners reward', refType: 'chat', refId: c.public_id, actorUserId: userId, legs: move(credit, earnings, amount),
+    kind: 'chat_reward', memo: 'Chat with foreigners daily reward', refType: 'chat', refId: `daily-${userId}`, actorUserId: userId, legs: move(credit, earnings, amount),
   });
   await db.query(
-    'INSERT INTO chat_reward_claims (conversation_id, user_id, amount_minor, currency_code, ledger_transaction_id) VALUES ($1, $2, $3, $4, $5)',
-    [c.id, userId, amount.toString(), reward.currency, txn],
+    `UPDATE chat_daily_rewards SET claimed_at = now(), amount_minor = $2, currency_code = $3, ledger_transaction_id = $4 WHERE user_id = $1 AND day = ${TODAY}`,
+    [userId, amount.toString(), reward.currency, txn],
   );
-  return { ...reward, claimed: true, claimable: false, needs: null };
+  return { ...reward, opened: true, claimed: true };
 }

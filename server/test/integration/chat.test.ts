@@ -122,3 +122,46 @@ describe('chat reports', () => {
     await expect(app.owner.query(`UPDATE chat_messages SET body = 'x'`)).rejects.toBeDefined();
   });
 });
+
+describe('chat with foreigners daily reward (owner, 2026-11-08)', () => {
+  const chatBalance = async (m: Member) => (await app.owner.query<{ balance_minor: string }>(
+    `SELECT a.balance_minor FROM accounts a JOIN users u ON u.id = a.user_id WHERE u.username = $1 AND a.kind = 'member_task' AND a.module = 'chat'`,
+    [m.input.username],
+  )).rows[0]?.balance_minor ?? '0';
+
+  it('pays once a day after the member opened the live chat link, into a balance that cannot be withdrawn', async () => {
+    const m = await member();
+    expect((await m.client.get<Body>('/api/chat/foreign/reward')).body.reward).toEqual({ amountMinor: '200', currency: 'UGX', opened: false, claimed: false });
+
+    // Not yet opened: told to open the link first.
+    const early = await m.client.post<Body>('/api/chat/foreign/claim', {}, key());
+    expect([early.status, early.body.error?.code]).toEqual([400, 'chat.open_link_first']);
+
+    expect((await m.client.post<Body>('/api/chat/foreign/opened', {})).body.reward).toMatchObject({ opened: true, claimed: false });
+    const k = key();
+    const claim = await m.client.post<Body>('/api/chat/foreign/claim', {}, k);
+    expect(claim.status, JSON.stringify(claim.body)).toBe(201);
+    expect(claim.body.reward).toEqual({ amountMinor: '200', currency: 'UGX', opened: true, claimed: true });
+    // A replay returns the stored answer and pays nothing more; a second claim the same day is refused.
+    expect((await m.client.post<Body>('/api/chat/foreign/claim', {}, k)).status).toBe(201);
+    expect((await m.client.post<Body>('/api/chat/foreign/opened', {})).body.reward.claimed).toBe(true);
+    expect((await m.client.post<Body>('/api/chat/foreign/claim', {}, key())).body.error?.code).toBe('chat.reward_claimed');
+    expect(await chatBalance(m)).toBe('200');
+
+    // The next day it can be claimed again (yesterday's row moved back a day).
+    await app.owner.query(`UPDATE chat_daily_rewards SET day = day - 1 WHERE user_id = (SELECT id FROM users WHERE username = $1)`, [m.input.username]);
+    expect((await m.client.post<Body>('/api/chat/foreign/claim', {}, key())).body.error?.code).toBe('chat.open_link_first');
+    await m.client.post<Body>('/api/chat/foreign/opened', {});
+    expect((await m.client.post<Body>('/api/chat/foreign/claim', {}, key())).status).toBe(201);
+    expect(await chatBalance(m)).toBe('400');
+
+    // Chat rewards cannot be withdrawn.
+    const wd = await m.client.post<Body>('/api/payments/withdrawals', { amount: '200', source: 'chat' }, key());
+    expect(wd.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('is for activated members only', async () => {
+    const waiting = await member({}, false);
+    expect((await waiting.client.post<Body>('/api/chat/foreign/claim', {}, key())).body.error?.code).toBe('activation.required');
+  });
+});
