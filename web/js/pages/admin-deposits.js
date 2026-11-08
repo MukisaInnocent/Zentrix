@@ -87,12 +87,12 @@ async function openDeposit(id) {
         ['Confirmed deposits', money(m.balances.totalDepositedMinor, m.balances.currency)],
         ['Joined', when(m.joinedAt)],
       ]),
-      h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm zx-btn--fit', href: `/admin/members.html?id=${m.id}` }, 'Open member')),
+      h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm zx-btn--fit', href: `/admin/members?id=${m.id}` }, 'Open member')),
     related.length ? panel('Related claims', h('ul', { class: 'zx-feed' }, related.map(r => h('li', {},
       h('div', { class: 'zx-feed__body' }, h('span', { class: 'zx-feed__title' }, `@${r.member} · ${r.reference}`),
         h('span', { class: 'zx-feed__meta' }, `${r.providerTxnId} · ${r.senderPhone} · ${ago(r.createdAt)}`)),
       h('span', { class: 'zx-feed__amount' }, money(r.claimedAmountMinor, r.currency)), statusBadge(r.status))))) : null,
-    issues.length ? panel('Member reports', ...issues.map(i => h('a', { href: `/admin/issues.html?id=${i.id}` }, `${i.category.replace('_', ' ')}: ${i.summary ?? ''}`))) : null,
+    issues.length ? panel('Member reports', ...issues.map(i => h('a', { href: `/admin/issues?id=${i.id}` }, `${i.category.replace('_', ' ')}: ${i.summary ?? ''}`))) : null,
     panel('History', timeline(events)),
   );
 

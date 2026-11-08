@@ -26,7 +26,7 @@ function button(label, onClick, kind = 'secondary') {
   b.addEventListener('click', onClick);
   return b;
 }
-const memberLink = (userId, username) => h('a', { href: `/admin/members.html?id=${encodeURIComponent(userId)}` }, username);
+const memberLink = (userId, username) => h('a', { href: `/admin/members?id=${encodeURIComponent(userId)}` }, username);
 const playerButton = (userId, username) => button(username, () => void openPlayer(userId), 'ghost');
 
 // ----- Overview -----

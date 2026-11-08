@@ -83,10 +83,20 @@ export function createApp(services: Services): express.Express {
   api.use((_req: Request, _res: Response, next: NextFunction) => next(notFound('api.not_found', 'API endpoint not found.')));
   app.use('/api', api);
 
+  // Clean page addresses (owner, 2026-11-08): /register serves register.html, and an old /register.html link moves to
+  // /register with its query (?ref=...) kept. On AWS, CloudFront does the same for the public pages (cdn.tf).
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if ((req.method !== 'GET' && req.method !== 'HEAD') || !req.path.endsWith('.html')) return next();
+    // One leading slash only, so a path like //other.site/x.html can never become a link to another site.
+    const clean = req.path.replace(/^\/+/, '/').replace(/(^|\/)index\.html$/, '$1').replace(/\.html$/, '');
+    const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    res.redirect(301, `${clean || '/'}${query}`);
+  });
+
   // Staff pages are static, but only staff sessions may load them (defence in depth; the API checks too).
   app.use('/admin', loadSession(services), (req: Request, res: Response, next: NextFunction) => {
     if (req.auth?.isStaff) return next();
-    res.redirect(302, `/login.html?next=${encodeURIComponent(req.originalUrl)}`);
+    res.redirect(302, `/login?next=${encodeURIComponent(req.originalUrl)}`);
   });
   app.use(
     express.static(WEB_DIR, {

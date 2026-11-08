@@ -199,7 +199,7 @@ export async function init() {
         acceptPrivacy: true,
       });
 
-      location.assign('/activate.html');
+      location.assign('/activate');
     } catch (err) {
       submitBtn.removeAttribute('aria-busy');
       submitBtn.disabled = false;
@@ -251,7 +251,7 @@ export async function init() {
             uInput.focus();
           }
         } else if (err.code === 'auth.registration_conflict') {
-          displayMessage = 'An account already exists with that email or phone number. <a href="/login.html">Sign in here</a>.';
+          displayMessage = 'An account already exists with that email or phone number. <a href="/login">Sign in here</a>.';
         }
 
         alert.innerHTML = `

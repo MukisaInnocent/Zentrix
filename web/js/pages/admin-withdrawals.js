@@ -83,8 +83,8 @@ async function openWithdrawal(id) {
         ['Withdrawn, all time', money(m.lifetime.withdrawnMinor, m.balances.currency)],
         ['Joined', when(m.joinedAt)],
       ]),
-      h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm zx-btn--fit', href: `/admin/members.html?id=${m.id}` }, 'Open member')),
-    issues.length ? panel('Member reports', ...issues.map(i => h('a', { href: `/admin/issues.html?id=${i.id}` }, `${i.category.replace('_', ' ')}: ${i.summary ?? ''}`))) : null,
+      h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm zx-btn--fit', href: `/admin/members?id=${m.id}` }, 'Open member')),
+    issues.length ? panel('Member reports', ...issues.map(i => h('a', { href: `/admin/issues?id=${i.id}` }, `${i.category.replace('_', ' ')}: ${i.summary ?? ''}`))) : null,
     panel('History', timeline(events)),
   );
 

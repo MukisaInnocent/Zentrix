@@ -268,7 +268,7 @@ describe('referral rewards', () => {
     expect((await referrer.client.get<Body>('/api/referrals/members?level=1&status=inactive')).body.members).toEqual([]);
     const overview = await referrer.client.get<Body>('/api/referrals');
     expect(overview.body.upline).toEqual({ username: grand.input.username });
-    expect(overview.body.referralLink).toBe(`${app.services.config.publicOrigin}/register.html?ref=${referrer.input.username}`);
+    expect(overview.body.referralLink).toBe(`${app.services.config.publicOrigin}/register?ref=${referrer.input.username}`);
     expect(overview.body.levels['1']).toEqual({ total: 1, active: 1, inactive: 0, rewardsMinor: '10000' });
     // Each level's overview counts only that level: the top member's level 1 (never activated) earned nothing; level 3 earned 2,000.
     const topLevels = (await top.client.get<Body>('/api/referrals')).body.levels;
@@ -717,7 +717,7 @@ describe('payment emails', () => {
     const ref = claimed.body.deposit.reference as string;
     const alerts = await staffMails(`Pexerearn staff: new activation payment ${ref} to check`);
     expect(alerts).toHaveLength(financeEmails.length);
-    expect(alerts[0]!.body).toContain(`/admin/deposits.html?id=${claimed.body.deposit.id}`);
+    expect(alerts[0]!.body).toContain(`/admin/deposits?id=${claimed.body.deposit.id}`);
     expect(alerts[0]!.body).toContain(`@${member.input.username} (Uganda)`);
 
     expect((await member.client.post<Body>(`/api/payments/deposits/${claimed.body.deposit.id}/cancel`, {})).status).toBe(200);

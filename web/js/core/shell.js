@@ -7,19 +7,19 @@ import { toast } from './toast.js';
 // Navigation config. Modules not built yet show as "Soon" instead of linking to fake pages. Items with
 // children render as expandable groups, nested as deep as needed (Referrals > Level 1 > Overview). `bottom: true`
 // puts an item in the phone bar, using its href.
-const REF = '/referrals.html';
+const REF = '/referrals';
 // The owner's live chat page (2026-11-06).
 export const LIVE_CHAT_URL = 'https://share.google/KuuhsWdjmOoo1l9CD';
 const MEMBER_NAV = [
-  { group: 'nav.group.main', items: [{ id: 'dashboard', href: '/dashboard.html', icon: 'home', label: 'nav.dashboard', bottom: true }] },
+  { group: 'nav.group.main', items: [{ id: 'dashboard', href: '/dashboard', icon: 'home', label: 'nav.dashboard', bottom: true }] },
   {
     group: 'nav.group.wallet',
     items: [
-      { id: 'wallet', href: '/accounts.html', icon: 'wallet', label: 'nav.wallet' },
-      { id: 'deposit', href: '/deposit.html', icon: 'deposit', label: 'nav.deposit' },
-      { id: 'withdraw', href: '/withdraw.html', icon: 'withdraw', label: 'nav.withdraw', bottom: true },
-      { id: 'vouchers', href: '/voucher.html', icon: 'ticket', label: 'nav.vouchers' },
-      { id: 'payforclient', href: '/payforclient.html', icon: 'transfer', label: 'nav.payForClient' },
+      { id: 'wallet', href: '/accounts', icon: 'wallet', label: 'nav.wallet' },
+      { id: 'deposit', href: '/deposit', icon: 'deposit', label: 'nav.deposit' },
+      { id: 'withdraw', href: '/withdraw', icon: 'withdraw', label: 'nav.withdraw', bottom: true },
+      { id: 'vouchers', href: '/voucher', icon: 'ticket', label: 'nav.vouchers' },
+      { id: 'payforclient', href: '/payforclient', icon: 'transfer', label: 'nav.payForClient' },
     ],
   },
   {
@@ -41,8 +41,8 @@ const MEMBER_NAV = [
       {
         id: 'chat', icon: 'message', label: 'nav.chat',
         children: [
-          { id: 'chat-invite', href: '/chat.html?tab=invite', label: 'nav.inviteChat' },
-          { id: 'chat-foreign', href: '/chat.html?tab=foreign', label: 'nav.foreignChat' },
+          { id: 'chat-invite', href: '/chat?tab=invite', label: 'nav.inviteChat' },
+          { id: 'chat-foreign', href: '/chat?tab=foreign', label: 'nav.foreignChat' },
           // Live chat with support, on an outside page the owner chose (owner, 2026-11-06).
           { id: 'chat-live', href: LIVE_CHAT_URL, label: 'nav.liveChat', external: true },
         ],
@@ -52,23 +52,23 @@ const MEMBER_NAV = [
   {
     group: 'nav.group.earn',
     items: [
-      { id: 'youtube', href: '/youtube.html', icon: 'play', label: 'nav.youtube' },
-      { id: 'tiktok', href: '/tiktok.html', icon: 'music', label: 'nav.tiktok' },
-      { id: 'ads', href: '/adsearn.html', icon: 'pointer', label: 'nav.ads' },
-      { id: 'trivia', href: '/trivia.html', icon: 'help', label: 'nav.trivia' },
-      { id: 'leaderboard', href: '/leaderboard.html', icon: 'trophy', label: 'nav.leaderboard' },
+      { id: 'youtube', href: '/youtube', icon: 'play', label: 'nav.youtube' },
+      { id: 'tiktok', href: '/tiktok', icon: 'music', label: 'nav.tiktok' },
+      { id: 'ads', href: '/adsearn', icon: 'pointer', label: 'nav.ads' },
+      { id: 'trivia', href: '/trivia', icon: 'help', label: 'nav.trivia' },
+      { id: 'leaderboard', href: '/leaderboard', icon: 'trophy', label: 'nav.leaderboard' },
       // Owner, 2026-11-06: Betting tips, Aviator (the owner's project, demo credits) and a Quick loans coming-soon page.
-      { id: 'betting-tips', href: '/betting-tips.html', icon: 'chart', label: 'nav.bettingTips' },
-      { id: 'aviator', href: '/aviator.html', icon: 'send', label: 'nav.aviator' },
-      { id: 'quick-loans', href: '/quick-loans.html', icon: 'coins', label: 'nav.quickLoans' },
+      { id: 'betting-tips', href: '/betting-tips', icon: 'chart', label: 'nav.bettingTips' },
+      { id: 'aviator', href: '/aviator', icon: 'send', label: 'nav.aviator' },
+      { id: 'quick-loans', href: '/quick-loans', icon: 'coins', label: 'nav.quickLoans' },
     ],
   },
   {
     group: 'nav.group.learn',
     items: [
-      { id: 'ebooks', href: '/ebooks.html', icon: 'book', label: 'nav.ebooks' },
-      { id: 'videos', href: '/videos.html', icon: 'play', label: 'nav.videos' },
-      { id: 'forex', href: '/forex.html', icon: 'chart', label: 'nav.forex' },
+      { id: 'ebooks', href: '/ebooks', icon: 'book', label: 'nav.ebooks' },
+      { id: 'videos', href: '/videos', icon: 'play', label: 'nav.videos' },
+      { id: 'forex', href: '/forex', icon: 'chart', label: 'nav.forex' },
     ],
   },
   {
@@ -83,21 +83,21 @@ const MEMBER_NAV = [
 
 // What a member sees before the activation fee is confirmed: only the payment page and account basics.
 const LOCKED_NAV = [
-  { group: 'nav.group.main', items: [{ id: 'activate', href: '/activate.html', icon: 'badge', label: 'nav.activate', bottom: true }] },
+  { group: 'nav.group.main', items: [{ id: 'activate', href: '/activate', icon: 'badge', label: 'nav.activate', bottom: true }] },
   { group: 'nav.group.account', items: [...accountItems(true)] },
 ];
 
 function accountItems(locked = false) {
   return [
-    { id: 'profile', href: '/profile.html', icon: 'user', label: 'nav.profile', bottom: true },
-    { id: 'contact', href: '/contact.html', icon: 'mail', label: 'nav.contact', bottom: locked },
+    { id: 'profile', href: '/profile', icon: 'user', label: 'nav.profile', bottom: true },
+    { id: 'contact', href: '/contact', icon: 'mail', label: 'nav.contact', bottom: locked },
     {
       id: 'policies', icon: 'file', label: 'nav.policies',
       children: [
-        { id: 'terms', href: '/terms.html', label: 'nav.terms' },
-        { id: 'privacy', href: '/privacy.html', label: 'nav.privacy' },
-        { id: 'risk', href: '/risk.html', label: 'nav.risk' },
-        { id: 'refund', href: '/refund.html', label: 'nav.refund' },
+        { id: 'terms', href: '/terms', label: 'nav.terms' },
+        { id: 'privacy', href: '/privacy', label: 'nav.privacy' },
+        { id: 'risk', href: '/risk', label: 'nav.risk' },
+        { id: 'refund', href: '/refund', label: 'nav.refund' },
       ],
     },
     { id: 'logout', action: 'logout', icon: 'logout', label: 'nav.logout' },
@@ -106,54 +106,54 @@ function accountItems(locked = false) {
 
 const ADMIN_NAV = [
   { group: 'admin.nav.group.overview', items: [
-    { id: 'admin-home', href: '/admin/index.html', icon: 'grid', label: 'admin.nav.overview', bottom: true },
-    { id: 'admin-events', href: '/admin/events.html', icon: 'chart', label: 'admin.nav.events' },
+    { id: 'admin-home', href: '/admin/', icon: 'grid', label: 'admin.nav.overview', bottom: true },
+    { id: 'admin-events', href: '/admin/events', icon: 'chart', label: 'admin.nav.events' },
   ] },
   {
     group: 'admin.nav.group.money',
     items: [
-      { id: 'admin-deposits', href: '/admin/deposits.html', icon: 'deposit', label: 'admin.nav.deposits', bottom: true },
-      { id: 'admin-withdrawals', href: '/admin/withdrawals.html', icon: 'withdraw', label: 'admin.nav.withdrawals', bottom: true },
-      { id: 'admin-issues', href: '/admin/issues.html', icon: 'headphones', label: 'admin.nav.issues' },
-      { id: 'admin-vouchers', href: '/admin/vouchers.html', icon: 'ticket', label: 'admin.nav.vouchers' },
-      { id: 'admin-payment-methods', href: '/admin/payment-methods.html', icon: 'card', label: 'admin.nav.paymentMethods' },
-      { id: 'admin-balances', href: '/admin/balances.html', icon: 'shield', label: 'admin.nav.balances' },
-      { id: 'admin-ledger', href: '/admin/ledger.html', icon: 'layers', label: 'admin.nav.ledger' },
+      { id: 'admin-deposits', href: '/admin/deposits', icon: 'deposit', label: 'admin.nav.deposits', bottom: true },
+      { id: 'admin-withdrawals', href: '/admin/withdrawals', icon: 'withdraw', label: 'admin.nav.withdrawals', bottom: true },
+      { id: 'admin-issues', href: '/admin/issues', icon: 'headphones', label: 'admin.nav.issues' },
+      { id: 'admin-vouchers', href: '/admin/vouchers', icon: 'ticket', label: 'admin.nav.vouchers' },
+      { id: 'admin-payment-methods', href: '/admin/payment-methods', icon: 'card', label: 'admin.nav.paymentMethods' },
+      { id: 'admin-balances', href: '/admin/balances', icon: 'shield', label: 'admin.nav.balances' },
+      { id: 'admin-ledger', href: '/admin/ledger', icon: 'layers', label: 'admin.nav.ledger' },
     ],
   },
   {
     group: 'admin.nav.group.people',
     items: [
-      { id: 'admin-members', href: '/admin/members.html', icon: 'users', label: 'admin.nav.members' },
-      { id: 'admin-member-balances', href: '/admin/member-balances.html', icon: 'wallet', label: 'admin.nav.memberBalances' },
-      { id: 'admin-chats', href: '/admin/chats.html', icon: 'message', label: 'admin.nav.chats' },
-      { id: 'admin-leaderboard', href: '/admin/leaderboard.html', icon: 'trophy', label: 'admin.nav.leaderboard' },
+      { id: 'admin-members', href: '/admin/members', icon: 'users', label: 'admin.nav.members' },
+      { id: 'admin-member-balances', href: '/admin/member-balances', icon: 'wallet', label: 'admin.nav.memberBalances' },
+      { id: 'admin-chats', href: '/admin/chats', icon: 'message', label: 'admin.nav.chats' },
+      { id: 'admin-leaderboard', href: '/admin/leaderboard', icon: 'trophy', label: 'admin.nav.leaderboard' },
       { id: 'admin-fraud', icon: 'flag', label: 'admin.nav.fraud', soon: true },
     ],
   },
   {
     group: 'admin.nav.group.config',
     items: [
-      { id: 'admin-countries', href: '/admin/countries.html', icon: 'globe', label: 'admin.nav.countries' },
-      { id: 'admin-settings', href: '/admin/settings.html', icon: 'settings', label: 'admin.nav.settings' },
-      { id: 'admin-tasks', href: '/admin/tasks.html', icon: 'list', label: 'admin.nav.tasks' },
-      { id: 'admin-videos', href: '/admin/videos.html', icon: 'play', label: 'admin.nav.videos' },
-      { id: 'admin-tips', href: '/admin/tips.html', icon: 'chart', label: 'admin.nav.tips' },
-      { id: 'admin-aviator', href: '/admin/aviator.html', icon: 'send', label: 'admin.nav.aviator' },
-      { id: 'admin-ebooks', href: '/admin/ebooks.html', icon: 'book', label: 'admin.nav.ebooks' },
+      { id: 'admin-countries', href: '/admin/countries', icon: 'globe', label: 'admin.nav.countries' },
+      { id: 'admin-settings', href: '/admin/settings', icon: 'settings', label: 'admin.nav.settings' },
+      { id: 'admin-tasks', href: '/admin/tasks', icon: 'list', label: 'admin.nav.tasks' },
+      { id: 'admin-videos', href: '/admin/videos', icon: 'play', label: 'admin.nav.videos' },
+      { id: 'admin-tips', href: '/admin/tips', icon: 'chart', label: 'admin.nav.tips' },
+      { id: 'admin-aviator', href: '/admin/aviator', icon: 'send', label: 'admin.nav.aviator' },
+      { id: 'admin-ebooks', href: '/admin/ebooks', icon: 'book', label: 'admin.nav.ebooks' },
     ],
   },
   {
     group: 'admin.nav.group.records',
     items: [
-      { id: 'admin-audit', href: '/admin/audit.html', icon: 'history', label: 'admin.nav.audit' },
-      { id: 'admin-emails', href: '/admin/emails.html', icon: 'mail', label: 'admin.nav.emails' },
-      { id: 'admin-announcements', href: '/admin/announcements.html', icon: 'megaphone', label: 'admin.nav.announcements' },
-      { id: 'admin-email-templates', href: '/admin/email-templates.html', icon: 'file', label: 'admin.nav.emailTemplates' },
-      { id: 'admin-outbox', href: '/admin/outbox.html', icon: 'mail', label: 'admin.nav.outbox' },
+      { id: 'admin-audit', href: '/admin/audit', icon: 'history', label: 'admin.nav.audit' },
+      { id: 'admin-emails', href: '/admin/emails', icon: 'mail', label: 'admin.nav.emails' },
+      { id: 'admin-announcements', href: '/admin/announcements', icon: 'megaphone', label: 'admin.nav.announcements' },
+      { id: 'admin-email-templates', href: '/admin/email-templates', icon: 'file', label: 'admin.nav.emailTemplates' },
+      { id: 'admin-outbox', href: '/admin/outbox', icon: 'mail', label: 'admin.nav.outbox' },
     ],
   },
-  { group: 'admin.nav.group.exit', items: [{ id: 'back', href: '/dashboard.html', icon: 'home', label: 'admin.nav.back' }] },
+  { group: 'admin.nav.group.exit', items: [{ id: 'back', href: '/dashboard', icon: 'home', label: 'admin.nav.back' }] },
 ];
 
 // A link is current when its address (with query) matches, or, for links without a query, when it is the page.
@@ -203,7 +203,7 @@ export async function logout() {
   try {
     await api.post('/api/auth/logout');
   } finally {
-    location.assign('/login.html');
+    location.assign('/login');
   }
 }
 
@@ -246,7 +246,7 @@ export function renderShell({ me, meta, page, admin = false }) {
     ...section,
     items: section.items.filter(item => !(item.testOnly && !meta?.testMode)),
   }));
-  if (!admin && me.isStaff) config.push({ group: 'nav.group.staff', items: [{ id: 'admin', href: '/admin/index.html', icon: 'shield', label: 'nav.adminConsole' }] });
+  if (!admin && me.isStaff) config.push({ group: 'nav.group.staff', items: [{ id: 'admin', href: '/admin/', icon: 'shield', label: 'nav.adminConsole' }] });
 
   document.body.classList.add('zx-shell-app');
   const main = $('main');
@@ -258,7 +258,7 @@ export function renderShell({ me, meta, page, admin = false }) {
   const closeBtn = h('button', { type: 'button', class: 'zx-icon-btn zx-icon-btn--square zx-drawer__close', 'aria-label': t('common.closeMenu') }, icon('close'));
   const drawer = h(
     'nav', { class: 'zx-drawer', id: drawerId, 'aria-label': t('common.mainMenu') },
-    h('div', { class: 'zx-drawer__head' }, h('a', { class: 'zx-brand', href: admin ? '/admin/index.html' : '/dashboard.html' }, h('img', { src: '/img/mark.svg', alt: '' }), wordmark(admin ? 'Staff' : null)), closeBtn),
+    h('div', { class: 'zx-drawer__head' }, h('a', { class: 'zx-brand', href: admin ? '/admin/' : '/dashboard' }, h('img', { src: '/img/mark.svg', alt: '' }), wordmark(admin ? 'Staff' : null)), closeBtn),
     h('div', { class: 'zx-drawer__body' }, buildNav(config, page)),
   );
   const scrim = h('div', { class: 'zx-scrim', 'aria-hidden': 'true' });
@@ -273,7 +273,7 @@ export function renderShell({ me, meta, page, admin = false }) {
     h('div', { class: 'zx-topbar__actions' },
       h('span', { class: 'zx-currency-pill', title: t('common.walletCurrency') }, `${me.country.code} · ${me.currency}`),
       themeBtn, bell,
-      h('a', { class: 'zx-avatar', href: '/profile.html', 'aria-label': t('nav.profile') }, initials(me.username))),
+      h('a', { class: 'zx-avatar', href: '/profile', 'aria-label': t('nav.profile') }, initials(me.username))),
   );
   document.body.prepend(h('a', { class: 'zx-skip-link', href: '#main' }, t('common.skipToContent')));
   main.before(topbar);
@@ -294,8 +294,8 @@ export function renderShell({ me, meta, page, admin = false }) {
   });
 
   main.append(h('footer', { class: 'zx-app-footer' },
-    `© ${new Date().getFullYear()} Pexerearn · `, h('a', { href: '/terms.html' }, t('nav.terms')), ' · ',
-    h('a', { href: '/privacy.html' }, t('nav.privacy')), ' · ', h('a', { href: '/risk.html' }, t('nav.risk'))));
+    `© ${new Date().getFullYear()} Pexerearn · `, h('a', { href: '/terms' }, t('nav.terms')), ' · ',
+    h('a', { href: '/privacy' }, t('nav.privacy')), ' · ', h('a', { href: '/risk' }, t('nav.risk'))));
   setupBackToTop();
 }
 
@@ -309,10 +309,10 @@ export function renderPublicChrome() {
     h('div', { class: 'zx-public-header__inner' },
       h('a', { class: 'zx-brand', href: '/' }, h('img', { src: '/img/mark.svg', alt: '' }), wordmark()),
       h('nav', { class: 'zx-public-nav', 'aria-label': t('common.mainMenu') },
-        h('a', { href: '/#how' }, t('nav.howItWorks')), h('a', { href: '/contact.html' }, t('nav.contact'))),
+        h('a', { href: '/#how' }, t('nav.howItWorks')), h('a', { href: '/contact' }, t('nav.contact'))),
       h('div', { class: 'zx-public-header__cta' },
-        h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm', href: '/login.html' }, t('common.signIn')),
-        h('a', { class: 'zx-btn zx-btn--sm', href: '/register.html' }, t('common.join')))));
+        h('a', { class: 'zx-btn zx-btn--ghost zx-btn--sm', href: '/login' }, t('common.signIn')),
+        h('a', { class: 'zx-btn zx-btn--sm', href: '/register' }, t('common.join')))));
   document.body.prepend(h('a', { class: 'zx-skip-link', href: '#main' }, t('common.skipToContent')), header);
   const year = new Date().getFullYear();
   document.body.append(
@@ -321,7 +321,7 @@ export function renderPublicChrome() {
         h('span', {}, `© ${year} Pexerearn`),
         h('nav', { 'aria-label': t('nav.policies') },
           ['terms', 'privacy', 'risk', 'refund', 'contact'].map(id =>
-            h('a', { href: `/${id}.html` }, t(`nav.${id}`)),
+            h('a', { href: `/${id}` }, t(`nav.${id}`)),
           ),
         ),
       ),

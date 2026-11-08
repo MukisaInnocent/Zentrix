@@ -219,7 +219,7 @@ async function openCountry(code) {
         configForm(code, country.currencyCode, cfg, reload)),
       panel('Withdrawal charge table', chargesEditor(country.currencyCode, charges.bands, exp, reload)),
       panel('Payment methods', h('p', { class: 'zx-hint' }, 'The numbers and accounts members in this country pay to.'),
-        h('a', { class: 'zx-btn zx-btn--secondary zx-btn--sm zx-btn--fit', href: `/admin/payment-methods.html?country=${country.code}` }, 'Manage payment methods')),
+        h('a', { class: 'zx-btn zx-btn--secondary zx-btn--sm zx-btn--fit', href: `/admin/payment-methods?country=${country.code}` }, 'Manage payment methods')),
       panel('Switches', flagsForm(country, reload)),
       panel('History', configHistory.length ? h('div', { class: 'zx-table-wrap' }, h('table', { class: 'zx-table' },
         h('thead', {}, h('tr', {}, ['Version', 'Saved', 'Activation fee', 'Referral rewards', 'Automatic payouts', 'Minimum', 'Maximum', 'Daily maximum', 'Tax', 'Note'].map(t => h('th', { scope: 'col' }, t)))),

@@ -35,7 +35,7 @@ function renderPaybox() {
   const c = info.channels.find(x => x.code === selected);
   if (!c) {
     box.replaceChildren(h('p', {}, 'Payment methods for your country are being set up. Please contact support and we will help you pay.'),
-      h('a', { class: 'zx-btn zx-btn--secondary zx-btn--fit', href: '/contact.html' }, 'Contact support'));
+      h('a', { class: 'zx-btn zx-btn--secondary zx-btn--fit', href: '/contact' }, 'Contact support'));
     return;
   }
   const fee = formatMoney(info.activation.feeMinor, info.activation.feeCurrency);
@@ -109,7 +109,7 @@ function renderChannels() {
 
 async function refresh() {
   info = await api.get('/api/payments/channels');
-  if (info.activation.active) return location.assign('/dashboard.html');
+  if (info.activation.active) return location.assign('/dashboard');
   const list = await api.get('/api/payments/deposits');
   list.deposits = list.deposits.filter(d => d.purpose === 'activation');
   $('#fee').textContent = info.activation.feeMinor ? formatMoney(info.activation.feeMinor, info.activation.feeCurrency) : 'Not set for your country yet';

@@ -38,8 +38,8 @@ async function boot() {
       setUnauthorizedHandler(() => location.assign(loginUrl()));
       me = await loadMe(true);
       if (!me) return;
-      if (shell === 'admin' && !me.isStaff) return void location.replace('/dashboard.html');
-      if (shell === 'app' && !me.isStaff && !me.activated && !OPEN_BEFORE_ACTIVATION.has(page)) return void location.replace('/activate.html');
+      if (shell === 'admin' && !me.isStaff) return void location.replace('/dashboard');
+      if (shell === 'app' && !me.isStaff && !me.activated && !OPEN_BEFORE_ACTIVATION.has(page)) return void location.replace('/activate');
     } else if (shell === 'auto') {
       me = await loadMe(false);
     }

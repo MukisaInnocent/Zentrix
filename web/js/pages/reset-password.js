@@ -3,7 +3,7 @@ import { $ } from '../core/dom.js';
 import { bindForm, showErrors } from '../core/forms.js';
 import { t } from '../core/i18n.js';
 
-// Sets a new password from the emailed link (/reset-password.html#token=...). The token sits in the URL
+// Sets a new password from the emailed link (/reset-password#token=...). The token sits in the URL
 // fragment, so it never reaches server logs; it is read once and removed from the address bar.
 export function init() {
   const token = new URLSearchParams(location.hash.slice(1)).get('token');

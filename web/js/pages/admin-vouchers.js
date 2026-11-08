@@ -5,7 +5,7 @@ import { act, debounce, emptyRow, money, segmented, when } from '../admin/kit.js
 // Every voucher, its buyer and the account it activated. Member links open the member's record.
 const state = { status: 'all', q: '' };
 const BADGE = { active: ['zx-badge--success', 'Unused'], used: ['zx-badge--brand', 'Used'], cancelled: ['', 'Cancelled'] };
-const memberLink = username => h('a', { href: `/admin/members.html?q=${encodeURIComponent(username)}` }, `@${username}`);
+const memberLink = username => h('a', { href: `/admin/members?q=${encodeURIComponent(username)}` }, `@${username}`);
 
 async function load() {
   const params = new URLSearchParams({ status: state.status === 'used' ? 'redeemed' : state.status });

@@ -48,7 +48,7 @@ async function openIssue(id) {
       panel('Report', h('div', {}, statusBadge(i.status)), kv([
         ['Member', `@${m.username} (${m.status})`],
         ['Phone', m.phone ?? ''],
-        ['Payment', i.subject ? h('a', { href: `/admin/${page}.html?id=${i.subject.id}` }, `${i.subject.type} ${i.subject.reference}`) : 'Not linked to a payment'],
+        ['Payment', i.subject ? h('a', { href: `/admin/${page}?id=${i.subject.id}` }, `${i.subject.type} ${i.subject.reference}`) : 'Not linked to a payment'],
         ['Opened', when(i.createdAt)],
         ['Handled by', i.assignedTo ? `@${i.assignedTo}` : 'Nobody yet'],
         i.resolution ? ['Resolution', i.resolution] : null,

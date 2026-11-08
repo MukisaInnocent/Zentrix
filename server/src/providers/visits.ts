@@ -56,7 +56,8 @@ export function isPageView(r: LogRecord): boolean {
   const path = r['cs-uri-stem'] ?? '';
   if (/^\/(api|admin)(\/|$)/.test(path) || path === '/healthz' || path === '/readyz') return false;
   const type = r['sc-content-type'] ?? '';
-  return type.startsWith('text/html') || path.endsWith('/') || path.endsWith('.html');
+  // Pages have clean addresses (/register, owner 2026-11-08); old .html addresses redirect (301) and are not counted.
+  return type.startsWith('text/html') || path.endsWith('/') || path.endsWith('.html') || !/\.[A-Za-z0-9]+$/.test(path);
 }
 
 export const isBot = (r: LogRecord): boolean => {

@@ -56,7 +56,7 @@ export function setBusy(el, busy) {
 }
 
 // Same-origin relative path only, to stop open redirects through ?next=.
-export function safeNext(value, fallback = '/dashboard.html') {
+export function safeNext(value, fallback = '/dashboard') {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return fallback;
   return value;
 }

@@ -39,7 +39,7 @@ export async function requestPasswordReset(services: Services, raw: unknown, ip:
   ]);
   await sendTemplated(services, {
     kind: 'password_reset', to: email, userId: Number(user.id), values: { username: user.username, code },
-    buttonUrl: `${services.config.publicOrigin}/reset-password.html#token=${token}`,
+    buttonUrl: `${services.config.publicOrigin}/reset-password#token=${token}`,
   });
 }
 
@@ -111,6 +111,6 @@ export async function changePassword(services: Services, userId: number, session
 
 async function notifyPasswordChanged(services: Services, userId: number, username: string, email: string): Promise<void> {
   await sendTemplated(services, {
-    kind: 'password_changed', to: email, userId, values: { username }, buttonUrl: `${services.config.publicOrigin}/forgot-password.html`,
+    kind: 'password_changed', to: email, userId, values: { username }, buttonUrl: `${services.config.publicOrigin}/forgot-password`,
   });
 }

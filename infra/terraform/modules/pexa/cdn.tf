@@ -60,6 +60,16 @@ locals {
   api_paths     = ["/api/*", "/admin", "/admin/*", "/healthz", "/readyz"]
 }
 
+# Clean page addresses (owner, 2026-11-08): /register serves register.html and old .html links move to the clean
+# address with their query kept. Runs at the edge on the static pages only; /api and /admin are untouched.
+resource "aws_cloudfront_function" "clean_urls" {
+  name    = "${local.name}-clean-urls"
+  runtime = "cloudfront-js-2.0"
+  comment = "Clean page addresses"
+  publish = true
+  code    = file("${path.module}/clean-urls.js")
+}
+
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   comment             = "Pexa ${var.environment}"
@@ -94,6 +104,10 @@ resource "aws_cloudfront_distribution" "main" {
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.clean_urls.arn
+    }
   }
 
   dynamic "ordered_cache_behavior" {

@@ -9,7 +9,7 @@ async function load() {
   const { leaders } = await api.get(`/api/admin/leaderboard/referrals?period=${state.period}`);
   $('#rows').replaceChildren(...(leaders.length ? leaders.map(l => h('tr', {},
     h('td', { class: 'zx-td-strong' }, String(l.rank)),
-    h('td', {}, h('a', { href: `/admin/members.html?q=${encodeURIComponent(l.username)}` }, `@${l.username}`)),
+    h('td', {}, h('a', { href: `/admin/members?q=${encodeURIComponent(l.username)}` }, `@${l.username}`)),
     h('td', { class: 'zx-td-mono' }, l.phone ?? '-'),
     h('td', {}, l.country),
     h('td', { class: 'zx-td-strong' }, String(l.activated)),

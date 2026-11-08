@@ -74,7 +74,7 @@ describe('changing who invited a member', () => {
     // the new inviter is emailed about the rewards they now earn.
     const oldMail = (await app.outbox(oldInviter.input.email)).map(m => m.subject);
     expect(oldMail).toEqual(expect.arrayContaining([expect.stringMatching(/UGX 10,000 was moved/), expect.stringMatching(/UGX 5,000 was moved/)]));
-    expect((await app.outbox(newInviter.input.email)).filter(m => /you earned/i.test(m.subject))).toHaveLength(2);
+    expect((await app.outbox(newInviter.input.email)).filter(m => /you earned/i.test(m.subject ?? ""))).toHaveLength(2);
     const movedList = (await oldInviter.client.get<Body>('/api/referrals')).body.movedRewards;
     expect(movedList.map((r: Body) => [r.member, r.level, r.amountMinor, r.currency]).sort()).toEqual([
       [d.input.username, 2, '5000', 'UGX'], [u.input.username, 1, '10000', 'UGX'],

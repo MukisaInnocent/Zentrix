@@ -18,7 +18,7 @@ export function referralsRouter(services: Services): Router {
 
   // The invite link carries the username of the member who invites (owner, 2026-10-25), on the site's own address
   // (PUBLIC_ORIGIN, https://pexerearn.com in production), never the address the request reached the server on.
-  const linkFor = (username: string) => `${services.config.publicOrigin}/register.html?ref=${encodeURIComponent(username)}`;
+  const linkFor = (username: string) => `${services.config.publicOrigin}/register?ref=${encodeURIComponent(username)}`;
 
   const handleOverview = async (req: Request, res: Response) => {
     const [overview, movedRewards] = await Promise.all([getReferralOverview(services.pool, req.auth!.userId), listMovedRewards(services.pool, req.auth!.userId)]);

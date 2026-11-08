@@ -32,9 +32,9 @@ describe('API on Lambda', () => {
   it('answers health checks and serves pages', async () => {
     const health = await handler(httpEvent('GET', '/healthz'), {});
     expect([health.statusCode, JSON.parse(health.body)]).toEqual([200, { status: 'ok' }]);
-    const page = await handler(httpEvent('GET', '/login.html'), {});
+    const page = await handler(httpEvent('GET', '/login'), {});
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('forgot-password.html');
+    expect(page.body).toContain('/forgot-password"');
   });
 
   it('registers a member and keeps the session cookie and CSRF checks working', async () => {

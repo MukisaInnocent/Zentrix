@@ -24,7 +24,7 @@ function csrfToken() {
 export const newIdempotencyKey = () => crypto.randomUUID();
 
 export function loginUrl() {
-  return `/login.html?next=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`;
+  return `/login?next=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`;
 }
 
 let onUnauthorized = null;

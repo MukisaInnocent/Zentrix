@@ -16,11 +16,11 @@ function kpi({ label, value, note, href, tone }) {
 function renderKpis(c) {
   const n = key => Number(c[key] ?? 0);
   $('#kpis').replaceChildren(
-    kpi({ label: 'Deposits to check', value: String(n('deposits_pending')), note: `${money(c.deposits_pending_ugx, 'UGX')} claimed`, href: '/admin/deposits.html', tone: n('deposits_pending') ? 'attention' : 'good' }),
-    kpi({ label: 'Withdrawals to approve', value: String(n('withdrawals_requested')), note: n('withdrawals_need_admin') ? `${n('withdrawals_need_admin')} need an admin` : 'None need an admin', href: '/admin/withdrawals.html?status=requested', tone: n('withdrawals_requested') ? 'attention' : 'good' }),
-    kpi({ label: 'Payouts to send', value: String(n('withdrawals_approved') + n('withdrawals_processing')), note: `${n('withdrawals_processing')} being sent · ${money(c.withdrawals_open_ugx, 'UGX')} open`, href: '/admin/withdrawals.html?status=open', tone: n('withdrawals_approved') + n('withdrawals_processing') ? 'attention' : 'good' }),
-    kpi({ label: 'Member issues', value: String(n('issues_open')), note: 'Open or in progress', href: '/admin/issues.html', tone: n('issues_open') ? 'attention' : 'good' }),
-    kpi({ label: 'Chat reports', value: String(n('chat_reports_open')), note: 'Reported chats to review', href: '/admin/chats.html', tone: n('chat_reports_open') ? 'attention' : 'good' }),
+    kpi({ label: 'Deposits to check', value: String(n('deposits_pending')), note: `${money(c.deposits_pending_ugx, 'UGX')} claimed`, href: '/admin/deposits', tone: n('deposits_pending') ? 'attention' : 'good' }),
+    kpi({ label: 'Withdrawals to approve', value: String(n('withdrawals_requested')), note: n('withdrawals_need_admin') ? `${n('withdrawals_need_admin')} need an admin` : 'None need an admin', href: '/admin/withdrawals?status=requested', tone: n('withdrawals_requested') ? 'attention' : 'good' }),
+    kpi({ label: 'Payouts to send', value: String(n('withdrawals_approved') + n('withdrawals_processing')), note: `${n('withdrawals_processing')} being sent · ${money(c.withdrawals_open_ugx, 'UGX')} open`, href: '/admin/withdrawals?status=open', tone: n('withdrawals_approved') + n('withdrawals_processing') ? 'attention' : 'good' }),
+    kpi({ label: 'Member issues', value: String(n('issues_open')), note: 'Open or in progress', href: '/admin/issues', tone: n('issues_open') ? 'attention' : 'good' }),
+    kpi({ label: 'Chat reports', value: String(n('chat_reports_open')), note: 'Reported chats to review', href: '/admin/chats', tone: n('chat_reports_open') ? 'attention' : 'good' }),
     kpi({ label: 'Confirmed today', value: money(c.deposits_confirmed_today_ugx, 'UGX'), note: `${n('deposits_confirmed_today')} deposits · ${n('deposits_rejected_today')} rejected` }),
     kpi({ label: 'Paid out today', value: money(c.withdrawals_paid_today_ugx, 'UGX'), note: `${n('withdrawals_paid_today')} withdrawals · ${n('memberships_today')} new activations` }),
   );
@@ -31,12 +31,12 @@ function renderBanners(data) {
   for (const f of data.flags) {
     banners.push(h('div', { class: 'zx-banner zx-banner--danger', role: 'alert' }, icon('alert'),
       h('span', { class: 'zx-banner__text' }, `${f.key === 'withdrawals_paused' ? 'Withdrawals' : 'Deposits'} are paused for ${f.currency_code}. ${f.reason ?? ''}`),
-      h('a', { class: 'zx-btn zx-btn--sm zx-btn--secondary', href: '/admin/balances.html' }, 'Review')));
+      h('a', { class: 'zx-btn zx-btn--sm zx-btn--secondary', href: '/admin/balances' }, 'Review')));
   }
   if (Number(data.counts.treasury_pending)) {
     banners.push(h('div', { class: 'zx-banner zx-banner--warning' }, icon('clock'),
       h('span', { class: 'zx-banner__text' }, `${data.counts.treasury_pending} treasury request(s) wait for an admin.`),
-      h('a', { class: 'zx-btn zx-btn--sm zx-btn--secondary', href: '/admin/balances.html#treasury' }, 'Open')));
+      h('a', { class: 'zx-btn zx-btn--sm zx-btn--secondary', href: '/admin/balances#treasury' }, 'Open')));
   }
   if (!data.lastReconciliation) {
     banners.push(h('div', { class: 'zx-banner zx-banner--warning' }, icon('info'), h('span', { class: 'zx-banner__text' }, 'No balance check has run yet. The worker runs one every 5 minutes.')));
@@ -60,7 +60,7 @@ function renderFeed(events) {
     return h('li', { class: fresh ? 'zx-is-new' : undefined },
       h('span', { class: `zx-feed__icon${e.type === 'withdrawal' ? ' zx-feed__icon--out' : ''}`, 'aria-hidden': 'true' }, icon(e.type === 'deposit' ? 'deposit' : 'withdraw')),
       h('div', { class: 'zx-feed__body' },
-        h('a', { class: 'zx-feed__title', href: `/admin/${page}.html?id=${e.subjectId}` }, `@${e.member} ${VERB[`${e.type}:${e.to}`] ?? e.to}`),
+        h('a', { class: 'zx-feed__title', href: `/admin/${page}?id=${e.subjectId}` }, `@${e.member} ${VERB[`${e.type}:${e.to}`] ?? e.to}`),
         h('span', { class: 'zx-feed__meta' }, [e.reference, e.actor && e.actor !== e.member ? `by @${e.actor}` : null, ago(e.at)].filter(Boolean).join(' · '))),
       h('span', { class: 'zx-feed__amount' }, money(e.amountMinor, e.currency)), statusBadge(e.to));
   }));

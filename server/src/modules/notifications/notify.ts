@@ -30,7 +30,7 @@ const WALLET_KIND: Partial<Record<PaymentEvent, TemplateKind | null>> = {
   deposit_submitted: null, deposit_confirmed: 'payment_wallet_deposit_confirmed', deposit_rejected: 'payment_wallet_deposit_rejected', deposit_cancelled: 'payment_wallet_deposit_cancelled',
 };
 const BUTTON_PATH: Partial<Record<TemplateKind, string>> = {
-  payment_deposit_confirmed: '/dashboard.html', payment_deposit_rejected: '/activate.html', payment_deposit_cancelled: '/activate.html', payment_wallet_deposit_confirmed: '/dashboard.html', payment_withdrawal_paid: '/withdraw.html',
+  payment_deposit_confirmed: '/dashboard', payment_deposit_rejected: '/activate', payment_deposit_cancelled: '/activate', payment_wallet_deposit_confirmed: '/dashboard', payment_withdrawal_paid: '/withdraw',
 };
 
 // Looks the payment up by reference and emails its owner. Never throws. Callers await it before replying: on AWS
@@ -91,7 +91,7 @@ export async function notifyStaffOfPayment(services: Services, kind: 'deposit' |
       await sendTemplated(services, {
         kind: kind === 'deposit' ? 'staff_new_deposit' : 'staff_new_withdrawal', to: s.email, userId: Number(s.id), ref: `staff:${reference}:${s.id}`,
         values: { staff: s.username, member: p.username, country: p.country, amount, reference, purpose: p.purpose === 'wallet' ? 'deposit' : 'activation payment' },
-        buttonUrl: `${services.config.publicOrigin}/admin/${page}.html?id=${p.public_id}`,
+        buttonUrl: `${services.config.publicOrigin}/admin/${page}?id=${p.public_id}`,
       });
     }
   } catch (err) {
@@ -118,7 +118,7 @@ export async function notifyActivatedBy(services: Services, username: string, ho
     if (user?.email) {
       await sendTemplated(services, {
         kind: 'activated_by', to: user.email, userId: Number(user.id), ref: `activated:${user.id}`, values: { username, how },
-        buttonUrl: `${services.config.publicOrigin}/dashboard.html`,
+        buttonUrl: `${services.config.publicOrigin}/dashboard`,
       });
     }
     await notifyReferralRewards(services);
@@ -145,7 +145,7 @@ export async function notifyMovedRewards(
         amount: await formatAmount(services, m.takenBack.currency, m.takenBack.amountMinor),
         debt: BigInt(m.debtMinor) > 0n ? await formatAmount(services, m.debtCurrency, m.debtMinor) : null,
       },
-      buttonUrl: `${services.config.publicOrigin}/referrals.html?level=${m.level}&view=overview`,
+      buttonUrl: `${services.config.publicOrigin}/referrals?level=${m.level}&view=overview`,
     });
     if (outcome === 'queued' || outcome === 'sent') sent++;
   }
@@ -185,7 +185,7 @@ export async function notifyReferralRewards(services: Services): Promise<number>
     const outcome = await sendTemplated(services, {
       kind, to: r.email!, userId: Number(r.referrer_id), ref: `reward:${r.id}`,
       values: { username: r.username, member: r.member, country: r.country, amount, credited, level: String(r.level) },
-      buttonUrl: `${services.config.publicOrigin}/referrals.html?level=${r.level}&view=overview`,
+      buttonUrl: `${services.config.publicOrigin}/referrals?level=${r.level}&view=overview`,
     });
     if (outcome === 'queued' || outcome === 'sent') sent++;
   }

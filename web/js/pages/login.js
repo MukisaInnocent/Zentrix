@@ -94,7 +94,7 @@ export function init() {
           return;
         }
       }
-      const next = new URLSearchParams(location.search).get('next') || (challengeToken ? '/admin/index.html' : '/dashboard.html');
+      const next = new URLSearchParams(location.search).get('next') || (challengeToken ? '/admin/' : '/dashboard');
       location.assign(next);
     } catch (err) {
       if (challengeToken && err instanceof ApiError && err.code === 'auth.mfa_expired') {

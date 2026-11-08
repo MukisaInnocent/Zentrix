@@ -49,7 +49,7 @@ export async function init() {
     state.sort = e.target.value;
     reload();
   });
-  const open = tr => location.assign(`/admin/members.html?id=${encodeURIComponent(tr.dataset.open)}`);
+  const open = tr => location.assign(`/admin/members?id=${encodeURIComponent(tr.dataset.open)}`);
   on($('#rows'), 'click', 'tr[data-open]', (_e, tr) => open(tr));
   on($('#rows'), 'keydown', 'tr[data-open]', (e, tr) => {
     if (e.key === 'Enter') open(tr);
