@@ -139,8 +139,8 @@ export async function startCollection(
   return { deposit, command: await commandFor(db, request, g.provider) };
 }
 
-// Staff: send an approved withdrawal through the provider. The starter must not be the approver when two people
-// are needed (staffWithdrawalAction 'start'); the provider's method for the member's country pays it.
+// Staff: send an approved withdrawal through the provider (staffWithdrawalAction 'start'; the approver may send it,
+// owner 2026-11-08); the provider's method for the member's country pays it.
 export async function startPayout(
   db: PoolClient, services: Services, publicId: string, staff: { id: number; roles: Role[]; note?: string | null | undefined },
 ): Promise<{ withdrawal: WithdrawalView; command: ProviderCommand; before: WithdrawalView }> {

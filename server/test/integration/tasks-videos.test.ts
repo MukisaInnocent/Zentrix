@@ -98,6 +98,12 @@ describe('TikTok LIVE tasks (owner, 2026-11-06)', () => {
     expect(shown).toMatchObject({ live: true, embedUrl: null, url: live.linkUrl });
     expect((await addTask({ ...live, linkUrl: 'https://www.tiktok.com/@pexerearn' })).body.error?.fields?.linkUrl).toBeDefined();
     expect((await addTask({ ...live, module: 'youtube' })).body.error?.fields?.linkUrl).toBeDefined();
+    // A short link from TikTok's Share button opens on TikTok too (owner, 2026-11-08).
+    const short = { ...live, title: `Short ${randomUUID().slice(0, 6)}`, linkUrl: 'https://vt.tiktok.com/ZSabc123x/' };
+    expect((await addTask(short)).status).toBe(201);
+    expect((await member.client.get<Body>('/api/tasks?module=tiktok')).body.tasks.find((t: Body) => t.title === short.title))
+      .toMatchObject({ live: false, embedUrl: null, url: short.linkUrl });
+    expect((await addTask({ ...short, linkUrl: 'https://vt.tiktok.com/' })).body.error?.fields?.linkUrl).toBeDefined();
     expect((await member.client.post<Body>(`/api/tasks/${shown.id}/complete`, {}, key())).status).toBe(200);
   });
 });

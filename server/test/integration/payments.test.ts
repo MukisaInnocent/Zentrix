@@ -469,7 +469,7 @@ describe('treasury and task budget', () => {
     await activate(member);
     // The site makes up no tasks (owner, 2026-11-01): only tasks in the table are listed.
     expect((await member.client.get<Body>('/api/tasks')).body.tasks).toEqual([]);
-    // Task budgets are issued by the admin (not real money yet, owner 2026-11-05); the treasury still needs two admins.
+    // Task budgets are issued by the admin (not real money yet, owner 2026-11-05); one admin may ask for and approve a treasury move (owner, 2026-11-08).
     const videoTask = { module: 'youtube', title: 'Watch a sponsored video', description: 'A test video task.', reward: '1500', budget: '1500', currency: 'UGX', linkUrl: 'https://youtu.be/dQw4w9WgXcQ', durationSec: 60 };
 
     const capital = await financeClient.post<Body>('/api/admin/payments/treasury', { kind: 'capital_in', currency: 'UGX', amount: '100000', channel: CHANNEL, externalRef: 'OWNER-1', note: 'Owner capital for tests' });
@@ -478,8 +478,7 @@ describe('treasury and task budget', () => {
     expect((await adminClient.post<Body>(`/api/admin/payments/treasury/${capital.body.id}/decide`, { approve: true }, key())).status).toBe(200);
 
     const own = await adminClient.post<Body>('/api/admin/payments/treasury', { kind: 'fund_budget', currency: 'UGX', amount: '5000', source: 'owner_capital', budget: 'promotions_budget', note: 'Task budget' });
-    expect((await adminClient.post<Body>(`/api/admin/payments/treasury/${own.body.id}/decide`, { approve: true }, key())).body.error?.code).toBe('treasury.same_person');
-    expect((await admin2Client.post<Body>(`/api/admin/payments/treasury/${own.body.id}/decide`, { approve: true }, key())).status).toBe(200);
+    expect((await adminClient.post<Body>(`/api/admin/payments/treasury/${own.body.id}/decide`, { approve: true }, key())).status).toBe(200);
     expect((await adminClient.post<Body>('/api/admin/tasks', videoTask, key())).status).toBe(201);
     expect((await adminClient.post<Body>('/api/admin/tasks', {
       module: 'trivia', title: 'A test question', description: 'Which is the capital of Uganda?', reward: '500', budget: '500', currency: 'UGX', options: ['Kampala', 'Nairobi'], answer: 'Kampala',

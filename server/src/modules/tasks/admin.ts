@@ -7,7 +7,7 @@ import { withTransaction } from '../../db/tx.js';
 import { parse } from '../../http/validate.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { MoneyFormatError, toDecimalString, toMinor } from '../../lib/money.js';
-import { isTiktokLive, videoEmbed } from '../../lib/safe-links.js';
+import { opensOnTiktok, videoEmbed } from '../../lib/safe-links.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
@@ -89,12 +89,13 @@ async function columns(db: Db, body: TaskInput) {
   if (body.module === 'youtube' || body.module === 'tiktok') {
     if (!url) throw field('linkUrl', 'Add the link to the video.');
     const embed = videoEmbed(new URL(url));
-    // A TikTok task may also link a TikTok LIVE, which opens on TikTok (owner, 2026-11-06).
-    const live = body.module === 'tiktok' && isTiktokLive(new URL(url));
+    // A TikTok task may also link a TikTok LIVE (owner, 2026-11-06) or a short link from the Share button
+    // (vt.tiktok.com, owner 2026-11-08); both open on TikTok.
+    const live = body.module === 'tiktok' && opensOnTiktok(new URL(url));
     if (!live && (embed.platform !== body.module || !embed.embedUrl)) {
       throw field('linkUrl', body.module === 'youtube'
         ? "Use the link to one YouTube video, so it plays on the member's page."
-        : "Use the link to one TikTok video (it plays on the member's page) or a TikTok LIVE (tiktok.com/@name/live, it opens on TikTok).");
+        : 'Use a TikTok link: a video (tiktok.com/@name/video/..., plays on the page), a short link from the Share button (vt.tiktok.com/..., opens on TikTok) or a LIVE (tiktok.com/@name/live, opens on TikTok).');
     }
   }
 

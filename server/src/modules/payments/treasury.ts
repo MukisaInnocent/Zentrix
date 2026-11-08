@@ -1,12 +1,12 @@
 import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { accountId, InsufficientFundsError, move, post } from '../ledger/ledger.js';
 import { channelByCode, normalizeTxnId } from './common.js';
 
-// Platform money moves, each requested by one staff member and approved by a different admin before the ledger
-// moves (maker-checker). None of them touch member balances:
+// Platform money moves, each requested by a staff member and approved by an admin (who may be the same person,
+// owner 2026-11-08) before the ledger moves. None of them touch member balances:
 //   capital_in        owner puts money on a channel        channel cash  -> owner_capital
 //   owner_withdrawal  owner takes revenue or capital out   revenue/fees/capital -> channel cash
 //   fund_budget       budget for task rewards or referrals revenue/capital -> promotions/referral budget
@@ -77,7 +77,7 @@ export async function decideTreasury(db: PoolClient, staffId: number, publicId: 
   );
   if (!r) throw notFound();
   if (r.status !== 'pending') throw conflict('treasury.decided', 'This request was already decided.');
-  if (Number(r.requested_by) === staffId) throw forbidden('treasury.same_person', 'A different admin must approve a request you made.');
+  // One admin may ask for and approve a transfer (owner, 2026-11-08).
   let txn: number | null = null;
   if (approve) {
     try {

@@ -52,7 +52,7 @@ async function openWithdrawal(id) {
   if (m.status !== 'active') warnings.push(`The member account is ${m.status}. Do not pay; cancel instead.`);
   if (m.openFlags) warnings.push(`The member has ${m.openFlags} open fraud flag(s).`);
   if (m.lifetime.depositedMinor === '0') warnings.push('This member has never made a confirmed deposit. The balance comes only from earnings.');
-  if (w.needsAdminApproval) warnings.push('Large amount: an admin approves, and a different staff member sends and records the payout.');
+  if (w.needsAdminApproval) warnings.push('Large amount: an admin approves it.');
 
   view.body.replaceChildren(
     panel('Payout',

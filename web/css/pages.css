@@ -144,7 +144,6 @@
 
 /* ---------- Member dashboard: stacked colour cards (total earnings, balance, withdrawn, pending, referrals) ---------- */
 .zx-dashx { gap: var(--zx-space-4); max-inline-size: 760px; }
-.zx-dashx__top { display: flex; justify-content: flex-end; }
 .zx-dashx__hero {
   display: grid; gap: var(--zx-space-2); padding: var(--zx-space-6); border-radius: var(--zx-radius-lg); color: #fff;
   background: linear-gradient(135deg, #5b2bd6 0%, #7c4dff 55%, #9b6bff 100%); box-shadow: var(--zx-shadow);
@@ -318,17 +317,14 @@ a.zx-dashx__task:hover { color: #fff; filter: brightness(1.06); }
 .zx-wa__reward-text { flex: 1; }
 
 /* Withdrawal status card (owner, 2026-11-06). */
-.zx-wd-status { padding: var(--zx-space-4) var(--zx-space-5); border-radius: var(--zx-radius); background: #0a8468; color: #fff; }
-.zx-wd-status--failed, .zx-wd-status--cancelled { background: var(--zx-danger); }
-.zx-wd-status--approved, .zx-wd-status--processing { background: #087560; }
-.zx-wd-status__title { margin: 0 0 var(--zx-space-2); font-size: 1.35rem; color: inherit; }
-.zx-wd-status__text { margin: 0; font-size: 1.05rem; line-height: 1.5; color: inherit; }
-.zx-wd-status__ref { margin: var(--zx-space-2) 0 0; font-size: .85rem; opacity: .9; color: inherit; }
+.zx-wd-status { padding: var(--zx-space-4) var(--zx-space-5); border-radius: var(--zx-radius); background: #0a8468; color: #fff; transition: opacity .6s ease; }
+.zx-wd-status--leaving { opacity: 0; }
+.zx-wd-status__title { margin: 0 0 var(--zx-space-2); font-size: 1.35rem; line-height: 1.25; color: inherit; }
+.zx-wd-status__text { margin: 0; font-size: 1.05rem; line-height: 1.55; color: inherit; }
+.zx-wd-status__text strong { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .zx-wd-status { transition: none; } }
 .zx-wa__live { text-decoration: none; }
 .zx-wa__avatar--live { background: var(--zx-success); }
-.zx-wd-status__details { display: grid; grid-template-columns: max-content 1fr; gap: 4px var(--zx-space-4); margin: var(--zx-space-3) 0 0; padding-block-start: var(--zx-space-3); border-block-start: 1px solid rgb(255 255 255 / .35); font-size: .95rem; }
-.zx-wd-status__details dt { opacity: .9; }
-.zx-wd-status__details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .zx-wa__live[hidden] { display: none; }
 
 .zx-soon-card { justify-items: center; text-align: center; padding-block: var(--zx-space-6, 32px); }

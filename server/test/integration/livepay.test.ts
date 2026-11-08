@@ -312,19 +312,18 @@ describe('LivePay payouts', () => {
     expect(await drift()).toBe(0);
   });
 
-  it('pays an approved withdrawal through LivePay, with the two-person rule', async () => {
+  it('pays an approved withdrawal through LivePay; one admin approves and sends (owner, 2026-11-08)', async () => {
     const { referrer, withdrawal } = await withUganda({ threshold: '15000' }, fundedMember);
     const admin = await loginStaff(app, await createStaff(app, ['admin', 'finance']));
     const finance = await loginStaff(app, await createStaff(app, ['finance']));
     // Not approved yet: nothing is sent.
     expect((await finance.post<Body>(`/api/admin/payments/withdrawals/${withdrawal.id}/send-provider`, {}, key())).body.error?.code).toBe('withdrawal.wrong_state');
     expect((await admin.post<Body>(`/api/admin/payments/withdrawals/${withdrawal.id}/approve`, {}, key())).status).toBe(200);
-    // The approver cannot also send a large payout.
-    expect((await admin.post<Body>(`/api/admin/payments/withdrawals/${withdrawal.id}/send-provider`, {}, key())).body.error?.code).toBe('withdrawal.two_people');
     const detail = (await finance.get<Body>(`/api/admin/payments/withdrawals/${withdrawal.id}`)).body;
     expect(detail.provider.payoutChannel).toMatchObject({ code: 'livepay_ug' });
 
-    const sent = await finance.post<Body>(`/api/admin/payments/withdrawals/${withdrawal.id}/send-provider`, {}, key());
+    // The approver sends it too: no second person (owner, 2026-11-08).
+    const sent = await admin.post<Body>(`/api/admin/payments/withdrawals/${withdrawal.id}/send-provider`, {}, key());
     expect(sent.status, JSON.stringify(sent.body)).toBe(200);
     expect(sent.body.withdrawal).toMatchObject({ status: 'paid', payoutMethod: 'api', channel: { code: 'livepay_ug' } });
     expect(sent.body.withdrawal.payoutTxnId).toMatch(/^SIM-/);

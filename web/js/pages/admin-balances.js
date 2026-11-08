@@ -5,7 +5,7 @@ import { act, ago, askForm, emptyRow, money, moneyPost, panel, severityBadge, st
 
 // The balance check: does the ledger balance, does every cached balance match its entries, and is what members
 // are owed covered by the money actually held on each channel? Also channel statements, pause switches,
-// treasury requests (a second admin approves) and the recent check runs.
+// treasury requests (an admin approves; owner 2026-11-08: one admin is enough) and the recent check runs.
 const KIND = { capital_in: 'Owner capital in', owner_withdrawal: 'Owner withdrawal', fund_budget: 'Fund a budget', channel_transfer: 'Move float between channels' };
 const ACCOUNT = {
   platform_revenue: 'Platform revenue (activation fees)', fees: 'Withdrawal fees', referral_budget: 'Referral budget', promotions_budget: 'Task reward budget (not yet given to a task)',
@@ -134,7 +134,7 @@ function renderTreasury(requests, refresh) {
       h('td', {}, r.note, r.externalRef ? h('span', { class: 'zx-hint' }, ` · ${r.externalRef}`) : null),
     ];
     let status = statusBadge(r.status === 'pending' ? 'pending' : r.status === 'approved' ? 'confirmed' : 'rejected');
-    if (r.status === 'pending' && me?.roles.includes('admin') && r.requestedBy !== me.username) {
+    if (r.status === 'pending' && me?.roles.includes('admin')) {
       const decide = approve => async () => {
         if (await askForm({
           title: approve ? 'Approve treasury request' : 'Reject treasury request', text: `${KIND[r.kind]}: ${money(r.amountMinor, r.currency)}. ${r.note}`,
@@ -149,7 +149,7 @@ function renderTreasury(requests, refresh) {
       no.addEventListener('click', decide(false));
       status = h('span', { class: 'zx-row-actions' }, no, yes);
     } else if (r.status === 'pending') {
-      status = h('span', {}, statusBadge('pending'), h('span', { class: 'zx-hint' }, ' Needs another admin'));
+      status = h('span', {}, statusBadge('pending'), h('span', { class: 'zx-hint' }, ' Waiting for an admin'));
     } else if (r.decidedBy) {
       status = h('span', {}, status, h('span', { class: 'zx-hint' }, ` @${r.decidedBy}`));
     }
@@ -172,7 +172,7 @@ async function newTreasury(channels, refresh) {
   fields.push({ name: 'note', label: 'What is this for?', type: 'textarea', required: true, minLength: 5 });
   const currency = kind.kind === 'fund_budget' ? 'UGX' : null;
   const done = await askForm({
-    title: KIND[kind.kind], text: 'Another admin must approve this before any money moves.', submitLabel: 'Send for approval', fields,
+    title: KIND[kind.kind], text: 'An admin approves this before any money moves (you can approve it yourself).', submitLabel: 'Send for approval', fields,
     submit: v => {
       const channel = channels.find(c => c.code === v.channel);
       const body = { kind: kind.kind, currency: channel?.currency ?? currency ?? 'UGX', amount: v.amount, note: v.note };

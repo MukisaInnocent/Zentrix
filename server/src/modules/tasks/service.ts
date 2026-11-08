@@ -2,7 +2,7 @@ import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, notFound } from '../../lib/errors.js';
-import { isTiktokLive, videoEmbed } from '../../lib/safe-links.js';
+import { isTiktokLive, opensOnTiktok, videoEmbed } from '../../lib/safe-links.js';
 import { convert } from '../fx/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post, type TaskModule } from '../ledger/ledger.js';
 
@@ -77,7 +77,8 @@ export async function listTasks(db: Db, userId: number, module?: string): Promis
 
   // An older YouTube or TikTok task whose link cannot play on the page is left out until an admin fixes the link.
   const live = (t: { module: string; url: string | null }) => t.module === 'tiktok' && Boolean(t.url) && isTiktokLive(new URL(t.url!));
-  return shown.filter(({ task: t }) => !(t.module === 'youtube' || t.module === 'tiktok') || live(t) || (t.url && videoEmbed(new URL(t.url)).embedUrl)).map(({ task: t, rewardMinor }) => ({
+  const onTiktok = (t: { module: string; url: string | null }) => t.module === 'tiktok' && Boolean(t.url) && opensOnTiktok(new URL(t.url!));
+  return shown.filter(({ task: t }) => !(t.module === 'youtube' || t.module === 'tiktok') || onTiktok(t) || (t.url && videoEmbed(new URL(t.url)).embedUrl)).map(({ task: t, rewardMinor }) => ({
     id: t.id,
     module: t.module,
     title: t.title,

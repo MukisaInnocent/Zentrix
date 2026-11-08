@@ -11,8 +11,8 @@ import { assertNotPaused, channelByCode, listChannels, normalizeTxnId, setActor,
 // Manual payouts. On request the amount plus fee moves from the chosen balance to the member's withdrawal
 // hold. Staff approve, start the payout (claiming it so nobody pays twice), send the money from the business
 // channel to the member's verified phone, and record the payout transaction ID. Failed or cancelled requests
-// return the full hold to the balance it came from. From the approval threshold an admin approves and a different
-// staff member records the payout (maker-checker). The account's age plays no part (owner, 2026-10-31).
+// return the full hold to the balance it came from. From the approval threshold an admin approves; one person may
+// do every step (owner, 2026-11-08: one admin approves, no second person). The account's age plays no part (owner, 2026-10-31).
 
 export interface Quote {
   amountMinor: string;
@@ -259,9 +259,6 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
     }
     case 'start': {
       expect('approved');
-      if (w.needs_two_people && String(staffId) === w.approved_by) {
-        throw forbidden('withdrawal.two_people', 'A different staff member from the approver must send this payout.');
-      }
       await assertNotPaused(db, 'withdrawals_paused', w.currency_code);
       await setActor(db, staffId, input.note ?? 'Payout started');
       await db.query(`UPDATE withdrawals SET status = 'processing', processing_by = $2, processing_at = now() WHERE id = $1`, [w.id, staffId]);
@@ -270,9 +267,6 @@ export async function staffWithdrawalAction(db: PoolClient, publicId: string, in
     case 'paid': {
       expect('processing');
       await settleProviderRequest(db, { withdrawalId: w.id }, 'succeeded', input.note ?? 'paid');
-      if (w.needs_two_people && String(staffId) === w.approved_by) {
-        throw forbidden('withdrawal.two_people', 'A different staff member from the approver must record this payout.');
-      }
       const txnId = normalizeTxnId(input.payoutTxnId ?? '');
       if (!/^[A-Z0-9.-]{4,40}$/.test(txnId)) {
         throw badRequest('validation_failed', 'Enter the payout transaction ID.', { payoutTxnId: ['Enter the payout transaction ID.'] });

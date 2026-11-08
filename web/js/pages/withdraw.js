@@ -10,54 +10,24 @@ import { toast } from '../core/toast.js';
 // Task earnings cannot be withdrawn yet (owner, 2026-11-03), so the main balance is the only choice.
 const SOURCES = { main: 'Balance' };
 
-// The status of the member's latest withdrawal, as a card at the top (owner, 2026-11-06). Shown while it is open, and
-// for a day after it is paid, failed or cancelled. Amounts come from the server.
-const RECENT_MS = 24 * 60 * 60 * 1000;
-function statusText(w) {
-  const amount = h('strong', {}, formatMoney(w.amountMinor, w.currency));
-  const total = h('strong', {}, formatMoney(w.totalMinor, w.currency));
-  const fee = formatMoney(w.feeMinor, w.currency);
-  switch (w.status) {
-    case 'requested':
-      // The owner's wording (2026-11-06).
-      return ['Congratulations, Withdrawal Initiated Successfully', ['Your request for ', amount, ' has been processed. A total of ', total, ` (including charges of ${fee}) was deducted from your balance.`]];
-    case 'approved':
-      return ['Withdrawal Approved', ['Your request for ', amount, ` is approved and will be sent to ${w.payoutPhone} shortly.`]];
-    case 'processing':
-      return ['Withdrawal Being Sent', [amount, ` is on its way to ${w.payoutPhone}.`]];
-    case 'paid':
-      return ['Withdrawal Paid', [amount, ` was sent to ${w.payoutPhone}.`]];
-    case 'failed':
-      return ['Withdrawal Failed', ['Your request for ', amount, ' could not be sent. ', total, ' is back in your balance.', w.closedReason ? ` ${w.closedReason}` : '']];
-    case 'cancelled':
-      return ['Withdrawal Cancelled', ['Your request for ', amount, ' was cancelled. ', total, ' is back in your balance.']];
-    default:
-      return null;
-  }
-}
-
-function showStatus(w) {
+// After a withdrawal request, the owner's message (2026-11-08: exactly this wording and format, in a green card). It shows
+// for a short time and then goes away; the request's progress is in the history below. Amounts come from the server.
+const MESSAGE_MS = 10_000;
+let messageTimer;
+function showMessage(w) {
   const box = $('#wd-status');
-  const closedAt = w && (w.paidAt ?? w.closedAt);
-  const text = w && (!closedAt || Date.now() - new Date(closedAt).getTime() < RECENT_MS) ? statusText(w) : null;
-  if (!text) {
-    box.hidden = true;
-    return;
-  }
-  box.className = `zx-wd-status zx-wd-status--${w.status}`;
-  // The transaction details under the message (owner, 2026-11-06).
-  const row = (label, value) => [h('dt', {}, label), h('dd', {}, value)];
-  box.replaceChildren(h('h2', { class: 'zx-wd-status__title' }, text[0]), h('p', { class: 'zx-wd-status__text' }, ...text[1]),
-    h('dl', { class: 'zx-wd-status__details' },
-      ...row('Reference', w.reference),
-      ...row('Date', formatDate(w.createdAt, { withTime: true })),
-      ...row('Amount', formatMoney(w.amountMinor, w.currency)),
-      ...row('Charges', formatMoney(w.feeMinor, w.currency)),
-      ...row('Total deducted', formatMoney(w.totalMinor, w.currency)),
-      ...row('Sent to', w.payoutPhone),
-      ...row('Method', w.channel?.name ?? '-'),
-      ...row('Status', w.status.charAt(0).toUpperCase() + w.status.slice(1))));
+  clearTimeout(messageTimer);
+  box.className = 'zx-wd-status';
+  box.replaceChildren(
+    h('h2', { class: 'zx-wd-status__title' }, 'Congratulations, Withdrawal Initiated Successfully'),
+    h('p', { class: 'zx-wd-status__text' },
+      'Your request for ', h('strong', {}, formatMoney(w.amountMinor, w.currency)), ' has been processed. A total of ',
+      h('strong', {}, formatMoney(w.totalMinor, w.currency)), ` (including charges of ${formatMoney(w.feeMinor, w.currency)}) was deducted from your balance.`));
   box.hidden = false;
+  messageTimer = setTimeout(() => {
+    box.classList.add('zx-wd-status--leaving');
+    messageTimer = setTimeout(() => { box.hidden = true; }, 600);
+  }, MESSAGE_MS);
 }
 
 let quoteSeq = 0;
@@ -95,7 +65,6 @@ async function refresh() {
   source.replaceChildren(...Object.entries(SOURCES).map(([key, label]) =>
     h('option', { value: key, selected: key === current }, `${label}: ${formatMoney(balances[key] ?? '0', summary.currency)}`)));
 
-  showStatus(list.withdrawals[0]);
   const body = $('#withdraw-history-body');
   if (!list.withdrawals.length) {
     body.replaceChildren(h('tr', {}, h('td', { colspan: '7', class: 'zx-td-empty' }, 'No withdrawals yet.')));
@@ -145,11 +114,12 @@ export async function init() {
   });
 
   bindForm($('#withdraw-form'), async (data, form) => {
-    await api.post('/api/payments/withdrawals', data, { idempotencyKey: newIdempotencyKey() });
+    const { withdrawal } = await api.post('/api/payments/withdrawals', data, { idempotencyKey: newIdempotencyKey() });
     form.elements.namedItem('amount').value = '';
     $('#quote').hidden = true;
-    await refresh();
+    showMessage(withdrawal);
     $('#wd-status').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    await refresh();
   });
 
   await refresh();

@@ -642,7 +642,7 @@ export function paymentsAdminRouter(services: Services): Router {
     res.json({ ok: true });
   });
 
-  // ---- Treasury (maker-checker) ----
+  // ---- Treasury (one admin asks and approves, owner 2026-11-08) ----
   router.get('/treasury', requireStaff('finance', 'compliance'), async (_req, res) => {
     res.json({ requests: await listTreasury(pool) });
   });

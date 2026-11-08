@@ -66,8 +66,9 @@ export async function initTaskPage({ module, ids, verb, proof, empty, defaultSec
       slot.append(watch);
       return slot;
     }
-    // A TikTok LIVE opens on TikTok (owner, 2026-11-06); TikTok has no player for lives on other sites.
-    const open = h('a', { class: 'zx-btn zx-btn--sm', href: t.url, target: '_blank', rel: 'noopener noreferrer' }, t.live ? 'Watch the LIVE on TikTok' : verb);
+    // A TikTok LIVE or short link opens on TikTok (owner, 2026-11-06 and 2026-11-08); there is no player for them here.
+    const label = t.live ? 'Watch the LIVE on TikTok' : t.module === 'tiktok' ? 'Watch on TikTok' : verb;
+    const open = h('a', { class: 'zx-btn zx-btn--sm', href: t.url, target: '_blank', rel: 'noopener noreferrer' }, label);
     open.addEventListener('click', () => open.replaceWith(doneButton(t, seconds)), { once: true });
     slot.append(open);
     return slot;

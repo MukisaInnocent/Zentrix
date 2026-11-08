@@ -35,7 +35,7 @@ function renderBanners(data) {
   }
   if (Number(data.counts.treasury_pending)) {
     banners.push(h('div', { class: 'zx-banner zx-banner--warning' }, icon('clock'),
-      h('span', { class: 'zx-banner__text' }, `${data.counts.treasury_pending} treasury request(s) wait for a second admin.`),
+      h('span', { class: 'zx-banner__text' }, `${data.counts.treasury_pending} treasury request(s) wait for an admin.`),
       h('a', { class: 'zx-btn zx-btn--sm zx-btn--secondary', href: '/admin/balances.html#treasury' }, 'Open')));
   }
   if (!data.lastReconciliation) {

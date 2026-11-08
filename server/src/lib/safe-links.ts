@@ -53,6 +53,18 @@ export function isTiktokLive(url: URL): boolean {
   return (host === 'tiktok.com' || host.endsWith('.tiktok.com')) && /^\/@[A-Za-z0-9._]{1,40}\/live\/?$/.test(url.pathname);
 }
 
+// A TikTok short link from the app's Share button (vt.tiktok.com/..., vm.tiktok.com/... or tiktok.com/t/...). Finding the
+// video behind it needs a request to TikTok, which the server cannot make (no internet from the private network), so
+// these open on TikTok like a LIVE (owner, 2026-11-08). A full video link still plays on the member's page.
+export function isTiktokShort(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/^www\.|^m\./, '');
+  if (host === 'vt.tiktok.com' || host === 'vm.tiktok.com') return /^\/[A-Za-z0-9]{5,20}\/?$/.test(url.pathname);
+  return host === 'tiktok.com' && /^\/t\/[A-Za-z0-9]{5,20}\/?$/.test(url.pathname);
+}
+
+// A TikTok link that opens on TikTok instead of playing on the page: a LIVE or a short link.
+export const opensOnTiktok = (url: URL) => isTiktokLive(url) || isTiktokShort(url);
+
 export function videoEmbed(url: URL): { platform: VideoPlatform; embedUrl: string | null } {
   const host = url.hostname.toLowerCase().replace(/^www\.|^m\./, '');
   if (host === 'youtu.be' || host === 'youtube.com' || host === 'youtube-nocookie.com') {
