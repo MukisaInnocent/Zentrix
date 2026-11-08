@@ -122,6 +122,24 @@ export const TEMPLATES = {
   referral_reward_level_one: rewardTemplate(1, 'invited directly', 'KES 300.00'),
   referral_reward_level_two: rewardTemplate(2, 'invited by someone you invited', 'KES 150.00'),
   referral_reward_level_three: rewardTemplate(3, 'two steps below you', 'KES 50.00'),
+  // Owner, 2026-11-08: so the reward emails and the balance always agree.
+  referral_reward_moved: {
+    title: 'Referral reward moved', group: 'Activation and referrals',
+    when: "To a member whose referral reward was taken back because an admin changed someone's inviter.", category: 'account',
+    vars: {
+      ...USER, member: { about: 'Username of the member the reward was for', sample: 'peter' },
+      amount: { about: 'The reward taken back, in your currency', sample: 'UGX 10,000' },
+      level: { about: 'The referral level', sample: '1' },
+      debt: { about: 'The part you had already used, now owed (paragraph left out when nothing is owed)', sample: 'UGX 4,000' },
+    },
+    button: true,
+    defaults: {
+      subject: 'Pexerearn: a referral reward of {amount} was moved',
+      heading: 'A referral reward was moved',
+      body: 'Hello @{username},\n\nAn admin changed who invited @{member}, so your level {level} referral reward of {amount} for @{member} now goes to their new invite line. It was taken back from your balance.\n\nYou had already used {debt} of it, so your balance shows that amount below zero until your next referral earnings repay it.',
+      buttonLabel: 'See your referrals',
+    },
+  },
   payment_wallet_deposit_confirmed: {
     title: 'Deposit credited', group: 'Payments', when: 'When staff confirm a deposit.', category: 'payment',
     vars: { ...USER, ...MONEY }, button: true,

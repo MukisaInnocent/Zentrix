@@ -12,6 +12,7 @@ import { revokeUserSessions } from '../auth/sessions.js';
 import { CHANGE_KINDS, grantChange, openGrants } from '../auth/changes.js';
 import { idempotent } from '../ledger/idempotency.js';
 import { changeInviter } from '../referrals/reassign.js';
+import { notifyMovedRewards, notifyReferralRewards } from '../notifications/notify.js';
 import { loadProfile } from '../users/profile.js';
 
 const Uuid = z.uuid();
@@ -232,6 +233,15 @@ export function membersRouter(services: Services): Router {
       });
       return { status: 200, body: { ok: true, inviter: change.after, previousInviter: change.before, moved: change.moved } };
     });
+    // Emails (owner, 2026-11-08): the old receivers hear that a reward was taken back, the new ones that they earned it.
+    if (!result.replayed) {
+      try {
+        await notifyMovedRewards(services, result.body.moved as Parameters<typeof notifyMovedRewards>[1]);
+        await notifyReferralRewards(services);
+      } catch (err) {
+        services.logger.error({ err }, 'inviter change emails failed');
+      }
+    }
     res.status(result.status).json(result.body);
   });
 

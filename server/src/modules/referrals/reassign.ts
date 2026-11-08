@@ -21,6 +21,8 @@ export interface MovedReward {
   debtMinor: string;
   // The old receiver's currency, which differs from `currency` when the reward was converted.
   debtCurrency: string;
+  // The reward row taken back from `from`, with what was taken in their currency (null when nothing was paid yet).
+  takenBack: { rewardId: string; userId: number; amountMinor: string; currency: string } | null;
 }
 
 interface Upline { id: number; username: string; currency: string; active: boolean }
@@ -132,6 +134,9 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
       moved.push({
         member: m.username, level, from: current?.receiver ?? null, to: eligible ? due!.username : null,
         amountMinor: amount.toString(), currency, debtMinor: owed.toString(), debtCurrency: current?.currency_code ?? currency,
+        takenBack: current?.status === 'credited'
+          ? { rewardId: current.id, userId: Number(current.referrer_user_id), amountMinor: current.amount_minor!, currency: current.currency_code }
+          : null,
       });
     }
   }

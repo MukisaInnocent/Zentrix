@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { parse } from '../../http/validate.js';
 import type { Services } from '../../services.js';
 import { requireActivated, requireAuth } from '../auth/middleware.js';
-import { getReferralOverview, listReferralMembers, referralLeaders } from './service.js';
+import { getReferralOverview, listMovedRewards, listReferralMembers, referralLeaders } from './service.js';
 
 const LeaderboardQuery = z.object({ period: z.enum(['all', '30d', '7d']).default('all') });
 const MembersQuery = z.object({
@@ -21,8 +21,8 @@ export function referralsRouter(services: Services): Router {
   const linkFor = (username: string) => `${services.config.publicOrigin}/register.html?ref=${encodeURIComponent(username)}`;
 
   const handleOverview = async (req: Request, res: Response) => {
-    const overview = await getReferralOverview(services.pool, req.auth!.userId);
-    res.json({ ...overview, referralLink: linkFor(overview.username) });
+    const [overview, movedRewards] = await Promise.all([getReferralOverview(services.pool, req.auth!.userId), listMovedRewards(services.pool, req.auth!.userId)]);
+    res.json({ ...overview, movedRewards, referralLink: linkFor(overview.username) });
   };
 
   router.get('/', handleOverview);

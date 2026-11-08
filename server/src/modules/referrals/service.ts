@@ -214,6 +214,19 @@ export async function distributeReferralRewards(
   return { distributedCount, totalDistributedMinor };
 }
 
+// Rewards taken back from this member because an admin changed someone's inviter (owner, 2026-11-08), so the
+// referral page can say where the money went. Newest first, in the member's own currency.
+export async function listMovedRewards(db: Db, userId: number) {
+  const list = await rows<{ member: string; level: number; amount_minor: string; currency_code: string; reversed_at: Date }>(
+    db,
+    `SELECT u.username AS member, r.level, r.amount_minor::text, r.currency_code, r.reversed_at
+     FROM referral_rewards r JOIN users u ON u.id = r.referred_user_id
+     WHERE r.referrer_user_id = $1 AND r.status = 'reversed' AND r.amount_minor IS NOT NULL ORDER BY r.reversed_at DESC LIMIT 100`,
+    [userId],
+  );
+  return list.map(r => ({ member: r.member, level: r.level, amountMinor: r.amount_minor, currency: r.currency_code, movedAt: r.reversed_at }));
+}
+
 const TREE = `
   WITH RECURSIVE tree AS (
     SELECT id, 1 AS level FROM users WHERE referred_by_user_id = $1

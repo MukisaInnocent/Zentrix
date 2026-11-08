@@ -38,6 +38,15 @@ export async function init() {
       h('td', {}, String(c.active)),
       h('td', {}, String(c.inactive)),
       h('td', { class: 'zx-amount' }, formatMoney(c.rewardsMinor, overview.currency))));
+    // Rewards taken back because an admin changed someone's inviter (owner, 2026-11-08).
+    const moved = (overview.movedRewards ?? []).filter(m => m.level === level);
+    $('#moved-card').hidden = moved.length === 0;
+    $('#moved-title').textContent = `Level ${level} rewards moved after an inviter change`;
+    $('#moved-body').replaceChildren(...moved.map((m, i) => h('tr', {},
+      h('td', {}, String(i + 1)),
+      h('td', { class: 'zx-td-strong' }, m.member),
+      h('td', { class: 'zx-amount zx-amount--out' }, `-${formatMoney(m.amountMinor, m.currency)}`),
+      h('td', { class: 'zx-td-muted' }, formatDate(m.movedAt, { withTime: true })))));
     return;
   }
 

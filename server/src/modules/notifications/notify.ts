@@ -127,6 +127,31 @@ export async function notifyActivatedBy(services: Services, username: string, ho
   }
 }
 
+// Emails each member whose referral reward was taken back by an inviter change (owner, 2026-11-08), so the reward
+// emails and the balance always agree. Once per reward row (email_messages kind + ref).
+export async function notifyMovedRewards(
+  services: Services,
+  moved: { member: string; level: number; debtMinor: string; debtCurrency: string; takenBack: { rewardId: string; userId: number; amountMinor: string; currency: string } | null }[],
+): Promise<number> {
+  let sent = 0;
+  for (const m of moved) {
+    if (!m.takenBack) continue;
+    const user = await maybeOne<{ email: string | null; username: string }>(services.pool, 'SELECT email, username FROM users WHERE id = $1', [m.takenBack.userId]);
+    if (!user?.email) continue;
+    const outcome = await sendTemplated(services, {
+      kind: 'referral_reward_moved', to: user.email, userId: m.takenBack.userId, ref: `moved:${m.takenBack.rewardId}`,
+      values: {
+        username: user.username, member: m.member, level: String(m.level),
+        amount: await formatAmount(services, m.takenBack.currency, m.takenBack.amountMinor),
+        debt: BigInt(m.debtMinor) > 0n ? await formatAmount(services, m.debtCurrency, m.debtMinor) : null,
+      },
+      buttonUrl: `${services.config.publicOrigin}/referrals.html?level=${m.level}&view=overview`,
+    });
+    if (outcome === 'queued' || outcome === 'sent') sent++;
+  }
+  return sent;
+}
+
 const REWARD_KIND: Record<number, TemplateKind> = { 1: 'referral_reward_level_one', 2: 'referral_reward_level_two', 3: 'referral_reward_level_three' };
 
 // Emails each referrer about referral rewards credited in the last 14 days that have no email yet: after an
