@@ -409,6 +409,20 @@ describe('manual withdrawals', () => {
     expect([s.availableBalanceMinor, s.reservedBalanceMinor]).toEqual(['40000', '0']);
   });
 
+  it('accepts a manual withdrawal in one step, by one staff member (owner, 2026-11-08)', async () => {
+    const member = await verifiedMember();
+    await fund(member, '40000');
+    const w = (await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key())).body.withdrawal;
+    expect((await supportClient.post<Body>(`/api/admin/payments/withdrawals/${w.id}/accept`, {}, key())).status).toBe(403);
+    const accepted = await financeClient.post<Body>(`/api/admin/payments/withdrawals/${w.id}/accept`, {}, key());
+    expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
+    // Without a payout transaction ID the withdrawal's own reference is recorded.
+    expect(accepted.body.withdrawal).toMatchObject({ status: 'paid', payoutTxnId: w.reference });
+    expect((await financeClient.post<Body>(`/api/admin/payments/withdrawals/${w.id}/accept`, {}, key())).body.error?.code).toBe('withdrawal.wrong_state');
+    const s = await summary(member);
+    expect([s.reservedBalanceMinor, s.totalWithdrawnMinor]).toEqual(['0', '20000']);
+  });
+
   it('cannot overdraw with simultaneous requests, and enforces the minimum and a verified phone', async () => {
     const member = await verifiedMember();
     await fund(member, '30000');

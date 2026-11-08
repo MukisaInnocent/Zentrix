@@ -14,7 +14,7 @@ import { addMessage, findIssue, ISSUE_SELECT, issueView, messagesOf, setIssueSta
 import { buildReport, runReconciliation } from '../payments/reconciliation.js';
 import { AmountInput, amountToMinor } from '../payments/routes.js';
 import { decideTreasury, listTreasury, requestTreasury, TREASURY_KINDS } from '../payments/treasury.js';
-import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type StaffAction, type WithdrawalRow } from '../payments/withdrawals.js';
+import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type StaffAction, type WithdrawalRow, type WithdrawalView } from '../payments/withdrawals.js';
 import { getTransactions, getWalletSummary } from '../wallet/service.js';
 import { checkRequest, providerChannel, sendCommand, startPayout } from '../payments/provider.js';
 import type { ProviderCommand } from '../../providers/livepay.js';
@@ -323,6 +323,34 @@ export function paymentsAdminRouter(services: Services): Router {
       res.status(result.status).json(result.body);
     });
   }
+
+  // Accept a manual withdrawal in one step (owner, 2026-11-08: Accept or Reject and refund): the steps that are left of
+  // approve, start and paid run in one transaction, by the same staff member. The payout transaction ID is optional;
+  // without it the withdrawal's own reference is recorded.
+  router.post('/withdrawals/:id/accept', requireStaff('finance'), async (req, res) => {
+    const id = uuid(req.params.id);
+    const body = parse(WithdrawalBody, req.body);
+    const result = await idempotent(pool, req, `admin.withdrawal.accept.${id}`, async db => {
+      const current = await maybeOne<{ status: string; reference: string }>(db, 'SELECT status, reference FROM withdrawals WHERE public_id = $1', [id]);
+      if (!current) throw notFound();
+      const steps: StaffAction[] = current.status === 'requested' ? ['approve', 'start', 'paid'] : current.status === 'approved' ? ['start', 'paid'] : ['paid'];
+      const payoutTxnId = body.payoutTxnId?.trim() || current.reference;
+      let first: WithdrawalView | null = null;
+      let last: WithdrawalView | null = null;
+      for (const action of steps) {
+        const { before, after } = await staffWithdrawalAction(db, id, { action, staffId: staff(req), roles: req.auth!.roles, note: body.note ?? null, payoutTxnId, channel: body.channel });
+        first ??= before;
+        last = after;
+      }
+      await audit(db, req, { action: 'withdrawal.accept', targetType: 'withdrawal', targetId: last!.reference, before: first, after: last, reason: body.note });
+      return { status: 200, body: { withdrawal: last } };
+    });
+    if (!result.replayed) {
+      const w = result.body.withdrawal as { reference: string; payoutTxnId: string | null };
+      await notifyPayment(services, 'withdrawal_paid', w.reference, w.payoutTxnId);
+    }
+    res.status(result.status).json(result.body);
+  });
 
   // Send an approved withdrawal through the provider (LivePay). The money call happens after the transaction commits;
   // a repeated request (same Idempotency-Key) sends nothing again.

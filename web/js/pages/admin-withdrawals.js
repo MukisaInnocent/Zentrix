@@ -2,9 +2,8 @@ import { api } from '../core/api.js';
 import { $, h, on } from '../core/dom.js';
 import { act, ago, askForm, checkProvider, copyable, debounce, emptyRow, kv, live, money, moneyPost, pager, panel, providerPanel, queryParam, segmented, sheet, statusBadge, timeline, when } from '../admin/kit.js';
 
-// Withdrawal queue. Approve (an admin for large amounts), Start payout (claims it so two
-// people never pay the same request), send the money from the business channel to the member's verified
-// phone, then Mark paid with the payout transaction ID. Failed or cancelled requests return the funds. Where LivePay
+// Withdrawal queue. Accept (an admin for large amounts: approve, send the money from the business channel to the
+// member's verified phone, and record it as paid in one step) or Reject and refund. Failed or cancelled requests return the funds. Where LivePay
 // is set up, Send with LivePay replaces the manual steps: LivePay sends the money and the result is recorded by itself.
 const state = { status: 'open', q: '', page: 1 };
 let poll;
@@ -98,29 +97,39 @@ async function openWithdrawal(id) {
     b.addEventListener('click', handler);
     return b;
   };
-  const cancel = button('Cancel and refund', 'danger', async () => {
+  // Two buttons for a manual withdrawal (owner, 2026-11-08): Reject and refund, or Accept (approve, send and record it
+  // as paid in one step). Where LivePay can pay it, Send with LivePay stays as the third choice.
+  const reject = button('Reject and refund', 'danger', async () => {
+    const step = w.status === 'processing' ? 'fail' : 'cancel';
     if (await askForm({
-      title: 'Cancel withdrawal', text: 'The full amount and fee go back to the member\'s balance. The member sees the reason.', submitLabel: 'Cancel withdrawal', tone: 'danger',
+      title: 'Reject and refund', text: "The full amount and fee go back to the member's balance. The member sees the reason.", submitLabel: 'Reject and refund', tone: 'danger',
       fields: [{ name: 'note', label: 'Reason', type: 'textarea', required: true, minLength: 5 }],
-      submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/cancel`, { note: v.note }),
+      submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/${step}`, { note: v.note }),
+    })) await done();
+  });
+  const accept = button('Accept', 'success', async () => {
+    if (await askForm({
+      title: 'Accept withdrawal', text: `Send ${money(w.amountMinor, w.currency)} to ${w.payoutPhone}, then accept. It is recorded as paid and the member is told.`, submitLabel: 'Accept', tone: 'success',
+      fields: [
+        { name: 'channel', label: 'Paid from', type: 'select', value: w.channel.code, options: data.channels.map(c => ({ value: c.code, label: c.name })) },
+        { name: 'payoutTxnId', label: 'Payout transaction ID (optional)', minLength: 4, hint: 'From the confirmation message. Left empty, the withdrawal reference is recorded.' },
+        { name: 'note', label: 'Note (optional)', type: 'textarea' },
+      ],
+      submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/accept`, { channel: v.channel, ...(v.payoutTxnId ? { payoutTxnId: v.payoutTxnId } : {}), ...(v.note ? { note: v.note } : {}) }),
     })) await done();
   });
 
   const actions = [];
-  if (w.status === 'requested') {
-    actions.push(cancel);
-    if (w.needsAdminApproval && !you.canApproveLarge) actions.push(h('span', { class: 'zx-hint' }, 'Waiting for an admin to approve.'));
-    else actions.push(button('Approve', 'success', async () => {
-      if (await act(() => moneyPost(`/api/admin/payments/withdrawals/${w.id}/approve`, {}), 'Approved. It is ready to be sent.')) await done();
+  if (w.status === 'processing' && inFlight) {
+    actions.push(h('span', { class: 'zx-hint' }, 'LivePay is sending this payout. It finishes by itself.'));
+    actions.push(button('Check with LivePay', '', async () => {
+      if (await act(() => checkProvider(request.reference), 'Status checked.')) await openWithdrawalAgain();
     }));
-  } else if (w.status === 'approved') {
-    actions.push(cancel);
-    if (w.needsAdminApproval && you.isApprover) actions.push(h('span', { class: 'zx-hint' }, 'You approved this, so another staff member must send it.'));
+  } else if (['requested', 'approved', 'processing'].includes(w.status)) {
+    actions.push(reject);
+    if (w.status === 'requested' && w.needsAdminApproval && !you.canApproveLarge) actions.push(h('span', { class: 'zx-hint' }, 'Waiting for an admin to accept.'));
     else {
-      actions.push(button(provider?.payoutChannel ? 'Pay by hand' : 'Start payout', '', async () => {
-        if (await act(() => moneyPost(`/api/admin/payments/withdrawals/${w.id}/start`, {}), 'Marked as being sent by you. Send the money now.')) await openWithdrawalAgain();
-      }));
-      if (provider?.payoutChannel) actions.push(button('Send with LivePay', 'success', async () => {
+      if (provider?.payoutChannel && w.status === 'approved') actions.push(button('Send with LivePay', '', async () => {
         if (await askForm({
           title: 'Send with LivePay', text: `LivePay sends ${money(w.amountMinor, w.currency)} to ${w.payoutPhone} from ${provider.payoutChannel.name}. The result is recorded by itself. This moves real money in live mode.`,
           submitLabel: 'Send now', tone: 'success',
@@ -128,31 +137,8 @@ async function openWithdrawal(id) {
           submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/send-provider`, v.note ? { note: v.note } : {}),
         })) await openWithdrawalAgain();
       }));
+      actions.push(accept);
     }
-  } else if (w.status === 'processing' && inFlight) {
-    actions.push(h('span', { class: 'zx-hint' }, 'LivePay is sending this payout. It finishes by itself.'));
-    actions.push(button('Check with LivePay', '', async () => {
-      if (await act(() => checkProvider(request.reference), 'Status checked.')) await openWithdrawalAgain();
-    }));
-  } else if (w.status === 'processing') {
-    actions.push(button('Payout failed', 'danger', async () => {
-      if (await askForm({
-        title: 'Payout failed', text: 'Use this only if no money left the business account. The full amount and fee go back to the member.', submitLabel: 'Mark failed and refund', tone: 'danger',
-        fields: [{ name: 'note', label: 'What went wrong', type: 'textarea', required: true, minLength: 5 }],
-        submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/fail`, { note: v.note }),
-      })) await done();
-    }));
-    actions.push(button('Mark paid', 'success', async () => {
-      if (await askForm({
-        title: 'Record payout', text: `Send ${money(w.amountMinor, w.currency)} to ${w.payoutPhone}, then say which network you paid from and enter the transaction ID from the confirmation message.`, submitLabel: 'Mark paid', tone: 'success',
-        fields: [
-          { name: 'channel', label: 'Paid from', type: 'select', value: w.channel.code, options: data.channels.map(c => ({ value: c.code, label: c.name })) },
-          { name: 'payoutTxnId', label: 'Payout transaction ID', required: true, minLength: 4 },
-          { name: 'note', label: 'Note (optional)', type: 'textarea' },
-        ],
-        submit: v => moneyPost(`/api/admin/payments/withdrawals/${w.id}/paid`, { payoutTxnId: v.payoutTxnId, channel: v.channel, ...(v.note ? { note: v.note } : {}) }),
-      })) await done();
-    }));
   }
   view.setActions(...actions);
 

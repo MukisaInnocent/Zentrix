@@ -37,7 +37,8 @@ export async function init({ me }) {
   }
 
   if (referrals) {
-    set('#me-referred', String(referrals.levels[1].total));
+    // Only activated direct referrals count (owner, 2026-11-08).
+    set('#me-referred', String(referrals.levels[1].active));
     const input = $('#ref-link-input');
     // The server builds it on the site's own address (https://pexerearn.com), whichever address the member uses.
     input.value = referrals.referralLink;
