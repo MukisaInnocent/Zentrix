@@ -14,6 +14,7 @@ import { currentCountryConfig } from '../countries/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
 import { moneyTx } from '../ledger/idempotency.js';
 import { notifyPayment, type PaymentEvent } from '../notifications/notify.js';
+import { getSetting } from '../settings/registry.js';
 import { memberInfo } from '../wallet/service.js';
 import { systemUser } from './autopilot.js';
 import { listChannels, exponentOf, normalizePhone, normalizeTxnId, type Channel } from './common.js';
@@ -341,7 +342,12 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
   const exponent = await exponentOf(db, r.currency_code);
   const minor = (value: string | undefined) => providerAmountToMinor(value, exponent);
   const amount = minor(outcome.amount);
-  if (amount !== BigInt(r.amount_minor) || (outcome.currency ?? '').toUpperCase() !== r.currency_code) {
+  const requested = BigInt(r.amount_minor);
+  const charge = minor(outcome.charge) ?? 0n;
+  // A collection paid with the charge on top (LivePay set to charge the customer, owner 2026-11-10) reports the fee
+  // plus the charge; the LivePay account then received the whole fee.
+  const memberPaidOnTop = r.kind === 'collect' && charge > 0n && amount === requested + charge;
+  if ((amount !== requested && !memberPaidOnTop) || (outcome.currency ?? '').toUpperCase() !== r.currency_code) {
     await review(db, r, `LivePay reports ${outcome.currency ?? '?'} ${outcome.amount ?? '?'} but we asked for ${r.currency_code} ${toDecimalString(BigInt(r.amount_minor), exponent)}.`);
     await raise(db, 'payments.provider_amount_mismatch', 'critical', r.currency_code, `LivePay amount does not match ${r.reference}. Nothing was credited; check it on the LivePay dashboard.`, { reference: r.reference });
     return [];
@@ -349,7 +355,8 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
   const actor = await systemUser(db, services, PROVIDER_ACTOR);
   const txnId = outcome.providerTxnId ? normalizeTxnId(outcome.providerTxnId) : '';
   const payoutTxnId = /^[A-Z0-9.-]{4,40}$/.test(txnId) ? txnId : r.reference;
-  const charge = minor(outcome.charge) ?? 0n;
+  // Platform revenue pays the charge only when LivePay kept it out of what we asked for.
+  const platformPays = r.kind === 'payout' || (!memberPaidOnTop && (await getSetting(db, 'livepay.charge_payer')) === 'platform');
   // Money already moved at the provider: if our side refuses (account frozen, ledger short), keep the request for
   // staff instead of losing the result.
   await db.query('SAVEPOINT provider_apply');
@@ -363,7 +370,7 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
     if (r.kind === 'collect') {
       const d = await one<{ public_id: string; reference: string; status: string }>(db, 'SELECT public_id, reference, status FROM deposits WHERE id = $1', [r.deposit_id]);
       if (d.status === 'pending') {
-        await confirmDeposit(db, actor, d.public_id, amount, `Paid with LivePay, transaction ${payoutTxnId}`);
+        await confirmDeposit(db, actor, d.public_id, requested, `Paid with LivePay, transaction ${payoutTxnId}`);
         notice = { event: 'deposit_confirmed', reference: d.reference, note: null };
       } else {
         throw conflict('deposit.not_pending', `LivePay collected the fee but deposit ${d.reference} is already ${d.status}; refund it or settle it by hand.`);
@@ -376,7 +383,7 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
       });
       notice = { event: 'withdrawal_paid', reference: w.reference, note: payoutTxnId };
     }
-    if (charge > 0n) await postCharge(db, r, charge, actor);
+    if (charge > 0n && platformPays) await postCharge(db, r, charge, actor);
     await db.query('RELEASE SAVEPOINT provider_apply');
     return [notice];
   } catch (err) {

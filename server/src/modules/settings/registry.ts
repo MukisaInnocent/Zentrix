@@ -63,6 +63,15 @@ export const SETTING_DEFS = {
     fallback: { amountUgx: 200, minMessages: 3, dailyLimit: 5 },
     description: "Chat with foreigners daily reward: UGX amount a member claims once a day after opening the live chat link (converted to each member's currency, not withdrawable; 0 turns it off). The message and per-day fields belong to the older per-chat reward and are no longer used. TODO(owner): amount.",
   },
+  // Who bears LivePay's charge on a collection (owner, 2026-11-10). 'platform': LivePay keeps its charge out of the
+  // fee, and the charge is recorded from platform revenue. 'member': the member's prompt includes the charge, so
+  // the LivePay account receives the full fee. A status read showing the fee plus the charge always counts as paid
+  // by the member. Payouts are not affected.
+  'livepay.charge_payer': {
+    schema: z.enum(['platform', 'member']),
+    fallback: 'platform',
+    description: "Who pays LivePay's charge on activation fees and deposits: the platform (LivePay keeps it out of the fee) or the member (added to the member's prompt). Match it to the setting in the LivePay dashboard.",
+  },
   'community.url': {
     schema: z.url({ protocol: /^https$/ }).nullable(),
     fallback: null,

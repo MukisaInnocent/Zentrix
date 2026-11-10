@@ -53,6 +53,14 @@ const KNOWN = {
     show: v => `${v.daily.toLocaleString()} a day · ${v.monthly.toLocaleString()} a month · ${v.reserved.toLocaleString()} kept for members`,
     read: v => ({ daily: Number(v.daily), monthly: Number(v.monthly), reserved: Number(v.reserved) }),
   },
+  'livepay.charge_payer': {
+    title: 'Who pays the LivePay charge',
+    fields: [{ name: 'payer', label: 'Paid by', type: 'select', options: [{ value: 'platform', label: 'The platform (LivePay keeps it out of the fee)' }, { value: 'member', label: 'The member (added to the payment prompt)' }] }],
+    hint: 'Set this to match the charge setting in the LivePay dashboard. Payouts are not affected.',
+    toForm: v => ({ payer: v }),
+    show: v => (v === 'member' ? 'The member' : 'The platform'),
+    read: v => v.payer,
+  },
   'community.url': {
     title: 'Community link',
     fields: [{ name: 'url', label: 'Link (https), or leave empty for none' }],

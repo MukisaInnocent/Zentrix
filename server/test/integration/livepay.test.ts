@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyOutcome, checkRequest, livePayWebhook } from '../../src/modules/payments/provider.js';
+import { setSetting } from '../../src/modules/settings/registry.js';
 import { livePaySignature, type PaymentGateway, type ProviderCommand, type ProviderOutcome } from '../../src/providers/livepay.js';
 import type { Services } from '../../src/services.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
@@ -180,6 +181,63 @@ describe('LivePay collections', () => {
     expect(rejected.status, JSON.stringify(rejected.body)).toBe(200);
     const request = (await app.owner.query(`SELECT r.status FROM provider_requests r JOIN deposits d ON d.id = r.deposit_id WHERE d.public_id = $1`, [deposit.id])).rows[0];
     expect(request?.status).toBe('failed');
+  });
+
+  // Owner, 2026-11-10: LivePay can make the paying member bear its charge. The status read then reports either the
+  // fee plus the charge, or the fee alone; both must activate the member without charging platform revenue.
+  describe('who pays the LivePay charge', () => {
+    async function pendingCollection(): Promise<{ member: Member; deposit: Body }> {
+      await app.owner.query('DELETE FROM provider_calls');
+      const member = await registerMember(app);
+      const deposit = await withGateway(new HandGateway(), async () => (await collect(member)).body.deposit as Body);
+      expect(deposit.status).toBe('pending');
+      return { member, deposit };
+    }
+    const succeed = (reference: string, amount: string, charge: string) => applyOutcome(app.services, {
+      op: 'status', provider: 'simulator', reference, at: new Date().toISOString(), status: 'succeeded', rawStatus: 'Success',
+      amount, currency: 'UGX', providerTxnId: `MP${randomInt(100000, 999999)}`, charge,
+    });
+    const chargePosted = async (reference: string) =>
+      (await app.owner.query(`SELECT count(*)::int AS n FROM ledger_transactions WHERE kind = 'provider_charge' AND ref_id = $1`, [reference])).rows[0]?.n as number;
+    const setPayer = (payer: 'platform' | 'member') => setSetting(app.owner, 'livepay.charge_payer', payer, null, 'test');
+
+    afterAll(async () => {
+      await setPayer('platform');
+    });
+
+    it('accepts the fee plus the charge as paid by the member: activates on the fee and charges the platform nothing', async () => {
+      await setPayer('platform');
+      const { member, deposit } = await pendingCollection();
+      await succeed(deposit.reference, '19500', '500');
+      const d = (await member.client.get<Body>('/api/payments/deposits')).body.deposits[0];
+      expect(d).toMatchObject({ status: 'confirmed', creditedAmountMinor: '19000' });
+      expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
+      expect(await chargePosted(deposit.reference)).toBe(0);
+      expect(await drift()).toBe(0);
+    });
+
+    it('with the member set to pay, the fee alone with a charge activates and charges the platform nothing', async () => {
+      await setPayer('member');
+      const { member, deposit } = await pendingCollection();
+      await succeed(deposit.reference, '19000', '500');
+      expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
+      expect(await chargePosted(deposit.reference)).toBe(0);
+    });
+
+    it('with the platform set to pay, the fee alone with a charge still records the charge from platform revenue', async () => {
+      await setPayer('platform');
+      const { member, deposit } = await pendingCollection();
+      await succeed(deposit.reference, '19000', '500');
+      expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
+      expect(await chargePosted(deposit.reference)).toBe(1);
+    });
+
+    it('any other amount still goes to staff review', async () => {
+      const { deposit } = await pendingCollection();
+      await succeed(deposit.reference, '19400', '500');
+      const row = (await app.owner.query(`SELECT r.status AS request, d.status AS deposit FROM provider_requests r JOIN deposits d ON d.id = r.deposit_id WHERE d.public_id = $1`, [deposit.id])).rows[0];
+      expect(row).toEqual({ request: 'review', deposit: 'pending' });
+    });
   });
 
   it('a signed webhook triggers a status read; the read, not the webhook, confirms the payment', async () => {

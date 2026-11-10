@@ -18,7 +18,7 @@ How Pexerearn uses LivePay (livepay.me, API docs at docs.livepay.me) to collect 
 - Before a payout is sent, the ledger must show enough money held on the LivePay method.
 - A payout is never failed automatically on "missing" or on a refusal alone (it might be a retry of one LivePay is paying): it goes to review. On AWS a collection or payout command older than 5 minutes is never sent. A result that contradicts a closed request (paid after we gave up) raises a critical alert.
 - Prompts go only to the member's registered number, at most 5 failed prompts a day per member, and the rate budget is counted under a lock.
-- LivePay's charge on each payment is recorded as `provider_charge` from platform revenue, so the ledger matches the LivePay wallet. `TODO(owner)`: should members pay it instead?
+- LivePay's charge on each payment is recorded as `provider_charge` from platform revenue, so the ledger matches the LivePay wallet. Owner, 2026-11-10: members will pay the charge on collections (set in the LivePay dashboard). The staff setting `livepay.charge_payer` (Settings, "Who pays the LivePay charge") must match the dashboard. With `member`, no charge is recorded on a collection. A status read showing the fee plus the charge always counts as paid by the member: the member is credited the fee alone, and no charge is recorded. Payouts are unchanged. Order: deploy this code, switch the LivePay dashboard, set the staff setting to `member`, then check one small real deposit on the payment's detail.
 - Rate limits: Pexerearn stays within LivePay's 50 collections and status checks per 15 minutes and 5 payouts a minute. When the limit is reached, members see "busy, try again or use another method".
 
 ## Test mode
