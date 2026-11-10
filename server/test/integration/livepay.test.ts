@@ -222,6 +222,9 @@ describe('LivePay collections', () => {
       await succeed(deposit.reference, '19000', '500');
       expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
       expect(await chargePosted(deposit.reference)).toBe(0);
+      // Staff are asked to confirm the whole fee arrived, until LivePay's reporting is known.
+      const alert = await app.owner.query(`SELECT severity FROM alerts WHERE kind = 'payments.provider_charge_unclear' AND status = 'open'`);
+      expect(alert.rows[0]?.severity).toBe('warning');
     });
 
     it('with the platform set to pay, the fee alone with a charge still records the charge from platform revenue', async () => {

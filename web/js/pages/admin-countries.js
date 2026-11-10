@@ -54,7 +54,7 @@ function currencyField(home, value) {
   const select = h('select', { id: 'cfg-feeCurrency', name: 'feeCurrency', class: 'zx-input' },
     [home, 'USD'].filter((c, i, list) => list.indexOf(c) === i).map(c => h('option', { value: c, selected: c === value }, c === home ? `${c} (the country's own)` : c)));
   return h('div', { class: 'zx-field' }, h('label', { for: 'cfg-feeCurrency' }, 'Activation fee currency'), select,
-    h('span', { class: 'zx-hint' }, 'The fee and the referral rewards are in this currency. Balances and withdrawals stay in the country\'s own currency.'));
+    h('span', { class: 'zx-hint' }, 'The activation fee is in this currency. Balances and withdrawals stay in the country\'s own currency.'));
 }
 
 const showError = (slot, err) => {
@@ -71,11 +71,7 @@ function configForm(code, home, cfg, onSaved) {
       field('membershipFee', `Activation fee (${feeCurrency})`, dec(cfg?.membershipFeeMinor, feeCurrency), { inputmode: 'decimal' }),
       field('withdrawalApprovalThreshold', 'Admin approval from', dec(cfg?.withdrawalApprovalThresholdMinor), { inputmode: 'decimal', hint: 'Withdrawals from this amount need an admin.' })),
     currencyField(home, feeCurrency),
-    h('p', { class: 'zx-hint' }, 'Referral rewards paid when a member here activates, in the fee currency. Leave all three empty to use the Uganda amounts in Settings, scaled to this fee. Together they cannot exceed the activation fee.'),
-    h('div', { class: 'zx-form-row zx-form-row--3' },
-      field('referralLevel1', 'Level 1 reward', dec(cfg?.referralLevelsMinor?.[0], feeCurrency), { inputmode: 'decimal' }),
-      field('referralLevel2', 'Level 2 reward', dec(cfg?.referralLevelsMinor?.[1], feeCurrency), { inputmode: 'decimal' }),
-      field('referralLevel3', 'Level 3 reward', dec(cfg?.referralLevelsMinor?.[2], feeCurrency), { inputmode: 'decimal' })),
+    h('p', { class: 'zx-hint' }, 'The activation fee cannot be below UGX 19,000 at the latest exchange rate (it can be more). Referral rewards are the same everywhere: the UGX amounts in Settings, converted into each receiver\'s currency.'),
     field('autoPayout', 'Pay withdrawals below the admin approval amount automatically through LivePay', cfg?.autoPayout ?? false, { type: 'checkbox' }),
     h('p', { class: 'zx-hint' }, 'Needs a LivePay payout method for this country. Withdrawals from the approval amount still wait for an admin.'),
     h('div', { class: 'zx-form-row zx-form-row--2' },
@@ -101,18 +97,13 @@ function configForm(code, home, cfg, onSaved) {
     e.preventDefault();
     alert.hidden = true;
     const v = name => form.elements.namedItem(name);
-    const levels = ['referralLevel1', 'referralLevel2', 'referralLevel3'].map(n => v(n).value.trim());
-    if (levels.some(Boolean) && !levels.every(Boolean)) {
-      showError(alert, new ApiError(400, 'validation_failed', 'Fill in all three referral rewards, or leave all three empty.'));
-      return;
-    }
     const body = {
       membershipFee: v('membershipFee').value.trim(), withdrawalMin: v('withdrawalMin').value.trim(), withdrawalMax: v('withdrawalMax').value.trim(),
       withdrawalDailyMax: v('withdrawalDailyMax').value.trim(), withdrawalFeeBp: Number(v('withdrawalFeeBp').value), withdrawalFeeMin: v('withdrawalFeeMin').value.trim() || '0',
       withdrawalApprovalThreshold: v('withdrawalApprovalThreshold').value.trim(),
       vatBp: Number(v('vatBp').value), kycLevelForWithdrawal: Number(v('kycLevelForWithdrawal').value), engagementTasksEnabled: v('engagementTasksEnabled').checked,
       termsVersion: v('termsVersion').value.trim(), privacyVersion: v('privacyVersion').value.trim(), isPlaceholder: v('isPlaceholder').checked,
-      referralLevels: levels.every(Boolean) ? levels : null, autoPayout: v('autoPayout').checked,
+      autoPayout: v('autoPayout').checked,
       feeCurrency: v('feeCurrency').value, withdrawalChargeBp: Number(v('withdrawalChargeBp').value),
       ...(v('note').value.trim() ? { note: v('note').value.trim() } : {}),
     };
@@ -226,7 +217,7 @@ async function openCountry(code) {
         h('tbody', {}, configHistory.map(c => h('tr', {},
           h('td', {}, String(c.version)), h('td', { class: 'zx-td-muted' }, when(c.createdAt)),
           h('td', {}, money(c.membershipFeeMinor, c.feeCurrency ?? c.currencyCode)),
-          h('td', {}, c.referralLevelsMinor ? c.referralLevelsMinor.map(m => money(m, c.feeCurrency ?? c.currencyCode)).join(' / ') : 'Uganda amounts, scaled'),
+          h('td', { class: 'zx-td-muted' }, c.referralLevelsMinor ? `${c.referralLevelsMinor.map(m => money(m, c.feeCurrency ?? c.currencyCode)).join(' / ')} (no longer used)` : 'Standard'),
           h('td', {}, c.autoPayout ? 'On' : 'Off'),
           h('td', {}, money(c.withdrawalMinMinor, c.currencyCode)),
           h('td', {}, money(c.withdrawalMaxMinor, c.currencyCode)), h('td', {}, money(c.withdrawalDailyMaxMinor, c.currencyCode)),

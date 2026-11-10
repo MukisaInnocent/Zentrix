@@ -4,12 +4,16 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
 import { parse } from '../../http/validate.js';
 import { badRequest, notFound } from '../../lib/errors.js';
-import { MoneyFormatError, toMinor } from '../../lib/money.js';
+import { MoneyFormatError, toDecimalString, toMinor } from '../../lib/money.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireStaff } from '../auth/middleware.js';
 import { countryConfigHistory, currentCountryConfig, getCountry } from '../countries/service.js';
+import { convert } from '../fx/service.js';
 import { isSettingKey, listSettings, setSetting } from '../settings/registry.js';
+
+// Owner, 2026-11-10: the lowest activation fee, in UGX, for every country (converted at the latest rate).
+const MIN_ACTIVATION_FEE_UGX = 19_000n;
 
 const AuditQuery = z.object({
   action: z.string().trim().max(80).optional(),
@@ -34,7 +38,7 @@ const ConfigBody = z.strictObject({
   termsVersion: z.string().trim().min(1).max(40),
   privacyVersion: z.string().trim().min(1).max(40),
   isPlaceholder: z.boolean(),
-  // Levels 1 to 3 in this currency; null goes back to the UGX setting scaled by the fee. Left out = unchanged.
+  // Levels 1 to 3 in this currency; null clears them. Left out = unchanged. No longer paid (owner, 2026-11-10).
   referralLevels: z.tuple([Amount, Amount, Amount]).nullable().optional(),
   // Left out = unchanged.
   autoPayout: z.boolean().optional(),
@@ -135,6 +139,19 @@ export function systemRouter(services: Services): Router {
     if (amounts.membershipFee <= 0n || amounts.withdrawalMin <= 0n || amounts.withdrawalApprovalThreshold <= 0n) {
       throw badRequest('validation_failed', 'Fee, minimum and approval threshold must be above zero.', { membershipFee: ['Must be above zero.'] });
     }
+    // Owner, 2026-11-10: a new activation fee is never below UGX 19,000 in the fee's currency at the latest rate
+    // (it can be more). Checked when the fee or its currency changes, so other edits are not blocked.
+    if (amounts.membershipFee !== BigInt(current?.membershipFeeMinor ?? -1) || feeCurrency !== current?.feeCurrency) {
+      const floor = feeCurrency === 'UGX' ? MIN_ACTIVATION_FEE_UGX : (await convert(pool, MIN_ACTIVATION_FEE_UGX, 'UGX', feeCurrency, { roundUp: true }))?.amountMinor;
+      if (floor === undefined) {
+        const message = `There is no exchange rate for ${feeCurrency} yet, so the minimum fee (UGX 19,000) cannot be checked. Try again later.`;
+        throw badRequest('validation_failed', message, { membershipFee: [message] });
+      }
+      if (amounts.membershipFee < floor) {
+        const message = `The activation fee must be at least UGX 19,000, which is ${feeCurrency} ${toDecimalString(floor, feeExponent)} at the latest rate.`;
+        throw badRequest('validation_failed', message, { membershipFee: [message] });
+      }
+    }
     let levels: bigint[] | null | undefined = body.referralLevels === null ? null : undefined;
     if (body.referralLevels) {
       try {
@@ -146,13 +163,11 @@ export function systemRouter(services: Services): Router {
     }
     const saved = await withTransaction(pool, async db => {
       const before = await currentCountryConfig(db, country.code);
-      // Rewards kept from before are in the old fee's currency: a currency change must set them again (or clear them).
-      if (levels === undefined && before?.referralLevelsMinor && before.feeCurrency !== feeCurrency) {
-        const message = 'The fee currency changed: set the three referral rewards in the new currency, or clear them.';
-        throw badRequest('validation_failed', message, { referralLevels: [message] });
-      }
-      const kept = levels === undefined ? (before?.referralLevelsMinor?.map(v => BigInt(v)) ?? null) : levels;
-      // A reward is paid from the activation it comes from, so the three together stay within the fee.
+      // The country reward amounts are no longer paid (owner, 2026-11-10: one UGX standard) and the staff console no
+      // longer sends them. Kept amounts that no longer fit (another fee currency, above the fee) are cleared.
+      let kept = levels === undefined ? (before?.referralLevelsMinor?.map(v => BigInt(v)) ?? null) : levels;
+      if (levels === undefined && kept && (before?.feeCurrency !== feeCurrency || kept.reduce((a, b) => a + b, 0n) > amounts.membershipFee)) kept = null;
+      // Amounts sent explicitly stay within the fee (database CHECK).
       if (kept && kept.reduce((a, b) => a + b, 0n) > amounts.membershipFee) {
         const message = 'The three referral rewards together must not exceed the activation fee.';
         throw badRequest('validation_failed', message, { referralLevels: [message] });

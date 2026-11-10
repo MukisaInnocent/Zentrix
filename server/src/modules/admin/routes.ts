@@ -8,6 +8,7 @@ import { emailsAdminRouter } from './emails.js';
 import { eventsAdminRouter } from './events.js';
 import { ebooksAdminRouter } from '../ebooks/routes.js';
 import { membersRouter } from './members.js';
+import { overallAdminRouter } from './overall.js';
 import { paymentsAdminRouter } from './payments.js';
 import { systemRouter } from './system.js';
 import { tasksAdminRouter } from '../tasks/admin.js';
@@ -31,6 +32,7 @@ export function adminRouter(services: Services): Router {
   router.use('/tips', tipsAdminRouter(services));
   router.use('/aviator', aviatorAdminRouter(services));
   router.use('/events', eventsAdminRouter(services));
+  router.use('/overall-balance', overallAdminRouter(services));
   router.use('/', configAdminRouter(services));
   router.use('/', systemRouter(services));
   return router;

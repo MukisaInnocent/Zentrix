@@ -116,6 +116,7 @@ const ADMIN_NAV = [
       { id: 'admin-issues', href: '/admin/issues', icon: 'headphones', label: 'admin.nav.issues' },
       { id: 'admin-vouchers', href: '/admin/vouchers', icon: 'ticket', label: 'admin.nav.vouchers' },
       { id: 'admin-payment-methods', href: '/admin/payment-methods', icon: 'card', label: 'admin.nav.paymentMethods' },
+      { id: 'admin-overall-balance', href: '/admin/overall-balance', icon: 'chart', label: 'admin.nav.overallBalance' },
       { id: 'admin-balances', href: '/admin/balances', icon: 'shield', label: 'admin.nav.balances' },
       { id: 'admin-ledger', href: '/admin/ledger', icon: 'layers', label: 'admin.nav.ledger' },
     ],

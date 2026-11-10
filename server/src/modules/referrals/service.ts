@@ -2,50 +2,87 @@ import type { Pool, PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { withTransaction } from '../../db/tx.js';
-import { currentCountryConfig, type CountryConfig } from '../countries/service.js';
-import { convert } from '../fx/service.js';
-import { accountId, move, post } from '../ledger/ledger.js';
+import { convert, type Conversion } from '../fx/service.js';
+import { accountId, InsufficientFundsError, move, post } from '../ledger/ledger.js';
+import { raise } from '../payments/reconciliation.js';
 import { getSetting } from '../settings/registry.js';
 import { settleDebt } from '../wallet/service.js';
 
-// Referral rewards (owner decision: levels 1 to 3, left as the owner built them). A country with its own amounts
-// in its config (owner, 2026-10-31: Kenya KES 300 / 150 / 50, and so on) pays those, in the invited member's
-// currency. Any other country uses the `referral.tier_amounts_ugx` setting (UGX 10,000 / 5,000 / 2,000 until
-// changed), scaled by that country's activation fee against UGX 19,000. Rewards are paid from platform revenue
-// when the invited member's activation fee is confirmed, never at sign-up. A referrer in another country receives
-// the reward converted into their own currency at the latest exchange rate (owner, 2026-10-28).
+// Referral rewards (owner decision: levels 1 to 3, left as the owner built them). One standard for every country
+// (owner, 2026-11-10): each level pays the `referral.tier_amounts_ugx` setting (UGX 10,000 / 5,000 / 2,000),
+// converted into the receiver's own currency at the latest exchange rate, whatever country the invited member is
+// from. The countries' own reward amounts (owner, 2026-10-31) are no longer used. Rewards are paid from platform
+// revenue in the currency the activation fee was paid in, when that fee is confirmed, never at sign-up.
 export async function referralTiersUgx(db: Db): Promise<Record<number, bigint>> {
   const t = await getSetting(db, 'referral.tier_amounts_ugx');
   return { 1: BigInt(t.level1), 2: BigInt(t.level2), 3: BigInt(t.level3) };
 }
 
-// The level 1 to 3 rewards for a member who activates in a country with this config, in its currency.
-export async function rewardAmounts(db: Db, config: CountryConfig): Promise<Record<number, bigint>> {
-  if (config.referralLevelsMinor) {
-    const [l1, l2, l3] = config.referralLevelsMinor;
-    return { 1: BigInt(l1), 2: BigInt(l2), 3: BigInt(l3) };
-  }
-  const fee = BigInt(config.membershipFeeMinor);
+// The level 1 to 3 rewards in this currency, for display. Null when the currency has never had an exchange rate.
+export async function rewardAmountsIn(db: Db, currency: string): Promise<Record<number, bigint> | null> {
   const tiers = await referralTiersUgx(db);
-  return Object.fromEntries(Object.entries(tiers).map(([level, tier]) => [level, (tier * fee) / UGANDA_FEE_UGX]));
+  if (currency === 'UGX') return tiers;
+  const out: Record<number, bigint> = {};
+  for (const [level, tier] of Object.entries(tiers)) {
+    const c = await convert(db, tier, 'UGX', currency);
+    if (!c) return null;
+    out[Number(level)] = c.amountMinor;
+  }
+  return out;
 }
 
-// The rewards for one activation, in the currency its fee was paid in (the membership's), which funds them from
-// platform revenue. A fee paid in another currency than the config's (the config changed since) pays the same
-// share of what was actually paid.
-export async function rewardsForMembership(db: Db, config: CountryConfig, membership: { feeMinor: bigint; currency: string }): Promise<{ currency: string; amounts: Record<number, bigint> }> {
-  const amounts = await rewardAmounts(db, config);
-  if (membership.currency === config.feeCurrency) return { currency: membership.currency, amounts };
-  const fee = BigInt(config.membershipFeeMinor);
-  return {
-    currency: membership.currency,
-    amounts: Object.fromEntries(Object.entries(amounts).map(([level, a]) => [level, (a * membership.feeMinor) / fee])),
-  };
+export interface StandardReward {
+  referrerId: number;
+  referrerCurrency: string;
+  referredId: number;
+  level: number;
+  tierUgx: bigint;
+  // The currency the activation fee was paid in: its platform revenue pays the reward.
+  fundCurrency: string;
+  memo: string;
+  actorUserId?: number | null;
+}
+
+// Pays one standard reward: the UGX tier converted into the receiver's currency (what they get) and into the fee's
+// currency (what platform revenue pays), each straight from UGX so a Ugandan always receives exactly the tier.
+// Without a rate for the fee's currency, UGX platform revenue pays; without a rate for the receiver's, the reward
+// waits (payReferralReward). If platform revenue cannot cover it, the activation still stands: the reward waits as
+// pending and staff are alerted; the exchange-rate job tries it again.
+export async function payStandardReward(db: PoolClient, r: StandardReward): Promise<'credited' | 'pending' | 'cancelled'> {
+  const base = { referrerId: r.referrerId, referrerCurrency: r.referrerCurrency, referredId: r.referredId, level: r.level, memo: r.memo, actorUserId: r.actorUserId ?? null };
+  const converted = r.fundCurrency === 'UGX' ? r.tierUgx : (await convert(db, r.tierUgx, 'UGX', r.fundCurrency))?.amountMinor ?? null;
+  const fundCurrency = converted === null ? 'UGX' : r.fundCurrency;
+  const fund = converted ?? r.tierUgx;
+  // A tier too small to be worth anything in the fee's currency pays nothing.
+  if (fund <= 0n) return 'cancelled';
+  let fx: Conversion | undefined;
+  if (r.referrerCurrency !== fundCurrency) {
+    const credited = r.referrerCurrency === 'UGX' ? r.tierUgx : (await convert(db, r.tierUgx, 'UGX', r.referrerCurrency))?.amountMinor;
+    const rate = await convert(db, fund, fundCurrency, r.referrerCurrency);
+    if (credited !== undefined && rate) fx = { ...rate, amountMinor: credited };
+  }
+  await db.query('SAVEPOINT referral_reward');
+  try {
+    const outcome = await payReferralReward(db, { ...base, amountMinor: fund, currency: fundCurrency, fx });
+    await db.query('RELEASE SAVEPOINT referral_reward');
+    return outcome;
+  } catch (err) {
+    if (!(err instanceof InsufficientFundsError)) throw err;
+    await db.query('ROLLBACK TO SAVEPOINT referral_reward');
+    await db.query(
+      `INSERT INTO referral_rewards (referrer_user_id, referred_user_id, level, amount_minor, currency_code, source_amount_minor, source_currency_code, status)
+       VALUES ($1, $2, $3, NULL, $4, $5, $6, 'pending')`,
+      [r.referrerId, r.referredId, r.level, r.referrerCurrency, fund.toString(), fundCurrency],
+    );
+    await raise(db, 'referrals.revenue_short', 'critical', fundCurrency,
+      `Platform revenue in ${fundCurrency} cannot pay a level ${r.level} referral reward of ${fund.toString()} (minor units). It waits as pending; add money with a treasury entry.`,
+      { referredUserId: r.referredId, level: r.level });
+    return 'pending';
+  }
 }
 
 /** Referral rewards stop at level 3. Nothing is paid above this level. */
 export const MAX_REFERRAL_LEVEL = 3;
-export const UGANDA_FEE_UGX = 19_000n;
 
 export interface LevelCounts {
   total: number;
@@ -61,7 +98,7 @@ export interface ReferralOverview {
   currency: string;
   totalRewardsMinor: string;
   levels: Record<1 | 2 | 3, LevelCounts>;
-  // In the activation fee's currency (USD outside the owner's table).
+  // What the member earns per level, in their own currency (owner, 2026-11-10: the UGX standard converted).
   tierAmounts: { level: number; amountMinor: string; currency: string }[];
 }
 
@@ -92,6 +129,8 @@ export interface RewardPayment {
   actorUserId?: number | null;
   // Set when paying a reward that was waiting for an exchange rate.
   pendingId?: string;
+  // A conversion worked out by the caller (payStandardReward); otherwise the amount is converted here.
+  fx?: Conversion;
 }
 
 // Pays one referral reward from platform revenue in the invited member's currency. A referrer in another currency
@@ -99,7 +138,7 @@ export interface RewardPayment {
 // Without any stored rate for a currency (a new database) the reward waits as 'pending' and the exchange-rate job pays it
 // once the first rates arrive.
 export async function payReferralReward(db: PoolClient, r: RewardPayment): Promise<'credited' | 'pending' | 'cancelled'> {
-  const fx = r.referrerCurrency === r.currency ? null : await convert(db, r.amountMinor, r.currency, r.referrerCurrency);
+  const fx = r.referrerCurrency === r.currency ? null : (r.fx ?? await convert(db, r.amountMinor, r.currency, r.referrerCurrency));
   if (r.referrerCurrency !== r.currency && !fx) {
     if (!r.pendingId) {
       await db.query(
@@ -153,6 +192,7 @@ export async function payPendingReferralRewards(pool: Pool): Promise<number> {
   const ids = await rows<{ id: string }>(pool, `SELECT id FROM referral_rewards WHERE status = 'pending' AND source_amount_minor IS NOT NULL ORDER BY id`, []);
   let paid = 0;
   for (const { id } of ids) {
+    // A reward waiting because platform revenue was short stays pending until there is money to pay it.
     const outcome = await withTransaction(pool, async db => {
       const r = await maybeOne<{ referrer_user_id: string; referred_user_id: string; level: number; currency_code: string; source_amount_minor: string; source_currency_code: string; username: string }>(
         db,
@@ -165,14 +205,17 @@ export async function payPendingReferralRewards(pool: Pool): Promise<number> {
         referrerId: Number(r.referrer_user_id), referrerCurrency: r.currency_code, referredId: Number(r.referred_user_id), level: r.level,
         amountMinor: BigInt(r.source_amount_minor), currency: r.source_currency_code, memo: `Level ${r.level} referral reward from @${r.username}`, pendingId: id,
       });
-    }, { isolation: 'serializable' });
+    }, { isolation: 'serializable' }).catch((err: unknown) => {
+      if (err instanceof InsufficientFundsError) return 'short';
+      throw err;
+    });
     if (outcome === 'credited') paid++;
   }
   return paid;
 }
 
 // Pays the people above a newly activated member: level 1 the direct referrer, level 2 their referrer, level 3
-// the next one up. A referrer in another country is paid in their own currency (payReferralReward).
+// the next one up, each the standard UGX tier in their own currency (payStandardReward). The total is in UGX tiers.
 export async function distributeReferralRewards(
   db: PoolClient,
   newUserId: number,
@@ -186,9 +229,7 @@ export async function distributeReferralRewards(
     db, 'SELECT id, username, referred_by_user_id, currency_code, country_code FROM users WHERE id = $1', [newUserId],
   );
   if (!newUser?.referred_by_user_id) return none;
-  const config = await currentCountryConfig(db, newUser.country_code);
-  if (!config) return none;
-  const { currency, amounts } = await rewardsForMembership(db, config, { feeMinor: BigInt(membership.fee_minor), currency: membership.currency_code });
+  const amounts = await referralTiersUgx(db);
 
   let currentReferrerId: number | null = Number(newUser.referred_by_user_id);
   let distributedCount = 0;
@@ -200,9 +241,9 @@ export async function distributeReferralRewards(
     );
     if (!referrer || rewardMinor === undefined) break;
     if (rewardMinor > 0n && referrer.status === 'active') {
-      const outcome = await payReferralReward(db, {
+      const outcome = await payStandardReward(db, {
         referrerId: currentReferrerId, referrerCurrency: referrer.currency_code, referredId: newUserId, level,
-        amountMinor: rewardMinor, currency, memo: `Level ${level} referral reward from @${newUser.username}`,
+        tierUgx: rewardMinor, fundCurrency: membership.currency_code, memo: `Level ${level} referral reward from @${newUser.username}`,
       });
       if (outcome !== 'cancelled') {
         distributedCount++;
@@ -248,8 +289,10 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
   const rewards = await rows<{ level: number; credited: string }>(
     db, `SELECT level, sum(amount_minor)::text AS credited FROM referral_rewards WHERE referrer_user_id = $1 AND status = 'credited' GROUP BY level`, [userId],
   );
-  const config = await currentCountryConfig(db, user.country_code);
-  const amounts = config ? await rewardAmounts(db, config) : { 1: 0n, 2: 0n, 3: 0n };
+  // What this member earns per level, in their own currency (UGX when their currency has no rate yet).
+  const own = await rewardAmountsIn(db, user.currency_code);
+  const tierCurrency = own ? user.currency_code : 'UGX';
+  const amounts = own ?? await referralTiersUgx(db);
   const rewardsAt = (level: number) => rewards.find(r => r.level === level)?.credited ?? '0';
   const levels = {} as ReferralOverview['levels'];
   for (const level of [1, 2, 3] as const) {
@@ -264,7 +307,7 @@ export async function getReferralOverview(db: Db, userId: number): Promise<Refer
     currency: user.currency_code,
     totalRewardsMinor: rewards.reduce((sum, r) => sum + BigInt(r.credited), 0n).toString(),
     levels,
-    tierAmounts: Object.entries(amounts).map(([level, amount]) => ({ level: Number(level), amountMinor: amount.toString(), currency: config?.feeCurrency ?? user.currency_code })),
+    tierAmounts: Object.entries(amounts).map(([level, amount]) => ({ level: Number(level), amountMinor: amount.toString(), currency: tierCurrency })),
   };
 }
 

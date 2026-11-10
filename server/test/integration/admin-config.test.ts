@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fxRatesJob } from '../../src/jobs/fx-rates.js';
+import { FixedFxSource } from '../../src/providers/fx.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
 import type { TestClient } from '../helpers/client.js';
 import { createStaff, loginStaff, registerMember, type Member } from '../helpers/factories.js';
@@ -133,7 +135,9 @@ describe('countries and vouchers', () => {
     expect(cleared.body.config.referralLevelsMinor).toBeNull();
   });
 
-  it('pays a country\'s own referral amounts when an admin sets them', async () => {
+  it('pays the standard UGX amounts even where a country has its own (owner, 2026-11-10)', async () => {
+    const standard = { level1: 10000, level2: 5000, level3: 2000 };
+    expect((await admin.put<Body>('/api/admin/settings/referral.tier_amounts_ugx', { value: standard, note: 'Standard' })).status).toBe(200);
     const current = (await finance.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
     const edit = {
       membershipFee: '19000', withdrawalMin: '15000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: 50,
@@ -144,11 +148,38 @@ describe('countries and vouchers', () => {
     try {
       const inviter = await member();
       await member({ referralCode: inviter.input.username });
-      expect((await inviter.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('9000');
-      expect((await inviter.client.get<Body>('/api/referrals')).body.tierAmounts.map((t: Body) => t.amountMinor)).toEqual(['9000', '4000', '1000']);
+      expect((await inviter.client.get<Body>('/api/wallet/summary')).body.availableBalanceMinor).toBe('10000');
+      expect((await inviter.client.get<Body>('/api/referrals')).body.tierAmounts.map((t: Body) => t.amountMinor)).toEqual(['10000', '5000', '2000']);
     } finally {
       expect((await admin.post<Body>('/api/admin/countries/UG/config', { ...edit, referralLevels: null, note: 'Back to the setting' })).status).toBe(201);
     }
+  });
+
+  it('refuses a new activation fee below UGX 19,000 at the latest rate, but allows more (owner, 2026-11-10)', async () => {
+    const ke = (await finance.get<Body>('/api/admin/countries/KE')).body.configHistory[0];
+    const edit = {
+      membershipFee: '600', withdrawalMin: '700', withdrawalMax: '15000', withdrawalDailyMax: '70000', withdrawalFeeBp: 50,
+      withdrawalFeeMin: '0', withdrawalApprovalThreshold: '7000', newAccountReviewDays: ke.newAccountReviewDays, vatBp: 0, kycLevelForWithdrawal: 0,
+      engagementTasksEnabled: true, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true, note: 'Fee change',
+    };
+    // Without any exchange rate the minimum cannot be checked, so a new fee is refused.
+    const noRate = await admin.post<Body>('/api/admin/countries/KE/config', edit);
+    expect(noRate.body.error?.fields?.membershipFee?.[0]).toContain('no exchange rate');
+    app.services.fx = new FixedFxSource({ source: 'test', rateAt: new Date(), unitsPerUsd: { USD: '1', UGX: '3700', KES: '129' } });
+    await fxRatesJob.run(app.services);
+    // UGX 19,000 = KES 662.44 (rounded up).
+    const low = await admin.post<Body>('/api/admin/countries/KE/config', edit);
+    expect(low.body.error?.fields?.membershipFee?.[0]).toContain('KES 662.44');
+    expect((await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, membershipFee: '662.44' })).status).toBe(201);
+    expect((await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, membershipFee: '1000' })).status).toBe(201);
+    // Uganda: below 19,000 is refused.
+    const ug = (await finance.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
+    const ugEdit = {
+      membershipFee: '18000', withdrawalMin: '15000', withdrawalMax: '5000000', withdrawalDailyMax: '5000000', withdrawalFeeBp: 50,
+      withdrawalFeeMin: '0', withdrawalApprovalThreshold: '200000', newAccountReviewDays: ug.newAccountReviewDays, vatBp: 0, kycLevelForWithdrawal: 0,
+      engagementTasksEnabled: true, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true, note: 'Lower fee',
+    };
+    expect((await admin.post<Body>('/api/admin/countries/UG/config', ugEdit)).body.error?.fields?.membershipFee?.[0]).toContain('UGX 19,000');
   });
 
   it('lists every voucher for staff with its buyer and the account it activated', async () => {

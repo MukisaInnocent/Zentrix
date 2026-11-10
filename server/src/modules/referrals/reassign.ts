@@ -1,9 +1,8 @@
 import type { PoolClient } from '../../db/pool.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, conflict } from '../../lib/errors.js';
-import { currentCountryConfig } from '../countries/service.js';
 import { accountId, balanceOf, InsufficientFundsError, move, post, type Leg } from '../ledger/ledger.js';
-import { MAX_REFERRAL_LEVEL, payReferralReward, rewardsForMembership } from './service.js';
+import { MAX_REFERRAL_LEVEL, payReferralReward, payStandardReward, referralTiersUgx } from './service.js';
 
 // An admin changes who invited a member (owner, 2026-10-26), and the referral rewards follow the new line:
 // for the member and everyone up to two levels below them (whose level 2 and 3 rewards pass through the old
@@ -101,21 +100,18 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
        WHERE r.referred_user_id = $1 AND r.status IN ('credited', 'pending') FOR UPDATE OF r`,
       [memberId],
     );
-    const config = await currentCountryConfig(db, m.country_code);
-    // Rewards are in the currency the activation fee was paid in (USD outside the owner's table).
-    const { amounts } = config
-      ? await rewardsForMembership(db, config, { feeMinor: BigInt(m.fee_minor), currency: m.fee_currency })
-      : { amounts: {} as Record<number, bigint> };
+    // A reward not paid before is the standard UGX tier (owner, 2026-11-10); a reward moved keeps what was paid.
+    const amounts = await referralTiersUgx(db);
     for (let level = 1; level <= MAX_REFERRAL_LEVEL; level++) {
       const due = chain[level - 1];
       const eligible = Boolean(due?.active);
       const current = paid.find(p => p.level === level);
       if (current && eligible && Number(current.referrer_user_id) === due!.id) continue;
-      // The reward in this member's currency: what was paid (before any conversion), or the tier amount.
+      // What was paid (before any conversion, in the fee's currency), or the UGX tier for a reward not paid before.
       const amount = current
         ? BigInt(current.source_amount_minor ?? current.amount_minor!)
         : (amounts[level] ?? 0n);
-      const currency = current ? (current.source_currency_code ?? current.currency_code) : m.fee_currency;
+      const currency = current ? (current.source_currency_code ?? current.currency_code) : 'UGX';
       if (amount <= 0n || (!current && !eligible)) continue;
       const refId = `REF-L${level}-${memberId}`;
       let owed = 0n;
@@ -126,10 +122,16 @@ async function realign(db: PoolClient, rootId: number, staffId: number): Promise
         await db.query(`UPDATE referral_rewards SET status = 'reversed', reversed_at = now() WHERE id = $1`, [current.id]);
       }
       if (eligible) {
-        await payReferralReward(db, {
-          referrerId: due!.id, referrerCurrency: due!.currency, referredId: memberId, level, amountMinor: amount, currency,
-          memo: `Level ${level} referral reward from @${m.username} (inviter changed)`, actorUserId: staffId,
-        });
+        const memo = `Level ${level} referral reward from @${m.username} (inviter changed)`;
+        if (current) {
+          await payReferralReward(db, {
+            referrerId: due!.id, referrerCurrency: due!.currency, referredId: memberId, level, amountMinor: amount, currency, memo, actorUserId: staffId,
+          });
+        } else {
+          await payStandardReward(db, {
+            referrerId: due!.id, referrerCurrency: due!.currency, referredId: memberId, level, tierUgx: amount, fundCurrency: m.fee_currency, memo, actorUserId: staffId,
+          });
+        }
       }
       moved.push({
         member: m.username, level, from: current?.receiver ?? null, to: eligible ? due!.username : null,

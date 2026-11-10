@@ -58,7 +58,8 @@ export interface CountryConfig {
   termsVersion: string;
   privacyVersion: string;
   isPlaceholder: boolean;
-  // Referral rewards for levels 1 to 3 in this currency (owner, 2026-10-31); null = the UGX setting scaled by the fee.
+  // Referral rewards for levels 1 to 3 in this currency (owner, 2026-10-31). No longer paid (owner, 2026-11-10: the
+  // UGX setting, converted, applies everywhere); kept for the history.
   referralLevelsMinor: [string, string, string] | null;
   // Withdrawals below the approval threshold, from established accounts, are paid through LivePay without staff.
   autoPayout: boolean;

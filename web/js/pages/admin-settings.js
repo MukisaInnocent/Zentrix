@@ -12,7 +12,7 @@ const KNOWN = {
       { name: 'level2', label: 'Level 2', type: 'number' },
       { name: 'level3', label: 'Level 3', type: 'number' },
     ],
-    hint: 'Paid when an invited member activates. Together at most UGX 19,000. Other countries get the same share of their own fee.',
+    hint: 'Paid when an invited member activates. Together at most UGX 19,000. The same everywhere: each receiver gets these amounts converted into their own currency at the latest rate.',
     show: v => `Level 1: UGX ${v.level1.toLocaleString()} · Level 2: UGX ${v.level2.toLocaleString()} · Level 3: UGX ${v.level3.toLocaleString()}`,
     read: v => ({ level1: Number(v.level1), level2: Number(v.level2), level3: Number(v.level3) }),
   },

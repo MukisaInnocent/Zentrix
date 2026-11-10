@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Overall balance · Pexerearn Staff</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b2bd6">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/theme-init.js"></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body data-page="admin-overall-balance" data-shell="admin">
+<main id="main">
+<div class="zx-page">
+  <div class="zx-page-head">
+    <div>
+      <h1>Overall balance</h1>
+      <p>Everything the platform has received, spent and paid out, in every currency and in total in UGX at the latest exchange rates, against the money really held. LivePay's own balance is read every 15 minutes. Money the owner sent in counts as business money. A negative position is a deficit.</p>
+    </div>
+    <div class="zx-page-head__actions">
+      <button type="button" id="refresh" class="zx-btn zx-btn--secondary zx-btn--sm">Refresh</button>
+    </div>
+  </div>
+  <div id="livepay-note"></div>
+  <div id="stats" class="zx-stat-grid"></div>
+  <div class="zx-card zx-stack-3">
+    <h2>Totals in UGX</h2>
+    <p class="zx-hint">Each currency converted at the latest rate.</p>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Item</th><th scope="col">What it means</th><th scope="col">UGX</th></tr></thead>
+        <tbody id="totals"><tr><td colspan="3" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <h2>By currency</h2>
+    <p class="zx-hint">In each currency's own money.</p>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Currency</th><th scope="col">Received</th><th scope="col">Owner sent in</th><th scope="col">Withdrawn</th><th scope="col">LivePay charges</th><th scope="col">Owner took out</th><th scope="col">Referral rewards</th><th scope="col">Should hold</th><th scope="col">Really held</th><th scope="col">Owed to members</th><th scope="col">Position</th></tr></thead>
+        <tbody id="currencies"><tr><td colspan="11" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="zx-card zx-stack-3">
+    <h2>Payment methods</h2>
+    <p class="zx-hint">What each method should hold by the books, against what it really holds: LivePay's balance, the last statement staff recorded on Balance check, or (not checked) the books.</p>
+    <div class="zx-table-wrap">
+      <table class="zx-table">
+        <thead><tr><th scope="col">Method</th><th scope="col">Should hold</th><th scope="col">Really held</th><th scope="col">From</th><th scope="col">Difference</th></tr></thead>
+        <tbody id="channels"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+</html>

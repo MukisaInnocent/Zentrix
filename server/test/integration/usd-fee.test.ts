@@ -69,18 +69,23 @@ describe('USD activation fee for countries outside the owner\'s table', () => {
     expect(await drift()).toBe(0);
   });
 
-  it('pays USD 4 / 2 / 1 converted into each inviter\'s currency', async () => {
+  it('pays the standard UGX 10,000 / 5,000 / 2,000 converted into each inviter\'s currency, from USD revenue (owner, 2026-11-10)', async () => {
     const top = await member('UG');
     const mid = await member('ET', { referralCode: top.input.username });
     const direct = await member('ET', { referralCode: mid.input.username });
     const before = [(await summary(top)).availableBalanceMinor, (await summary(mid)).availableBalanceMinor];
+    const revenue = async () => BigInt((await app.owner.query(`SELECT balance_minor FROM accounts WHERE kind = 'platform_revenue' AND currency_code = 'USD'`)).rows[0].balance_minor as string);
+    const usdBefore = await revenue();
     await member('ET', { referralCode: direct.input.username });
-    // Level 1 (Ethiopian): USD 4 = ETB 540.00; level 2 (Ethiopian): USD 2 = ETB 270.00; level 3 (Ugandan): USD 1 = UGX 3,700.
-    expect((await summary(direct)).availableBalanceMinor).toBe('54000');
-    expect(BigInt((await summary(mid)).availableBalanceMinor) - BigInt(before[1])).toBe(27000n);
-    expect(BigInt((await summary(top)).availableBalanceMinor) - BigInt(before[0])).toBe(3700n);
+    // At UGX 3,700 and ETB 135 per dollar, rounded down: level 1 (Ethiopian) UGX 10,000 = ETB 364.86; level 2
+    // (Ethiopian) UGX 5,000 = ETB 182.43; level 3 (Ugandan) exactly UGX 2,000.
+    expect((await summary(direct)).availableBalanceMinor).toBe('36486');
+    expect(BigInt((await summary(mid)).availableBalanceMinor) - BigInt(before[1])).toBe(18243n);
+    expect(BigInt((await summary(top)).availableBalanceMinor) - BigInt(before[0])).toBe(2000n);
+    // USD revenue took the USD 10 fee and paid each reward's USD value: 2.70 + 1.35 + 0.54.
+    expect(await revenue() - usdBefore).toBe(1000n - 270n - 135n - 54n);
     const overview = (await direct.client.get<Body>('/api/referrals')).body;
-    expect(overview.tierAmounts.map((t: Body) => t.amountMinor)).toEqual(['400', '200', '100']);
+    expect(overview.tierAmounts.map((t: Body) => [t.amountMinor, t.currency])).toEqual([['36486', 'ETB'], ['18243', 'ETB'], ['7297', 'ETB']]);
     expect(await drift()).toBe(0);
   });
 

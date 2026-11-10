@@ -384,6 +384,13 @@ async function succeed(db: PoolClient, services: Services, r: RequestRow, outcom
       notice = { event: 'withdrawal_paid', reference: w.reference, note: payoutTxnId };
     }
     if (charge > 0n && platformPays) await postCharge(db, r, charge, actor);
+    // Set to "member" yet LivePay reports the fee alone with a charge: until LivePay's reporting is confirmed, staff
+    // check that the account received the whole fee (the Overall balance page shows any gap).
+    if (charge > 0n && !platformPays && !memberPaidOnTop) {
+      await raise(db, 'payments.provider_charge_unclear', 'warning', r.currency_code,
+        `LivePay reported the fee alone with a charge of ${toDecimalString(charge, exponent)} on ${r.reference}, and the member is set to pay charges. Check on the LivePay dashboard that the whole fee arrived.`,
+        { reference: r.reference });
+    }
     await db.query('RELEASE SAVEPOINT provider_apply');
     return [notice];
   } catch (err) {

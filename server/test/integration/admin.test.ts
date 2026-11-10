@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fxRatesJob } from '../../src/jobs/fx-rates.js';
+import { FixedFxSource } from '../../src/providers/fx.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
 import type { TestClient } from '../helpers/client.js';
 import { createStaff, loginStaff, registerMember, uniquePhoneUG, type Staff } from '../helpers/factories.js';
@@ -12,6 +14,9 @@ let supportClient: TestClient;
 
 beforeAll(async () => {
   app = await startTestApp();
+  // Rates for the minimum activation fee check (owner, 2026-11-10).
+  app.services.fx = new FixedFxSource({ source: 'test', rateAt: new Date(), unitsPerUsd: { USD: '1', UGX: '3700', KWD: '0.307', JPY: '150' } });
+  await fxRatesJob.run(app.services);
   admin = await createStaff(app, ['admin']);
   adminClient = await loginStaff(app, admin);
   compliance = await createStaff(app, ['compliance']);
@@ -95,7 +100,8 @@ describe('settings and country configuration', () => {
   });
 
   const config = {
-    membershipFee: '1.500', withdrawalMin: '0.300', withdrawalMax: '150.000', withdrawalDailyMax: '300.000',
+    // Above the UGX 19,000 minimum (KWD 1.577 at the rates set in beforeAll).
+    membershipFee: '2.500', withdrawalMin: '0.300', withdrawalMax: '150.000', withdrawalDailyMax: '300.000',
     withdrawalFeeBp: 50, withdrawalFeeMin: '0', withdrawalApprovalThreshold: '30.000', newAccountReviewDays: 14, vatBp: 0,
     kycLevelForWithdrawal: 0, engagementTasksEnabled: false, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true,
     // Kuwait's fee is in USD by default since 2026-10-31; these tests use the dinar's three decimals.
@@ -106,9 +112,9 @@ describe('settings and country configuration', () => {
     const res = await adminClient.post<{ version: number }>('/api/admin/countries/KW/config', config);
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     const row = (await app.owner.query(`SELECT membership_fee_minor, withdrawal_min_minor FROM current_country_configs WHERE country_code = 'KW'`)).rows[0];
-    expect(row).toEqual({ membership_fee_minor: '1500', withdrawal_min_minor: '300' });
+    expect(row).toEqual({ membership_fee_minor: '2500', withdrawal_min_minor: '300' });
     const pub = await app.client().get<{ config: { activationFee: unknown } }>('/api/reference/config/KW');
-    expect(pub.body.config.activationFee).toEqual({ amountMinor: '1500', currency: 'KWD' });
+    expect(pub.body.config.activationFee).toEqual({ amountMinor: '2500', currency: 'KWD' });
   });
 
   it('rejects extra decimals and limits that do not rise', async () => {

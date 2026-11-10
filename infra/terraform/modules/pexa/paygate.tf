@@ -93,6 +93,8 @@ resource "aws_iam_role_policy" "paygate" {
       # Watch markers (providers/paywatch.ts): open requests paygate reads every minute without the database.
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/watch/*" },
       { Effect = "Allow", Action = ["s3:ListBucket"], Resource = aws_s3_bucket.outbox.arn, Condition = { StringLike = { "s3:prefix" = ["paygate/watch/*"] } } },
+      # LivePay's balance every 15 minutes, for the staff Overall balance page (providers/provider-balance.ts).
+      { Effect = "Allow", Action = ["s3:PutObject"], Resource = "${aws_s3_bucket.outbox.arn}/paygate/balance/*" },
       { Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = aws_sqs_queue.paygate[0].arn },
     ]
   })

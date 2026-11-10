@@ -3,6 +3,7 @@ import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectC
 import { createLogger } from '../lib/logger.js';
 import { expiredOutcome, LivePayClient, PAYGATE_COMMANDS, PAYGATE_RESULTS, type ProviderCommand, type ProviderOutcome } from '../providers/livepay.js';
 import { decideWatch, PAYGATE_WATCH, WATCH_READS_PER_RUN, type WatchMarker } from '../providers/paywatch.js';
+import { PAYGATE_BALANCE_KEY, readLivePayBalances } from '../providers/provider-balance.js';
 
 // AWS Lambda entry that talks to LivePay. Runs outside the VPC (it needs the internet, not the database), like the
 // mailer. The API writes each command to the bucket under paygate/commands/ (S3HandoffGateway); S3 notifies the SQS
@@ -64,7 +65,21 @@ async function watch(): Promise<{ checked: number; forwarded: number }> {
       logger.error({ err: err instanceof Error ? err.message : String(err), reference: marker.reference }, 'watched request not read; next run tries again');
     }
   }
+  await saveBalance(bucket, now);
   return { checked, forwarded };
+}
+
+// Every 15 minutes, LivePay's balance for the staff Overall balance page (owner, 2026-11-10), kept in S3 so the
+// page never needs the internet or wakes the database. A failed read keeps the last saved balance.
+async function saveBalance(bucket: string, now: Date): Promise<void> {
+  if (!client || now.getUTCMinutes() % 15 !== 0) return;
+  try {
+    const snapshot = await readLivePayBalances(client, now);
+    if (snapshot.balances.length === 0) return;
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: PAYGATE_BALANCE_KEY, Body: JSON.stringify(snapshot), ContentType: 'application/json' }));
+  } catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, 'LivePay balance not read; the last saved balance stays');
+  }
 }
 
 export async function handler(event: SqsEvent | WatchEvent): Promise<{ batchItemFailures: { itemIdentifier: string }[] } | { checked: number; forwarded: number }> {
