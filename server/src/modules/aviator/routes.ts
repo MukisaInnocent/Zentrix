@@ -7,14 +7,15 @@ import { parse } from '../../http/validate.js';
 import { notFound } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
-import { requireActivated, requireAuth, requireStaff } from '../auth/middleware.js';
+import { requireAuth, requireStaff } from '../auth/middleware.js';
 import {
   adjustBalance, auditTrail, balance, cashout, exportCsv, flags, gameState, getSettings, history, listPlayers, listRequests, listRounds,
   live, moveCredits, placeBet, playerDetail, processRequest, reports, roundDetail, settingsView, transactions, updateSettings, verify,
 } from './service.js';
 
 // Aviator (owner's project, 2026-11-06; updated 2026-11-06, later). The same endpoints as the project's /api/game and
-// /api/wallet, under /api/aviator, for signed-in activated members; the project's admin dashboard is in the staff
+// /api/wallet, under /api/aviator, for every signed-in member, activated or not (owner, 2026-11-11: demo credits only,
+// no cash value, so nothing here needs the activation fee); the project's admin dashboard is in the staff
 // console under /api/admin/aviator (without its own users, logins and 2FA: the site's staff accounts are used).
 const Amount = z.strictObject({ amount: z.union([z.string(), z.number()]) });
 const BetId = z.strictObject({ bet_id: z.union([z.string(), z.number()]) });
@@ -33,7 +34,7 @@ const RoundId = z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 export function aviatorRouter(services: Services): Router {
   const { pool } = services;
   const router = Router();
-  router.use(requireAuth, requireActivated(services));
+  router.use(requireAuth);
   const me = (req: Request) => req.auth!.userId;
   const byUser = (req: Request) => `u${req.auth!.userId}`;
 

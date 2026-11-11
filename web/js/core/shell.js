@@ -82,7 +82,11 @@ const MEMBER_NAV = [
 
 // What a member sees before the activation fee is confirmed: only the payment page and account basics.
 const LOCKED_NAV = [
-  { group: 'nav.group.main', items: [{ id: 'activate', href: '/activate', icon: 'badge', label: 'nav.activate', bottom: true }] },
+  { group: 'nav.group.main', items: [
+    { id: 'activate', href: '/activate', icon: 'badge', label: 'nav.activate', bottom: true },
+    // Open before activation (owner, 2026-11-11).
+    { id: 'aviator', href: '/aviator', icon: 'send', label: 'nav.aviator', bottom: true },
+  ] },
   { group: 'nav.group.account', items: [...accountItems(true)] },
 ];
 

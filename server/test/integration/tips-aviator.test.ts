@@ -172,4 +172,15 @@ describe("aviator (the owner's project, demo credits)", () => {
     expect((await app.owner.query(`SELECT 1 FROM ledger_transactions WHERE ref_type = 'aviator'`)).rowCount).toBe(0);
     app.services.now = () => new Date();
   });
+
+  // Runs after the round test: it starts rounds on the real clock.
+  it('is open to signed-in members who have not activated yet (owner, 2026-11-11); other tools stay locked', async () => {
+    const m = await registerMember(app, {});
+    expect((await m.client.get<Body>('/api/aviator/game/state')).status).toBe(200);
+    const added = await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '50' });
+    expect([added.status, added.body.balance]).toEqual([201, 50]);
+    expect((await m.client.get<Body>('/api/tips')).body.error?.code).toBe('activation.required');
+    // Still only for signed-in members.
+    expect((await app.client().get<Body>('/api/aviator/game/state')).status).toBe(401);
+  });
 });

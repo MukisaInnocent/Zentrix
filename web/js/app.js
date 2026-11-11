@@ -12,7 +12,8 @@ import { errorState } from './core/ui.js';
 const page = document.body.dataset.page;
 const shell = document.body.dataset.shell ?? 'public';
 // Until the activation fee is confirmed a member sees only the payment page and the account basics.
-const OPEN_BEFORE_ACTIVATION = new Set(['activate', 'profile', 'contact', 'terms', 'privacy', 'risk', 'refund']);
+// Aviator is open before activation too (owner, 2026-11-11: demo credits only).
+const OPEN_BEFORE_ACTIVATION = new Set(['activate', 'aviator', 'profile', 'contact', 'terms', 'privacy', 'risk', 'refund']);
 
 async function loadMe(redirect) {
   try {
@@ -53,7 +54,7 @@ async function boot() {
 
   applyI18n(document);
   try {
-    initMotion();
+    initMotion();
   } catch (err) {
     console.error(err);
   }
