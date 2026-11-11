@@ -17,7 +17,7 @@ import { notifyPayment, type PaymentEvent } from '../notifications/notify.js';
 import { getSetting } from '../settings/registry.js';
 import { memberInfo } from '../wallet/service.js';
 import { systemUser } from './autopilot.js';
-import { listChannels, exponentOf, normalizePhone, normalizeTxnId, type Channel } from './common.js';
+import { channelByCode, listChannels, exponentOf, normalizePhone, normalizeTxnId, type Channel } from './common.js';
 import { confirmDeposit, rejectDeposit, submitDeposit, type DepositView } from './deposits.js';
 import { raise } from './reconciliation.js';
 import { staffWithdrawalAction, WITHDRAWAL_SELECT, withdrawalView, type WithdrawalRow, type WithdrawalView } from './withdrawals.js';
@@ -41,7 +41,17 @@ const RECHECK_MINUTES = 1;
 interface RequestRow {
   id: string; public_id: string; provider: string; kind: 'collect' | 'payout'; deposit_id: string | null; withdrawal_id: string | null;
   channel_id: string; reference: string; phone: string; amount_minor: string; currency_code: string; status: string;
-  provider_ref: string | null; created_at: Date;
+  provider_ref: string | null; created_at: Date; network: string | null;
+}
+
+// Networks LivePay needs for a currency (none for UGX); null when the currency has no network list.
+export async function providerNetworks(db: Db, currency: string): Promise<{ code: string; label: string; prefixes: string[] }[] | null> {
+  if (currency === 'UGX') return [];
+  return (await getSetting(db, 'livepay.networks'))[currency] ?? null;
+}
+
+async function dialCodeOf(db: Db, countryCode: string): Promise<string> {
+  return (await one<{ dial_code: string }>(db, 'SELECT dial_code FROM countries WHERE code = $1', [countryCode])).dial_code;
 }
 
 async function recordCall(db: Db, provider: string, op: ProviderCommand['op'], reference: string): Promise<void> {
@@ -72,12 +82,13 @@ export async function providerChannel(db: Db, country: string, currency: string,
   return list.find(c => c.provider && (use === 'deposits' ? c.depositsEnabled : c.payoutsEnabled)) ?? null;
 }
 
-async function commandFor(db: Db, r: Pick<RequestRow, 'kind' | 'reference' | 'currency_code' | 'phone' | 'amount_minor'>, provider: string): Promise<ProviderCommand> {
+async function commandFor(db: Db, r: Pick<RequestRow, 'kind' | 'reference' | 'currency_code' | 'phone' | 'amount_minor' | 'network'>, provider: string): Promise<ProviderCommand> {
   const exponent = await exponentOf(db, r.currency_code);
   return {
     op: r.kind, provider: provider as ProviderCommand['provider'], reference: r.reference, currency: r.currency_code, phone: r.phone,
     amount: toDecimalString(BigInt(r.amount_minor), exponent),
     description: r.kind === 'collect' ? `Pexerearn payment ${r.reference}` : `Pexerearn withdrawal ${r.reference}`,
+    ...(r.network ? { network: r.network } : {}),
     createdAt: new Date().toISOString(),
   };
 }
@@ -87,19 +98,28 @@ async function commandFor(db: Db, r: Pick<RequestRow, 'kind' | 'reference' | 'cu
 // (sendCommand), so no money call happens inside a transaction.
 export async function startCollection(
   db: PoolClient, services: Services, userId: number,
-  input: { channelCode: string; phone?: string | undefined; purpose?: 'activation' | 'wallet'; amountMinor?: bigint },
+  input: { channelCode: string; phone?: string | undefined; network?: string | undefined; purpose?: 'activation' | 'wallet'; amountMinor?: bigint },
 ): Promise<{ deposit: DepositView; command: ProviderCommand }> {
   const g = gateway(services);
   const member = await memberInfo(db, userId);
-  // LivePay needs the network for every currency except UGX; choosing a network is not built yet.
-  if (member.currency !== 'UGX') {
+  // LivePay needs the network for every currency except UGX (owner, 2026-11-11: Ghana); the member picks it.
+  const channel = await channelByCode(db, input.channelCode);
+  const networks = await providerNetworks(db, channel.currency);
+  if (networks === null) {
     throw badRequest('payments.channel_unavailable', 'Mobile money prompts are not available for your country yet. Please use another payment method.');
   }
-  // Owner, 2026-11-02: a member may pay from any Ugandan number (a friend's phone, for example). Payouts still go only
-  // to the registered number. To keep prompts from being sent to strangers, a member reaches at most 3 other numbers a day.
+  let network: string | null = null;
+  if (networks.length > 0) {
+    network = networks.find(n => n.code === input.network)?.code ?? null;
+    if (!network) throw badRequest('validation_failed', 'Choose your mobile money network.', { network: ['Choose your mobile money network.'] });
+  }
+  // Owner, 2026-11-02: a member may pay from any number in their own country (a friend's phone, for example). Payouts
+  // still go only to the registered number. To keep prompts from being sent to strangers, a member reaches at most 3
+  // other numbers a day.
+  const dial = await dialCodeOf(db, member.countryCode);
   const phone = normalizePhone(input.phone ?? member.phone ?? '');
-  if (!phone.startsWith('+256')) {
-    throw badRequest('payments.phone_country', 'Payment prompts go to Ugandan numbers only (+256). To pay from another phone, use a manual method.', { phone: ['Use a +256 number.'] });
+  if (!phone.startsWith(`+${dial}`)) {
+    throw badRequest('payments.phone_country', `Payment prompts go to numbers in your country only (+${dial}). To pay from another phone, use a manual method.`, { phone: [`Use a +${dial} number.`] });
   }
   if (phone !== member.phone) {
     const others = await rows<{ phone: string }>(
@@ -132,9 +152,9 @@ export async function startCollection(
   const d = await one<{ id: string; channel_id: string }>(db, 'SELECT id, channel_id FROM deposits WHERE public_id = $1', [deposit.id]);
   const request: RequestRow = await one<RequestRow>(
     db,
-    `INSERT INTO provider_requests (provider, kind, deposit_id, channel_id, reference, phone, amount_minor, currency_code)
-     VALUES ($1, 'collect', $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [g.provider, d.id, d.channel_id, deposit.reference, phone, deposit.claimedAmountMinor, deposit.currency],
+    `INSERT INTO provider_requests (provider, kind, deposit_id, channel_id, reference, phone, amount_minor, currency_code, network)
+     VALUES ($1, 'collect', $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [g.provider, d.id, d.channel_id, deposit.reference, phone, deposit.claimedAmountMinor, deposit.currency, network],
   );
   await recordCall(db, g.provider, 'collect', request.reference);
   return { deposit, command: await commandFor(db, request, g.provider) };
@@ -158,9 +178,17 @@ export async function startPayout(
   );
   if (!w) throw badRequest('validation_failed', 'Unknown withdrawal.');
   if (w.status !== 'approved') throw conflict('withdrawal.wrong_state', `This withdrawal is ${w.status}; only an approved withdrawal can be sent.`);
-  if (w.currency_code !== 'UGX') throw badRequest('payments.channel_unavailable', 'LivePay payouts are set up for UGX only so far. Pay this one by hand.');
   const channel = await providerChannel(db, w.country_code, w.currency_code, 'payouts');
   if (!channel) throw badRequest('payments.channel_unavailable', 'No LivePay payout method is switched on for this country. Pay this one by hand.');
+  // The network for the registered number, from its prefix (owner, 2026-11-11: Ghana); UGX needs none.
+  const networks = await providerNetworks(db, w.currency_code);
+  if (networks === null) throw badRequest('payments.channel_unavailable', `LivePay payouts are not set up for ${w.currency_code}. Pay this one by hand.`);
+  let network: string | null = null;
+  if (networks.length > 0) {
+    const local = w.payout_phone.slice(1 + (await dialCodeOf(db, w.country_code)).length);
+    network = networks.find(n => n.prefixes.some(p => local.startsWith(p)))?.code ?? null;
+    if (!network) throw badRequest('payments.network_unknown', 'The mobile money network of this number is not known. Pay this one by hand.');
+  }
   // Never send real money the ledger says the LivePay account does not hold.
   const clearing = await accountId(db, { kind: 'payment_clearing', channelId: channel.id, currency: w.currency_code });
   if (await balanceOf(db, clearing) < BigInt(w.amount_minor)) {
@@ -170,9 +198,9 @@ export async function startPayout(
   await db.query(`UPDATE withdrawals SET payout_method = 'api' WHERE id = $1`, [w.id]);
   const request = await one<RequestRow>(
     db,
-    `INSERT INTO provider_requests (provider, kind, withdrawal_id, channel_id, reference, phone, amount_minor, currency_code)
-     VALUES ($1, 'payout', $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [g.provider, w.id, channel.id, w.reference, w.payout_phone, w.amount_minor, w.currency_code],
+    `INSERT INTO provider_requests (provider, kind, withdrawal_id, channel_id, reference, phone, amount_minor, currency_code, network)
+     VALUES ($1, 'payout', $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [g.provider, w.id, channel.id, w.reference, w.payout_phone, w.amount_minor, w.currency_code, network],
   );
   await recordCall(db, g.provider, 'payout', request.reference);
   const after = withdrawalView(await one<WithdrawalRow>(db, `${WITHDRAWAL_SELECT} WHERE w.id = $1`, [w.id]));

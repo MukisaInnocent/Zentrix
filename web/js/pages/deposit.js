@@ -41,7 +41,9 @@ function renderPaybox() {
     box.replaceChildren(
       h('ol', { class: 'zx-steps-list' }, [
         'Enter the amount you want to deposit.',
-        'Enter the MTN or Airtel number that will pay. It can be your own or someone else\'s Ugandan number.',
+        info.providerNetworks.length
+          ? 'Enter the mobile money number that will pay and choose its network. It can be your own or someone else\'s number in your country.'
+          : 'Enter the MTN or Airtel number that will pay. It can be your own or someone else\'s Ugandan number.',
         'Press Send payment prompt. It goes to that number.',
         'Check the amount on your phone and approve it with your PIN. The deposit is added by itself.',
       ].map(x => h('li', {}, x))),
@@ -79,6 +81,14 @@ function renderForm(c) {
   $('#deposit-amount-label').textContent = prompt ? `Amount to deposit (${info.currency})` : 'Amount you sent';
   $('#deposit-phone-label').textContent = prompt ? 'Number that will pay (the prompt goes here)' : 'Number you paid from';
   if (prompt && info?.phone && !$('#deposit-phone').value) $('#deposit-phone').value = info.phone;
+  // LivePay needs the network outside Uganda (owner, 2026-11-11: Ghana).
+  const networks = prompt ? info?.providerNetworks ?? [] : [];
+  $('#network-field').hidden = networks.length === 0;
+  $('#deposit-network').disabled = networks.length === 0;
+  $('#deposit-network').required = networks.length > 0;
+  if (networks.length && !$('#deposit-network').options.length) {
+    $('#deposit-network').replaceChildren(h('option', { value: '' }, 'Choose the network'), ...networks.map(n => h('option', { value: n.code }, n.label)));
+  }
   $('#deposit-submit').textContent = prompt ? 'Send payment prompt' : 'Submit deposit';
 }
 
@@ -127,7 +137,7 @@ export async function init({ me }) {
   bindForm($('#deposit-form'), async (data, form) => {
     if (!selected) throw new Error('No payment method');
     if (selectedChannel()?.provider) {
-      const res = await api.post('/api/payments/collections', { purpose: 'wallet', channel: selected, amount: data.amount, phone: data.senderPhone }, { idempotencyKey: newIdempotencyKey() });
+      const res = await api.post('/api/payments/collections', { purpose: 'wallet', channel: selected, amount: data.amount, phone: data.senderPhone, ...(data.network ? { network: data.network } : {}) }, { idempotencyKey: newIdempotencyKey() });
       if (res.deposit.status === 'confirmed') toast.success('Deposit received.');
       else if (res.deposit.status === 'rejected') toast.error(`The payment did not go through${res.deposit.reviewNote ? `: ${res.deposit.reviewNote}` : '.'}`);
       else toast.success('Prompt sent. Approve it on your phone.');

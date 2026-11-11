@@ -47,6 +47,8 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
 
 - 2026-11-11 (owner): Aviator is open to signed-in members who have not activated (demo credits only): `/api/aviator` needs only a session, the page is in `OPEN_BEFORE_ACTIVATION` (web/js/app.js) and in the locked menu. Other tools stay locked. Deployed to production the same day. The owner sends an advert about it to all registered members through staff console Announcements (audience all). Email (owner, 2026-11-11): Resend is on a paid plan since before launch; migration 0038 sets `email.allowance` to 50,000 a day and a month, 200 a day reserved (Pro assumed, TODO(owner)). Announcements go out hourly (`announcements_schedule` `cron(10 * * * ? *)`, at most 1,000 and 90 seconds a run) and the mailer is paced to stay within Resend's rate limit (2 at a time, about 1 email a second each).
 
+- 2026-11-11 (later, owner; migrations 0039 and 0040): no country's activation fee is below UGX 19,000; Kenya is KES 650 (0039; its old reward amounts cleared). The owner's Kenya payment guide (Safaricom *840#, send money abroad to a Uganda Airtel number) goes in the Kenya payment method's instructions in the staff console, never in git. Ghana uses LivePay (GHS): members pick the network for a prompt, payouts take it from the registered number's prefix (setting `livepay.networks`, TODO(owner): LivePay's codes), prompts go to numbers of the member's own country, `livepay_gh` copied from Uganda's LivePay method, Ghana `auto_payout` on (0040), the balance file reads GHS too. docs/LIVEPAY.md.
+
 ## How to operate
 
 1. Plan before code. Update `docs/PLAN.md` and this file whenever a decision changes.

@@ -16,7 +16,7 @@ import { chargeBands, listMemberWithdrawals, memberCancelWithdrawal, quoteWithdr
 import { maybeOne, rows } from '../../db/sql.js';
 import { notifyPayment, notifyStaffOfPayment } from '../notifications/notify.js';
 import { autoConfirmDeposit, autoPayWithdrawal, autopilotEnabled, ensureTestChannel } from './autopilot.js';
-import { autoPayout, sendCommand, startCollection } from './provider.js';
+import { autoPayout, providerNetworks, sendCommand, startCollection } from './provider.js';
 import type { ProviderCommand } from '../../providers/livepay.js';
 
 const HOUR = 3_600_000;
@@ -50,6 +50,8 @@ const DepositBody = z.strictObject({
 const CollectBody = z.strictObject({
   channel: z.string().trim().min(2).max(40),
   phone: z.string().trim().min(4).max(32).optional(),
+  // The mobile-money network, for every currency except UGX (owner, 2026-11-11: Ghana).
+  network: z.string().trim().toUpperCase().max(20).optional(),
   purpose: z.enum(['activation', 'wallet']).default('activation'),
   amount: AmountInput.optional(),
 });
@@ -87,11 +89,12 @@ export function paymentsRouter(services: Services): Router {
     const feeCurrency = config?.feeCurrency ?? member.currency;
     await ensureTestChannel(services, member);
     if (feeCurrency !== member.currency) await ensureTestChannel(services, { countryCode: member.countryCode, currency: feeCurrency });
-    const [channels, deposits, withdrawals, summary] = await Promise.all([
+    const [channels, deposits, withdrawals, summary, networks] = await Promise.all([
       listChannels(pool, { country: member.countryCode }).then(list => list.filter(c => c.currency === member.currency || c.currency === feeCurrency)),
       flagActive(pool, 'deposits_paused', member.currency),
       flagActive(pool, 'withdrawals_paused', member.currency),
       getWalletSummary(pool, req.auth!.userId),
+      providerNetworks(pool, member.currency),
     ]);
     res.json({
       currency: member.currency,
@@ -106,6 +109,8 @@ export function paymentsRouter(services: Services): Router {
       // Staging LivePay trial: LivePay prompts take real money although the site is in test mode.
       livepayTrial: services.config.appMode === 'test' && services.config.livepayTrial && services.config.paymentProvider === 'livepay',
       activation: { active: summary.membershipActive, activatedAt: summary.membershipActivatedAt, feeMinor: summary.membershipFeeMinor, feeCurrency },
+      // Networks to pick from for a LivePay prompt in the member's currency (empty for UGX).
+      providerNetworks: (networks ?? []).map(n => ({ code: n.code, label: n.label })),
       // Provider methods (LivePay) show only while the provider is connected.
       channels: channels.filter(c => (c.depositsEnabled || c.payoutsEnabled) && (!c.provider || services.payments)).map(publicChannel),
     });
@@ -150,7 +155,7 @@ export function paymentsRouter(services: Services): Router {
       const member = await memberInfo(db, req.auth!.userId);
       const amountMinor = input.purpose === 'wallet' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
       const started = await startCollection(db, services, req.auth!.userId, {
-        channelCode: input.channel, phone: input.phone, purpose: input.purpose, ...(amountMinor === undefined ? {} : { amountMinor }),
+        channelCode: input.channel, phone: input.phone, network: input.network, purpose: input.purpose, ...(amountMinor === undefined ? {} : { amountMinor }),
       });
       command = started.command;
       return { status: 201, body: { deposit: started.deposit } };

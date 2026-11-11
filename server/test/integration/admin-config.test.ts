@@ -111,19 +111,20 @@ describe('countries and vouchers', () => {
 
   it('holds each country\'s own fee and referral amounts (owner, 2026-10-31), editable within the fee', async () => {
     const ke = (await finance.get<Body>('/api/admin/countries/KE')).body.configHistory[0];
-    expect(ke).toMatchObject({ membershipFeeMinor: '55000', withdrawalMinMinor: '70000', withdrawalMaxMinor: '1500000', withdrawalFeeBp: 70, autoPayout: false });
-    expect(ke.referralLevelsMinor).toEqual(['30000', '15000', '5000']);
+    // Owner, 2026-11-11: KES 650 (no country below UGX 19,000); the country reward amounts are cleared.
+    expect(ke).toMatchObject({ membershipFeeMinor: '65000', withdrawalMinMinor: '70000', withdrawalMaxMinor: '1500000', withdrawalFeeBp: 70, autoPayout: false });
+    expect(ke.referralLevelsMinor).toBeNull();
     const ug = (await finance.get<Body>('/api/admin/countries/UG')).body.configHistory[0];
     expect([ug.referralLevelsMinor, ug.autoPayout]).toEqual([null, true]);
     const charges = (await finance.get<Body>('/api/admin/withdrawal-charges/KES')).body.bands;
     expect(charges.map((b: Body) => [b.upToMinor, b.chargeMinor])).toEqual([['120000', '11000'], ['220000', '16000'], ['380000', '18000'], ['800000', '20000'], ['1500000', '30000']]);
 
     const edit = {
-      membershipFee: '550', withdrawalMin: '700', withdrawalMax: '15000', withdrawalDailyMax: '70000', withdrawalFeeBp: 50,
+      membershipFee: '650', withdrawalMin: '700', withdrawalMax: '15000', withdrawalDailyMax: '70000', withdrawalFeeBp: 50,
       withdrawalFeeMin: '0', withdrawalApprovalThreshold: '7000', newAccountReviewDays: 14, vatBp: 0, kycLevelForWithdrawal: 0,
       engagementTasksEnabled: true, termsVersion: '2026-10-v1', privacyVersion: '2026-10-v1', isPlaceholder: true,
     };
-    const tooMuch = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, referralLevels: ['300', '200', '100'] });
+    const tooMuch = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, referralLevels: ['400', '200', '100'] });
     expect(tooMuch.body.error?.fields?.referralLevels?.[0]).toContain('activation fee');
     const saved = await admin.post<Body>('/api/admin/countries/KE/config', { ...edit, referralLevels: ['250', '150', '50'], note: 'Lower level 1' });
     expect(saved.status, JSON.stringify(saved.body)).toBe(201);

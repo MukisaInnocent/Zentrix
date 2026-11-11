@@ -297,7 +297,7 @@ describe('referral rewards', () => {
 
     // No exchange rate yet: KES has no value in UGX, so UGX revenue pays the Ugandan exactly UGX 10,000 at once.
     const feeKes = await activateKenyan();
-    expect(feeKes).toBe(55_000n);
+    expect(feeKes).toBe(65_000n);
     expect((await summary(ugandan)).availableBalanceMinor).toBe('10000');
     expect((await rewards()).rows).toEqual([
       { status: 'credited', amount_minor: '10000', currency_code: 'UGX', source_amount_minor: null, source_currency_code: null, fx_rate: null },
@@ -331,10 +331,10 @@ describe('referral rewards', () => {
     // A Kenyan inviting a Kenyan receives UGX 10,000 in KES, with no conversion leg.
     const kenyanInviter = await verifiedMember({ country: 'KE', phone: kenyanPhone(), referralCode: ugandan.input.username });
     const d = await kenyanInviter.client.post<Body>('/api/payments/deposits', { channel: 'mpesa_test', senderPhone: kenyanInviter.input.phone, providerTxnId: txnId() }, key());
-    expect((await financeClient.post<Body>(`/api/admin/payments/deposits/${d.body.deposit.id}/confirm`, { amount: '550.00' }, key())).status).toBe(200);
+    expect((await financeClient.post<Body>(`/api/admin/payments/deposits/${d.body.deposit.id}/confirm`, { amount: '650.00' }, key())).status).toBe(200);
     const invitee = await verifiedMember({ country: 'KE', phone: kenyanPhone(), referralCode: kenyanInviter.input.username });
     const d2 = await invitee.client.post<Body>('/api/payments/deposits', { channel: 'mpesa_test', senderPhone: invitee.input.phone, providerTxnId: txnId() }, key());
-    expect((await financeClient.post<Body>(`/api/admin/payments/deposits/${d2.body.deposit.id}/confirm`, { amount: '550.00' }, key())).status).toBe(200);
+    expect((await financeClient.post<Body>(`/api/admin/payments/deposits/${d2.body.deposit.id}/confirm`, { amount: '650.00' }, key())).status).toBe(200);
     expect((await summary(kenyanInviter)).availableBalanceMinor).toBe(fundKes.toString());
     expect((await kenyanInviter.client.get<Body>('/api/referrals')).body.tierAmounts.map((t: Body) => [t.amountMinor, t.currency]))
       .toEqual([['34864', 'KES'], ['17432', 'KES'], ['6972', 'KES']]);

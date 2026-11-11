@@ -44,7 +44,9 @@ function renderPaybox() {
     box.replaceChildren(
       h('div', { class: 'zx-paybox__row' }, h('span', { class: 'zx-hint' }, 'Amount'), h('strong', { class: 'zx-paybox__value' }, fee)),
       h('ol', { class: 'zx-steps-list' }, [
-        'Enter the MTN or Airtel number that will pay. It can be your own or someone else\'s Ugandan number.',
+        info.providerNetworks.length
+          ? 'Enter the mobile money number that will pay and choose its network. It can be your own or someone else\'s number in your country.'
+          : 'Enter the MTN or Airtel number that will pay. It can be your own or someone else\'s Ugandan number.',
         'Press Activate now. A payment prompt goes to that number.',
         `A prompt for ${fee} appears on that phone.`,
         'Check the amount and approve it with your PIN. Your account opens by itself.',
@@ -87,8 +89,16 @@ function renderForm(c) {
   $('#activate-txn').disabled = prompt;
   $('#form-title').textContent = prompt ? '2. Get the payment prompt' : '2. Enter your payment details';
   $('#activate-phone-label').textContent = prompt ? 'Number that will pay (the prompt goes here)' : 'Number you paid from';
-  // Any Ugandan number can pay (owner, 2026-11-02); the registered number is filled in to start with.
+  // Any number in the member's country can pay (owner, 2026-11-02); the registered number is filled in to start with.
   if (prompt && info?.phone && !$('#activate-phone').value) $('#activate-phone').value = info.phone;
+  // LivePay needs the network outside Uganda (owner, 2026-11-11: Ghana).
+  const networks = prompt ? info?.providerNetworks ?? [] : [];
+  $('#network-field').hidden = networks.length === 0;
+  $('#activate-network').disabled = networks.length === 0;
+  $('#activate-network').required = networks.length > 0;
+  if (networks.length && !$('#activate-network').options.length) {
+    $('#activate-network').replaceChildren(h('option', { value: '' }, 'Choose the network'), ...networks.map(n => h('option', { value: n.code }, n.label)));
+  }
   $('#activate-submit').textContent = prompt ? 'Activate now' : 'Submit payment';
 }
 
@@ -151,7 +161,7 @@ export async function init({ me }) {
   bindForm($('#activate-form'), async (data, form) => {
     if (!selected) throw new Error('No payment method');
     if (selectedChannel()?.provider) {
-      const res = await api.post('/api/payments/collections', { channel: selected, phone: data.senderPhone }, { idempotencyKey: newIdempotencyKey() });
+      const res = await api.post('/api/payments/collections', { channel: selected, phone: data.senderPhone, ...(data.network ? { network: data.network } : {}) }, { idempotencyKey: newIdempotencyKey() });
       if (res.deposit.status === 'confirmed') toast.success('Payment received. Your account is open.');
       else if (res.deposit.status === 'rejected') toast.error('The payment did not go through. See the reason above.');
       else toast.success('Prompt sent. Approve it on your phone.');

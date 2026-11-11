@@ -9,8 +9,8 @@ import { LivePayClient } from './livepay.js';
 // Render) it is read from LivePay on request. Balances are LivePay's own text, in major units ("1250000").
 
 export const PAYGATE_BALANCE_KEY = 'paygate/balance/latest.json';
-// The currencies read. LivePay is used for UGX only so far (docs/LIVEPAY.md).
-export const PROVIDER_BALANCE_CURRENCIES = ['UGX'] as const;
+// The currencies read: Uganda, and Ghana since 2026-11-11 (docs/LIVEPAY.md).
+export const PROVIDER_BALANCE_CURRENCIES = ['UGX', 'GHS'] as const;
 
 const SnapshotSchema = z.object({
   readAt: z.string(),

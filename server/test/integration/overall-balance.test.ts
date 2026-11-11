@@ -55,11 +55,11 @@ describe('overall balance', () => {
     expect(ugx.livepay).toEqual({ ledgerMinor: '38000', balanceMinor: '37000', differenceMinor: '-1000' });
     expect(ugx.channels.find((c: Body) => c.code === 'livepay_ug')).toMatchObject({ actualSource: 'livepay' });
 
-    // KES 550.00 at KES 129 and UGX 3,700 per dollar = UGX 15,775 (rounded down).
+    // KES 650.00 at KES 129 and UGX 3,700 per dollar = UGX 18,643 (rounded down).
     const kes = res.body.currencies.find((c: Body) => c.currency === 'KES');
-    expect(kes.figures).toMatchObject({ received: '55000', ledgerHeld: '55000', actualHeld: '55000', position: '55000' });
-    expect(kes.ugx).toMatchObject({ received: '15775', position: '15775' });
-    expect(res.body.totalUgx).toMatchObject({ received: String(38000 + 15775), owedToMembers: '10000', position: String(27000 + 15775) });
+    expect(kes.figures).toMatchObject({ received: '65000', ledgerHeld: '65000', actualHeld: '65000', position: '65000' });
+    expect(kes.ugx).toMatchObject({ received: '18643', position: '18643' });
+    expect(res.body.totalUgx).toMatchObject({ received: String(38000 + 18643), owedToMembers: '10000', position: String(27000 + 18643) });
     expect([res.body.livepayAvailable, res.body.livepayReadAt]).toEqual([true, '2026-11-10T12:00:00.000Z']);
   });
 

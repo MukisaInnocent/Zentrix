@@ -52,6 +52,11 @@
         <input id="deposit-phone" class="zx-input" name="senderPhone" type="tel" inputmode="tel" autocomplete="tel" required>
         <span id="deposit-phone-error" class="zx-error" hidden></span>
       </div>
+      <div id="network-field" class="zx-field" hidden>
+        <label for="deposit-network">Mobile money network of that number</label>
+        <select id="deposit-network" class="zx-select" name="network" disabled></select>
+        <span id="deposit-network-error" class="zx-error" hidden></span>
+      </div>
       <button id="deposit-submit" class="zx-btn zx-btn--block zx-btn--lg" type="submit">Submit deposit</button>
     </form>
   </section>

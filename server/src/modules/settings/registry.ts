@@ -72,6 +72,27 @@ export const SETTING_DEFS = {
     fallback: 'platform',
     description: "Who pays LivePay's charge on activation fees and deposits: the platform (LivePay keeps it out of the fee) or the member (added to the member's prompt). Match it to the setting in the LivePay dashboard.",
   },
+  // LivePay needs the mobile-money network for every currency except UGX (owner, 2026-11-11: Ghana). Per currency, the
+  // networks members can pick for a payment prompt, with the code sent to LivePay; a payout takes the network whose
+  // prefixes (the digits after the country code) match the registered number. TODO(owner): confirm LivePay's codes.
+  'livepay.networks': {
+    schema: z.record(
+      z.string().regex(/^[A-Z]{3}$/),
+      z.array(z.strictObject({
+        code: z.string().trim().regex(/^[A-Z0-9_-]{2,20}$/),
+        label: z.string().trim().min(2).max(40),
+        prefixes: z.array(z.string().regex(/^\d{1,4}$/)).max(30),
+      })).min(1).max(8),
+    ),
+    fallback: {
+      GHS: [
+        { code: 'MTN', label: 'MTN MoMo', prefixes: ['24', '25', '53', '54', '55', '59'] },
+        { code: 'TELECEL', label: 'Telecel Cash', prefixes: ['20', '50'] },
+        { code: 'AIRTELTIGO', label: 'AirtelTigo Money', prefixes: ['26', '27', '56', '57'] },
+      ],
+    },
+    description: "Mobile-money networks LivePay needs for each currency except UGX: the code sent to LivePay, the name members see, and the number prefixes (digits after the country code) used to pick the network for payouts. TODO(owner): confirm LivePay's codes.",
+  },
   'community.url': {
     schema: z.url({ protocol: /^https$/ }).nullable(),
     fallback: null,

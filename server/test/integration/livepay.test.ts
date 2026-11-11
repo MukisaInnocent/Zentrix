@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyOutcome, checkRequest, livePayWebhook } from '../../src/modules/payments/provider.js';
+import { withTransaction } from '../../src/db/tx.js';
+import { accountId, move, post } from '../../src/modules/ledger/ledger.js';
 import { setSetting } from '../../src/modules/settings/registry.js';
 import { livePaySignature, type PaymentGateway, type ProviderCommand, type ProviderOutcome } from '../../src/providers/livepay.js';
 import type { Services } from '../../src/services.js';
@@ -279,6 +281,85 @@ describe('LivePay collections', () => {
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
     }
+    expect(await drift()).toBe(0);
+  });
+});
+
+// Owner, 2026-11-11: Ghana uses LivePay too (GHS). LivePay needs the mobile-money network for every currency but UGX:
+// the member picks it for a prompt; a payout takes it from the registered number's prefix.
+describe('LivePay in Ghana', () => {
+  const ghPhone = (prefix = '24') => `+233${prefix}${String(randomInt(1_000_000, 9_999_999))}`;
+  const ghana = (overrides: Record<string, unknown> = {}) => registerMember(app, { country: 'GH', phone: ghPhone(), ...overrides });
+  const collectGh = (m: Member, extra: Record<string, unknown> = {}, headers = key()) =>
+    m.client.post<Body>('/api/payments/collections', { channel: 'livepay_gh', ...extra }, headers);
+
+  beforeAll(async () => {
+    await app.owner.query(
+      `INSERT INTO payment_channels (code, name, country_code, currency_code, account_name, account_number, provider)
+       VALUES ('livepay_gh', 'Mobile money (LivePay)', 'GH', 'GHS', 'PEXERECORP', 'LP0000000001', 'livepay')`,
+    );
+  });
+
+  it('activates through a prompt on the network the member picks, sent to LivePay with the request', async () => {
+    await app.owner.query('DELETE FROM provider_calls');
+    const m = await ghana();
+    const info = (await m.client.get<Body>('/api/payments/channels')).body;
+    expect((info.providerNetworks as Body[]).map(n => n.code)).toEqual(['MTN', 'TELECEL', 'AIRTELTIGO']);
+    expect((await collectGh(m)).body.error?.fields?.network).toBeDefined();
+    expect((await collectGh(m, { network: 'ORANGE' })).body.error?.fields?.network).toBeDefined();
+    expect((await collectGh(m, { network: 'MTN', phone: '+256772000111' })).body.error?.code).toBe('payments.phone_country');
+    const gateway = new HandGateway();
+    const deposit = await withGateway(gateway, async () => (await collectGh(m, { network: 'MTN' })).body.deposit as Body);
+    expect(deposit).toMatchObject({ status: 'pending', currency: 'GHS', claimedAmountMinor: '9500' });
+    expect(gateway.sent[0]).toMatchObject({ op: 'collect', currency: 'GHS', amount: '95.00', network: 'MTN' });
+    await applyOutcome(app.services, {
+      op: 'status', provider: 'simulator', reference: deposit.reference as string, at: new Date().toISOString(), status: 'succeeded', rawStatus: 'Success', amount: '95.00', currency: 'GHS', providerTxnId: 'GH12345678',
+    });
+    expect(((await m.client.get<Body>('/api/me')).body.user as Body).activated).toBe(true);
+    expect(await drift()).toBe(0);
+  });
+
+  it('pays a Ghana withdrawal automatically on the network of the registered number; an unknown prefix waits for staff', async () => {
+    await app.owner.query('DELETE FROM provider_calls');
+    const admin = await loginStaff(app, await createStaff(app, ['admin']));
+    const cfg = (await admin.get<Body>('/api/admin/countries/GH')).body.configHistory[0];
+    const dec = (minor: string) => (Number(minor) / 100).toFixed(2);
+    expect((await admin.post<Body>('/api/admin/countries/GH/config', {
+      membershipFee: dec(cfg.membershipFeeMinor), withdrawalMin: dec(cfg.withdrawalMinMinor), withdrawalMax: dec(cfg.withdrawalMaxMinor),
+      withdrawalDailyMax: dec(cfg.withdrawalDailyMaxMinor), withdrawalFeeBp: cfg.withdrawalFeeBp, withdrawalFeeMin: dec(cfg.withdrawalFeeMinMinor),
+      withdrawalApprovalThreshold: dec(cfg.withdrawalApprovalThresholdMinor), vatBp: cfg.vatBp, kycLevelForWithdrawal: cfg.kycLevelForWithdrawal,
+      engagementTasksEnabled: cfg.engagementTasksEnabled, termsVersion: cfg.termsVersion, privacyVersion: cfg.privacyVersion, isPlaceholder: cfg.isPlaceholder,
+      autoPayout: true, note: 'Ghana pays through LivePay',
+    })).status).toBe(201);
+
+    // Two activated Ghanaians with GHS 200 on their balance (the LivePay account holds it in the ledger).
+    const funded = async (prefix: string) => {
+      const m = await ghana({ phone: ghPhone(prefix) });
+      expect((await collectGh(m, { network: 'MTN' })).body.deposit.status).toBe('confirmed');
+      const userId = Number((await app.owner.query('SELECT id FROM users WHERE username = $1', [m.input.username])).rows[0].id);
+      const channelId = Number((await app.owner.query(`SELECT id FROM payment_channels WHERE code = 'livepay_gh'`)).rows[0].id);
+      await withTransaction(app.services.pool, async db => {
+        const cash = await accountId(db, { kind: 'payment_clearing', channelId, currency: 'GHS' });
+        const capital = await accountId(db, { kind: 'owner_capital', currency: 'GHS' });
+        const main = await accountId(db, { kind: 'member_main', userId, currency: 'GHS' });
+        await post(db, { kind: 'test_capital', memo: 'test capital', legs: move(cash, capital, 20_000n) });
+        await post(db, { kind: 'test_grant', memo: 'test grant', legs: move(capital, main, 20_000n) });
+      });
+      await app.owner.query('UPDATE users SET phone_verified_at = now() WHERE id = $1', [userId]);
+      return m;
+    };
+    const telecel = await funded('20');
+    const gateway = new HandGateway();
+    const w = await withGateway(gateway, async () => (await telecel.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '150' }, key())).body.withdrawal as Body);
+    expect(w).toMatchObject({ status: 'processing', payoutMethod: 'api', channel: { code: 'livepay_gh' } });
+    expect(gateway.sent.find(c => c.op === 'payout')).toMatchObject({ currency: 'GHS', amount: '150.00', network: 'TELECEL', phone: telecel.input.phone });
+
+    // A number whose prefix is not on the network list: nothing is sent, staff pay it.
+    const odd = await funded('28');
+    const g2 = new HandGateway();
+    const w2 = await withGateway(g2, async () => (await odd.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '150' }, key())).body.withdrawal as Body);
+    expect(w2).toMatchObject({ status: 'requested' });
+    expect(g2.sent.filter(c => c.op === 'payout')).toHaveLength(0);
     expect(await drift()).toBe(0);
   });
 });

@@ -19,6 +19,8 @@ export interface ProviderCommand {
   phone?: string;
   amount?: string;
   description?: string;
+  // The mobile-money network; LivePay needs it for every currency except UGX (owner, 2026-11-11: Ghana).
+  network?: string;
   // When the command was made. A collection or payout older than COMMAND_TTL_MS is never sent (a late queue retry).
   createdAt?: string;
 }
@@ -152,6 +154,7 @@ export class LivePayClient implements ProviderExecutor {
         currency: command.currency,
         reference: command.reference,
         description: command.description ?? command.reference,
+        ...(command.network ? { network: command.network } : {}),
       });
       const message = text(json.error ?? json.message, 500);
       if (status === 200 && json.success !== false) {

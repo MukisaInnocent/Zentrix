@@ -44,7 +44,7 @@ async function addMethod() {
       { name: 'country', label: 'Country', type: 'select', required: true, value: state.country || 'UG', options: countries.map(c => ({ value: c.code, label: `${c.name} (${c.currency_code})` })) },
       {
         name: 'provider', label: 'How members pay', type: 'select', value: '',
-        options: [{ value: '', label: 'Manual: members send money and enter the transaction ID' }, { value: 'livepay', label: 'LivePay: a payment prompt on the member’s phone (UGX only so far)' }],
+        options: [{ value: '', label: 'Manual: members send money and enter the transaction ID' }, { value: 'livepay', label: 'LivePay: a payment prompt on the member’s phone (Uganda and Ghana)' }],
         hint: 'Cannot be changed later. With LivePay, enter the LivePay account number below; payouts are sent through LivePay.',
       },
       {
