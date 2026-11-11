@@ -5,7 +5,7 @@ import { toast } from '../core/toast.js';
 import { act, ago, askForm, debounce, emptyRow, when } from '../admin/kit.js';
 
 // Announcements: an admin writes an email and sends it to members. The server fixes the recipients, sends what fits
-// in today's email allowance and the daily job sends the rest. The preview is drawn here; the test email is real.
+// in today's email allowance and the hourly job sends the rest. The preview is drawn here; the test email is real.
 const AUDIENCE = { all: 'All members', activated: 'Activated members', not_activated: 'Not activated' };
 const STATUS = { sending: ['warning', 'Sending'], done: ['success', 'Done'], cancelled: ['', 'Cancelled'] };
 let countries = [];
@@ -103,7 +103,7 @@ async function send(e) {
   const m = message();
   const ok = await askForm({
     title: 'Send this announcement?', submitLabel: `Send to ${reach.toLocaleString()}`,
-    text: `"${m.subject}" goes to ${reach.toLocaleString()} member${reach === 1 ? '' : 's'} (${AUDIENCE[m.audience]}${m.country ? `, ${countries.find(c => c.code === m.country)?.name ?? m.country}` : ''}). What does not fit in today's email allowance goes out on the next days. This cannot be undone, but you can stop the rest later.`,
+    text: `"${m.subject}" goes to ${reach.toLocaleString()} member${reach === 1 ? '' : 's'} (${AUDIENCE[m.audience]}${m.country ? `, ${countries.find(c => c.code === m.country)?.name ?? m.country}` : ''}). The first ones go out now and the rest every hour (up to 1,000 an hour) within the email allowance. This cannot be undone, but you can stop the rest later.`,
     submit: () => api.post('/api/admin/announcements', m),
   }).catch(err => {
     showServerErrors(err);
@@ -111,7 +111,7 @@ async function send(e) {
   });
   if (!ok) return;
   const later = ok.recipients - ok.sentNow;
-  toast.success(later > 0 ? `${ok.sentNow} sent now; the rest go out over the next days within the email allowance.` : `Sent to ${ok.sentNow} members.`);
+  toast.success(later > 0 ? `${ok.sentNow} sent now; the rest go out every hour (up to 1,000 an hour) within the email allowance.` : `Sent to ${ok.sentNow} members.`);
   form().reset();
   drawPreview();
   await act(() => Promise.all([load(), updateReach()]));

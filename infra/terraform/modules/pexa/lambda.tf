@@ -235,6 +235,11 @@ resource "aws_lambda_event_source_mapping" "mailer" {
   function_name           = aws_lambda_function.mailer.arn
   batch_size              = 10
   function_response_types = ["ReportBatchItemFailures"]
+  # At most 2 mailers at once, each sending about one email a second (lambda/mailer.ts), so a large announcement
+  # stays within Resend's rate limit (owner, 2026-11-11).
+  scaling_config {
+    maximum_concurrency = 2
+  }
 }
 
 resource "aws_lambda_function" "fxfetch" {

@@ -95,7 +95,7 @@ const SENT: SendOutcome[] = ['sent', 'queued', 'duplicate'];
 
 // Sends waiting announcement emails, at most `max` and never more than today's budget. One sender at a time
 // (advisory lock), so a recipient is never emailed twice. Returns how many went out.
-export async function sendAnnouncementPortion(services: Services, max: number): Promise<number> {
+export async function sendAnnouncementPortion(services: Services, max: number, deadline = Number.POSITIVE_INFINITY): Promise<number> {
   const lock = await services.pool.connect();
   try {
     const { rows: got } = await lock.query<{ ok: boolean }>(`SELECT pg_try_advisory_lock(hashtext('zentrix-announcements')) AS ok`);
@@ -103,7 +103,7 @@ export async function sendAnnouncementPortion(services: Services, max: number): 
     try {
       let left = Math.min(max, (await announcementBudget(services.pool)).budget);
       let sent = 0;
-      while (left > 0) {
+      while (left > 0 && Date.now() < deadline) {
         const batch = await rows<{ announcement_id: string; user_id: string; email: string; subject: string; heading: string; body: string; button_label: string | null; button_url: string | null }>(
           services.pool,
           `SELECT r.announcement_id, r.user_id, u.email, a.subject, a.heading, a.body, a.button_label, a.button_url

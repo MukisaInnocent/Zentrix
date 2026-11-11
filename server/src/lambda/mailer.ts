@@ -13,6 +13,11 @@ const logger = createLogger({ level: process.env.LOG_LEVEL ?? 'info', mode: proc
 const s3 = new S3Client({});
 const apiKey = process.env.RESEND_API_KEY ?? '';
 const mailer = apiKey ? new ResendMailer(apiKey, process.env.MAIL_FROM ?? 'Pexerearn <info@pexerearn.com>') : null;
+// Resend allows a few requests a second per account. With at most 2 mailers running (the queue's maximum
+// concurrency) and each send taking at least this long, a large announcement stays within the limit and members'
+// own emails are not refused alongside it (owner, 2026-11-11).
+const SEND_INTERVAL_MS = Number(process.env.MAIL_SEND_INTERVAL_MS ?? 1000);
+const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function handler(event: SqsEvent): Promise<{ batchItemFailures: { itemIdentifier: string }[] }> {
   const failures: { itemIdentifier: string }[] = [];
@@ -27,7 +32,11 @@ export async function handler(event: SqsEvent): Promise<{ batchItemFailures: { i
         const message = JSON.parse(await object.Body!.transformToString()) as MailMessage;
         if (!mailer) throw new Error('RESEND_API_KEY is not set; email cannot be delivered.');
         const reserved = isReservedAddress(message.to);
-        if (!reserved) await mailer.send(message);
+        if (!reserved) {
+          const started = Date.now();
+          await mailer.send(message);
+          await pause(Math.max(0, SEND_INTERVAL_MS - (Date.now() - started)));
+        }
         await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
         logger.info({ key }, reserved ? 'email skipped: test address that cannot receive mail' : 'email sent');
       }

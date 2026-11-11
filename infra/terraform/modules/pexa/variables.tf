@@ -168,9 +168,9 @@ variable "fx_rates_schedule" {
 }
 
 variable "announcements_schedule" {
-  description = "When the announcements job sends what did not fit in earlier days' email allowance (just after the daily allowance resets)."
+  description = "When the announcements job sends waiting announcement emails (owner, 2026-11-11: hourly, so a large announcement goes out within hours)."
   type        = string
-  default     = "cron(10 0 * * ? *)"
+  default     = "cron(10 * * * ? *)"
 }
 
 variable "cloudfront_price_class" {
