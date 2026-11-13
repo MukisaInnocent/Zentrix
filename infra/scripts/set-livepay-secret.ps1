@@ -3,9 +3,8 @@
 # the values to disk or to the screen.
 #
 #   aws sso login --profile Pexerearn
-#   .\infra\scripts\set-livepay-secret.ps1                 # staging
-#   .\infra\scripts\set-livepay-secret.ps1 -Environment production
-param([ValidateSet('staging', 'production')][string]$Environment = 'staging')
+#   .\infra\scripts\set-livepay-secret.ps1                 # production (owner, 2026-11-13: staging removed)
+param([ValidateSet('production')][string]$Environment = 'production')
 
 $ErrorActionPreference = 'Stop'
 $env:AWS_PROFILE = 'Pexerearn'

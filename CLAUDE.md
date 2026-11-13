@@ -49,6 +49,12 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
 
 - 2026-11-11 (later, owner; migrations 0039 and 0040): no country's activation fee is below UGX 19,000; Kenya is KES 650 (0039; its old reward amounts cleared). The owner's Kenya payment guide (Safaricom *840#, send money abroad to a Uganda Airtel number) goes in the Kenya payment method's instructions in the staff console, never in git. Ghana uses LivePay (GHS): members pick the network for a prompt, payouts take it from the registered number's prefix (setting `livepay.networks`, TODO(owner): LivePay's codes), prompts go to numbers of the member's own country, `livepay_gh` copied from Uganda's LivePay method, Ghana `auto_payout` on (0040), the balance file reads GHS too. docs/LIVEPAY.md. Deployed to production on 2026-11-11: an interrupted `terraform apply` updated api, jobs, mailer and paygate but not migrate and fxfetch, so the API refused to start (pending migrations) for about 20 minutes; migrate and fxfetch were updated with `aws lambda update-function-code` from the same package, then 0039 and 0040 applied and the pages uploaded. The Terraform state lock from that run may still need `terraform force-unlock` (owner's approval).
 
+- 2026-11-13 (owner, costs; branch `chore/aws-costs`): staging is removed (stack destroyed, deploy role, workflow
+  jobs and scripts' staging options gone); test locally, then deploy to production. Production's LivePay fixed IP goes
+  through a t4g.nano NAT instance on the same Elastic IP (`livepay_nat_type = "instance"`, `modules/pexa/nat-instance.tf`)
+  instead of the NAT gateway; its balance check runs at minute 10 with the announcements job; GuardDuty RDS sign-in
+  monitoring is off. Measured before: about USD 200 a month before tax; expected after: about USD 70 (docs/COSTS.md).
+
 ## How to operate
 
 1. Plan before code. Update `docs/PLAN.md` and this file whenever a decision changes.

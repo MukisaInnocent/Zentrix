@@ -4,7 +4,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, staging]
+    branches: [main]
   workflow_call:
 
 permissions:
@@ -52,7 +52,7 @@ jobs:
       - name: Validate each stack (no backend, no AWS access)
         run: |
           mkdir -p .lambda/package
-          for dir in infra/terraform/global infra/terraform/envs/staging infra/terraform/envs/production; do
+          for dir in infra/terraform/global infra/terraform/envs/production; do
             terraform -chdir="$dir" init -backend=false -input=false
             terraform -chdir="$dir" validate
           done

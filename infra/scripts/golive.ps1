@@ -10,7 +10,7 @@
 param(
   [Parameter(Position = 0)][ValidateSet('status', 'admin', 'sign', 'revoke')][string]$Command = 'status',
   [Parameter(Position = 1)][string]$Item = '',
-  [ValidateSet('staging', 'production')][string]$Environment = 'production'
+  [ValidateSet('production')][string]$Environment = 'production'
 )
 
 $ErrorActionPreference = 'Stop'

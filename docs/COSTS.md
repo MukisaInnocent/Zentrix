@@ -33,8 +33,12 @@ Rule: any resource with a fixed monthly cost is listed here and needs the owner'
 - Production: the LivePay NAT gateway (about USD 33 a month plus USD 0.048 per GB) is replaced by a t4g.nano NAT
   instance on the same Elastic IP (`livepay_nat_type = "instance"`, `modules/pexa/nat-instance.tf`). The LivePay
   whitelist is unchanged.
-- Staging: `livepay_nat = false` (the Elastic IP stays, so the whitelist survives). Set it back to true for a LivePay
-  test. Staging's balance check runs once a day.
+- Staging is removed (owner: "we can always just go live"): its stack is destroyed, its deploy role and workflow
+  jobs are gone, and new work is tested locally and then deployed to production.
+- Measured before the cuts (Cost Explorer, 1 to 12 November 2026): about USD 6.70 a day before tax. Both databases
+  stayed awake almost all day (about 0.56 ACU on average, about USD 56 a month each) and two NAT gateways cost about
+  USD 34.50 a month each. Expected after: about USD 70 a month before tax, mostly the production database.
+- GuardDuty is still in its 30-day trial (started 2026-10-26); expect a few dollars a month from late November.
 - Production's balance check runs at minute 10 of each hour, like the announcements job, so the two wake the
   database together instead of at two different times.
 - GuardDuty: RDS sign-in monitoring is off (it is billed per ACU-hour and the database has no internet access).

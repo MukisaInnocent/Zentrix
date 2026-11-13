@@ -63,7 +63,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 # One role per GitHub environment. A workflow job can assume it only when it runs in that environment of this
 # repository, so the production role is reachable only after the production environment's approval rule.
 locals {
-  deploy_environments = ["staging", "production"]
+  deploy_environments = ["production"]
 }
 
 data "aws_iam_policy_document" "github_trust" {
