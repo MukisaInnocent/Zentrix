@@ -91,8 +91,12 @@ module "pexa" {
   livepay_trial     = true
   # The fixed IP to whitelist in LivePay stays; the NAT gateway (about USD 35 a month, billed by the hour) runs only
   # while LivePay is being tested. Set livepay_nat = false to stop paying for it.
+  # Owner, 2026-11-13 (costs): off. LivePay calls from staging fail until it is set back to true for a test.
   livepay_fixed_ip = true
-  livepay_nat      = true
+  livepay_nat      = false
+
+  # Owner, 2026-11-13 (costs): staging's balance check once a day, so its database sleeps.
+  reconciliation_schedule = "cron(10 3 * * ? *)"
 }
 
 output "site_url" {

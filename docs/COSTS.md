@@ -26,6 +26,20 @@ Rule: any resource with a fixed monthly cost is listed here and needs the owner'
 | AWS Budgets | First two budgets free |
 | KMS | AWS-managed keys only (free); no customer-managed key (USD 1 a month each) is created |
 | NAT gateway, VPC interface endpoints, RDS Proxy | **Not used** (each would cost USD 8 to 35 or more a month even when idle) |
+| LivePay fixed IP (production) | t4g.nano NAT instance about USD 3.10, 8 GB gp3 about USD 0.70, Elastic IP about USD 3.60 a month |
+
+## Cost cuts (owner, 2026-11-13)
+
+- Production: the LivePay NAT gateway (about USD 33 a month plus USD 0.048 per GB) is replaced by a t4g.nano NAT
+  instance on the same Elastic IP (`livepay_nat_type = "instance"`, `modules/pexa/nat-instance.tf`). The LivePay
+  whitelist is unchanged.
+- Staging: `livepay_nat = false` (the Elastic IP stays, so the whitelist survives). Set it back to true for a LivePay
+  test. Staging's balance check runs once a day.
+- Production's balance check runs at minute 10 of each hour, like the announcements job, so the two wake the
+  database together instead of at two different times.
+- GuardDuty: RDS sign-in monitoring is off (it is billed per ACU-hour and the database has no internet access).
+- Kept: Aurora auto-pause at 300 seconds (the AWS minimum), API memory 1024 MB (argon2 sign-in needs the CPU that
+  comes with it), production's maximum of 4 ACU (paid only when used).
 
 ## Fixed monthly costs (need approval before apply)
 

@@ -49,6 +49,16 @@ variable "livepay_nat" {
   }
 }
 
+variable "livepay_nat_type" {
+  description = "How livepay_nat gives paygate the fixed IP: \"gateway\" (managed NAT gateway, about USD 33 a month plus USD 0.048 per GB) or \"instance\" (one t4g.nano NAT instance, about USD 4 a month; EC2 recovers it on hardware failure and an alarm reboots it if it stops answering). Both use the same Elastic IP."
+  type        = string
+  default     = "gateway"
+  validation {
+    condition     = contains(["gateway", "instance"], var.livepay_nat_type)
+    error_message = "livepay_nat_type must be gateway or instance."
+  }
+}
+
 variable "payments_schedule" {
   description = "Backstop: when the payments job reads, from the database, the status of LivePay requests that got no answer (only while livepay_enabled). Each run wakes the database; paygate_watch does the minute-by-minute checks."
   type        = string

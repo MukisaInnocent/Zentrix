@@ -79,8 +79,9 @@ module "pexa" {
   aurora_max_acu               = 4
   deletion_protection          = true
   aurora_backup_retention_days = 7
-  # Owner, 2026-11-01: hourly, so the database sleeps between transactions.
-  reconciliation_schedule = "rate(1 hour)"
+  # Owner, 2026-11-01: hourly, so the database sleeps between transactions. Owner, 2026-11-13 (costs): at minute 10,
+  # the same minute as the announcements job, so the two wake the database once an hour instead of twice.
+  reconciliation_schedule = "cron(10 * * * ? *)"
 
   # pexerearn.com (docs/DOMAIN.md). Step 1: false (certificates only). The launch countdown holds the name until
   # 2 November 2026 00:00 EAT; take it off there first, then set true here and apply again.
@@ -93,6 +94,9 @@ module "pexa" {
   livepay_enabled  = true
   livepay_fixed_ip = true
   livepay_nat      = true
+  # Owner, 2026-11-13 (costs): a t4g.nano NAT instance (about USD 4 a month) instead of the NAT gateway (about USD 35),
+  # with the same Elastic IP, so LivePay's whitelist is unchanged (modules/pexa/nat-instance.tf).
+  livepay_nat_type = "instance"
   # Owner, 2026-11-01: open LivePay payments are checked every minute by paygate (paygate_watch_schedule) without
   # waking the database; the database wakes for a transaction only.
 }

@@ -237,8 +237,10 @@ resource "aws_guardduty_detector" "main" {
 # Aurora sign-in monitoring; the per-volume extras that do not apply here stay off (docs/COSTS.md).
 locals {
   guardduty_features = {
-    LAMBDA_NETWORK_LOGS    = "ENABLED"
-    RDS_LOGIN_EVENTS       = "ENABLED"
+    LAMBDA_NETWORK_LOGS = "ENABLED"
+    # Owner, 2026-11-13 (costs): off. It is billed per ACU-hour, and the database has no internet access, so only
+    # our own functions can try to sign in to it.
+    RDS_LOGIN_EVENTS       = "DISABLED"
     S3_DATA_EVENTS         = "DISABLED"
     EKS_AUDIT_LOGS         = "DISABLED"
     EBS_MALWARE_PROTECTION = "DISABLED"

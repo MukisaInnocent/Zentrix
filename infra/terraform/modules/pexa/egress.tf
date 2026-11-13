@@ -5,9 +5,13 @@
 #   livepay_fixed_ip = true   keeps the Elastic IP (about USD 3.60 a month), so the LivePay whitelist never changes;
 #   livepay_nat      = true   runs the NAT gateway (about USD 35 a month, billed by the hour) and puts paygate behind
 #                             it. Switch it on while LivePay is in use and off otherwise.
+#   livepay_nat_type          "gateway" (managed, about USD 35 a month) or "instance" (a t4g.nano NAT instance with the
+#                             same Elastic IP, about USD 4 a month; owner, 2026-11-13, to cut costs). See nat-instance.tf.
 locals {
-  fixed_ip = var.livepay_fixed_ip || var.livepay_nat ? 1 : 0
-  nat      = var.livepay_nat ? 1 : 0
+  fixed_ip     = var.livepay_fixed_ip || var.livepay_nat ? 1 : 0
+  nat          = var.livepay_nat ? 1 : 0
+  nat_gateway  = var.livepay_nat && var.livepay_nat_type == "gateway" ? 1 : 0
+  nat_instance = var.livepay_nat && var.livepay_nat_type == "instance" ? 1 : 0
 }
 
 resource "aws_eip" "livepay" {
@@ -48,7 +52,7 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_nat_gateway" "livepay" {
-  count         = local.nat
+  count         = local.nat_gateway
   allocation_id = aws_eip.livepay[0].id
   subnet_id     = aws_subnet.public[0].id
   tags          = { Name = "${local.name}-livepay" }
@@ -68,8 +72,9 @@ resource "aws_route_table" "egress" {
   count  = local.nat
   vpc_id = aws_vpc.main.id
   route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.livepay[0].id
+    cidr_block           = "0.0.0.0/0"
+    nat_gateway_id       = local.nat_gateway == 1 ? aws_nat_gateway.livepay[0].id : null
+    network_interface_id = local.nat_instance == 1 ? aws_instance.nat[0].primary_network_interface_id : null
   }
   tags = { Name = "${local.name}-egress" }
 }
