@@ -54,6 +54,9 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
   through a t4g.nano NAT instance on the same Elastic IP (`livepay_nat_type = "instance"`, `modules/pexa/nat-instance.tf`)
   instead of the NAT gateway; its balance check runs at minute 10 with the announcements job; GuardDuty RDS sign-in
   monitoring is off. Measured before: about USD 200 a month before tax; expected after: about USD 70 (docs/COSTS.md).
+  Applied the same day: staging destroyed (116 resources), NAT instance `i-04c6d48eeebe5fe65` live with Elastic IP
+  54.72.104.47 (LivePay down about 5 minutes, 15:29 to 15:34 UTC; a prompt went through at 15:37), global stack applied.
+  A new NAT instance takes about 10 minutes on first boot (installing nftables) before it can carry traffic.
 
 ## How to operate
 
