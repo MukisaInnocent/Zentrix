@@ -173,6 +173,58 @@ describe("aviator (the owner's project, demo credits)", () => {
     app.services.now = () => new Date();
   });
 
+  it('ends a round at the house limit so the house money never goes below the floor (owner, 2026-11-16)', async () => {
+    // Start from a finished round, on a test clock past every earlier round.
+    await app.owner.query(`UPDATE aviator_rounds SET status = 'crashed' WHERE status <> 'crashed'`);
+    const last = (await app.owner.query<{ t: Date }>('SELECT max(start_time) AS t FROM aviator_rounds')).rows[0]!.t;
+    let clock = new Date(Math.max(Date.now(), last.getTime()) + 120_000);
+    app.services.now = () => clock;
+    const [a, b] = [await activated(), await activated()];
+    for (const m of [a, b]) await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '100' });
+
+    // House money 100, floor 50: players can win at most 50 more than they stake.
+    expect((await admin.put<Body>('/api/admin/aviator/settings', { bankroll: 'abc' })).status).toBe(400);
+    const on = await admin.put<Body>('/api/admin/aviator/settings', { bankroll: '100', bankroll_floor: '50' });
+    expect(on.body.settings).toMatchObject({ house_limit: true, bankroll: 100, bankroll_floor: 50 });
+
+    const round = (await a.client.get<Body>('/api/aviator/game/state')).body;
+    expect(round).toMatchObject({ status: 'waiting', limits: { house_limit: true } });
+    await app.owner.query('UPDATE aviator_rounds SET crash_point = 50 WHERE id = $1', [round.round_id]);
+    const betA = await a.client.post<Body>('/api/aviator/game/bet', { amount: '20' }); // house 120
+    expect(betA.status, JSON.stringify(betA.body)).toBe(200);
+    // A bet is refused when the house could not pay every bet in the round at 2x: (20 + 20) x 2 > 120 - 50.
+    expect((await b.client.post<Body>('/api/aviator/game/bet', { amount: '20' })).body.error?.code).toBe('aviator.house_limit');
+    const betB = await b.client.post<Body>('/api/aviator/game/bet', { amount: '10' }); // house 130
+    expect(betB.status).toBe(200);
+
+    // Take-off: (130 - 50) / 30 in the air = 2.66x limit. B cashes out near 2x, which raises the limit.
+    const start = Date.parse(round.start_time);
+    clock = new Date(start + 7300);
+    expect((await a.client.get<Body>('/api/aviator/game/state')).body.status).toBe('active');
+    const cashB = await b.client.post<Body>('/api/aviator/game/cashout', { bet_id: betB.body.bet_id });
+    expect(cashB.status, JSON.stringify(cashB.body)).toBe(200);
+    const houseAfter = 13000 - Math.round(cashB.body.payout * 100); // hundredths
+    const limit = Math.floor(((houseAfter - 5000) * 100) / 2000) / 100;
+    expect(limit).toBeGreaterThan(2.66);
+    expect(limit).toBeLessThan(50);
+
+    // The round ends at the limit; A, still in the air, loses. The seed's crash point is kept and shown.
+    clock = new Date(start + (Math.log(limit) / Math.log(1.1)) * 1000 + 300);
+    const ended = (await a.client.get<Body>('/api/aviator/game/state')).body;
+    expect(ended).toMatchObject({ status: 'crashed', crash_point: limit, seed_crash_point: 50, house_limit: true });
+    expect((await a.client.post<Body>('/api/aviator/game/cashout', { bet_id: betA.body.bet_id })).body.error?.code).toBe('aviator.settled');
+    expect((await a.client.get<Body>('/api/aviator/wallet/balance')).body.balance).toBe(80);
+    expect((await a.client.get<Body>(`/api/aviator/game/verify/${round.round_id}`)).body).toMatchObject({ crash_point: limit, seed_crash_point: 50, house_limit: true, hash_matches: true });
+    const house = (await admin.get<Body>('/api/admin/aviator/settings')).body;
+    expect(house.bankroll).toBe(houseAfter / 100);
+    expect(house.bankroll).toBeGreaterThanOrEqual(house.bankroll_floor);
+    expect((await admin.get<Body>(`/api/admin/aviator/rounds/${round.round_id}`)).body.round).toMatchObject({ crash_point: limit, seed_crash_point: 50, house_limit: true });
+
+    // Turning the limit off.
+    expect((await admin.put<Body>('/api/admin/aviator/settings', { bankroll: null })).body.settings).toMatchObject({ house_limit: false, bankroll: null });
+    app.services.now = () => new Date();
+  });
+
   // Runs after the round test: it starts rounds on the real clock.
   it('is open to signed-in members who have not activated yet (owner, 2026-11-11); other tools stay locked', async () => {
     const m = await registerMember(app, {});

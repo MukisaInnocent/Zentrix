@@ -58,6 +58,8 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
   54.72.104.47 (LivePay down about 5 minutes, 15:29 to 15:34 UTC; a prompt went through at 15:37), global stack applied.
   A new NAT instance takes about 10 minutes on first boot (installing nftables) before it can carry traffic.
 
+- 2026-11-16 (owner; branch `feat/aviator-house-limit`, migration 0041): Aviator house limit. Admins set the house money (`aviator_settings.bankroll`, NULL = limit off, off until set) and a floor (default 10,000 credits) in the staff console Aviator Settings. Each bet adds its stake, each cash-out takes its payout. When paying every bet still in the air would take the house money below the floor, the round ends at that multiplier (`aviator_rounds.limit_point`, set at take-off and after each cash-out) and those bets lose. The owner chose this over auto cash-out, knowing it overrides the seed's crash point. It is disclosed: members see the rule under the bet limits, "HOUSE LIMIT REACHED" when it happens, and the fairness check shows both the seed's crash point (still verified) and where the round ended. Bets are refused while the house could not pay every bet in the round at 2x. This replaces "No control chooses a crash point" for rounds the limit ends. Not deployed yet.
+
 ## How to operate
 
 1. Plan before code. Update `docs/PLAN.md` and this file whenever a decision changes.

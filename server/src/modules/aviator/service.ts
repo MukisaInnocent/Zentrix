@@ -19,6 +19,9 @@ export const FAIRNESS_FORMULA =
   'r = int(first 13 hex chars of HMAC_SHA256(key=server_seed, msg="aviator-demo-crash"), 16) / 2^52; '
   + 'crash = clamp(floor((1 - house_edge) / (1 - r) * 100) / 100, 1.00, 10000)';
 const DEFAULT_GROWTH = 1.1;
+// House limit (owner, 2026-11-16): a bet is taken only while the house could pay every bet in the round at this
+// multiplier, so no accepted bet is a certain loss.
+const MIN_COVER = 2n;
 
 export const seedHash = (seed: string) => createHash('sha256').update(seed, 'ascii').digest('hex');
 
@@ -34,16 +37,22 @@ export function generateCrashPoint(serverSeed: string, houseEdge: number): numbe
 export interface Settings {
   betting_seconds: number; crash_display_seconds: number; growth_rate: number; house_edge: number;
   min_bet: string; max_bet: string; max_win: string; paused: boolean; pause_message: string | null; updated_at: Date;
+  bankroll: string | null; bankroll_floor: string;
 }
 interface Round {
   id: string; crash_point: string; start_time: Date; status: 'waiting' | 'active' | 'crashed';
   server_seed: string | null; hash: string | null; house_edge: number | null; growth_rate: number | null;
+  limit_point: string | null;
 }
 interface Bet { id: string; round_id: string; user_id: string; amount: string; multiplier: number; result: 'pending' | 'win' | 'loss'; payout: string }
 
+// crashPoint: the seed's crash point (what the fairness check verifies). endPoint: where the round really ends, the
+// lower of that and the house limit (owner, 2026-11-16).
 const crashPoint = (r: Round) => Number(r.crash_point);
+const houseLimited = (r: Round) => r.limit_point !== null && Number(r.limit_point) < crashPoint(r);
+const endPoint = (r: Round) => (houseLimited(r) ? Number(r.limit_point) : crashPoint(r));
 const growth = (r: Round) => r.growth_rate ?? DEFAULT_GROWTH;
-const crashTime = (r: Round) => new Date(r.start_time.getTime() + (crashPoint(r) <= 1 ? 0 : (Math.log(crashPoint(r)) / Math.log(growth(r))) * 1000));
+const crashTime = (r: Round) => new Date(r.start_time.getTime() + (endPoint(r) <= 1 ? 0 : (Math.log(endPoint(r)) / Math.log(growth(r))) * 1000));
 const currentMultiplier = (r: Round, now: Date) => growth(r) ** Math.max(0, (now.getTime() - r.start_time.getTime()) / 1000);
 const plusSeconds = (d: Date, s: number) => new Date(d.getTime() + s * 1000);
 const nextRoundDue = (r: Round, s: Settings) => plusSeconds(crashTime(r), s.crash_display_seconds);
@@ -71,9 +80,12 @@ export function settingsView(s: Settings) {
     house_edge_percent: Math.round(s.house_edge * 100 * 10_000) / 10_000,
     min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), max_win: credits(s.max_win),
     paused: s.paused, pause_message: s.pause_message ?? '', updated_at: s.updated_at.toISOString(),
+    house_limit: s.bankroll !== null, bankroll: s.bankroll === null ? null : credits(s.bankroll), bankroll_floor: credits(s.bankroll_floor),
   };
 }
-const publicLimits = (s: Settings) => ({ min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), max_win: credits(s.max_win) });
+const publicLimits = (s: Settings) => ({
+  min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), max_win: credits(s.max_win), house_limit: s.bankroll !== null,
+});
 
 // Paused and the last round is over, so no new round may start.
 const isParked = (r: Round | null, s: Settings, now: Date) => s.paused && (!r || (r.status === 'crashed' && now >= nextRoundDue(r, s)));
@@ -87,7 +99,28 @@ function needsTransition(r: Round | null, s: Settings, now: Date): boolean {
 }
 
 async function settleLosses(db: Db, r: Round): Promise<void> {
-  await db.query(`UPDATE aviator_bets SET result = 'loss', multiplier = $2, payout = 0 WHERE round_id = $1 AND result = 'pending'`, [r.id, crashPoint(r)]);
+  await db.query(`UPDATE aviator_bets SET result = 'loss', multiplier = $2, payout = 0 WHERE round_id = $1 AND result = 'pending'`, [r.id, endPoint(r)]);
+}
+
+const pendingStakes = async (db: Db, roundId: string) =>
+  BigInt((await one<{ total: string }>(db, `SELECT coalesce(sum(amount), 0) AS total FROM aviator_bets WHERE round_id = $1 AND result = 'pending'`, [roundId])).total);
+
+// House limit (owner, 2026-11-16): the multiplier at which paying every bet still in the air would take the bankroll
+// down to the floor, floored to the cent. Set when the round takes off and again after each cash-out (a cash-out
+// below the limit can only raise it). NULL when there is no bankroll, no bet in the air, or the seed's crash point
+// comes first. Payouts capped by the maximum win are counted in full, so the limit errs on the house's side.
+async function setLimit(db: Db, r: Round): Promise<Round> {
+  const s = await getSettings(db);
+  let limit: number | null = null;
+  if (s.bankroll !== null) {
+    const stakes = await pendingStakes(db, r.id);
+    if (stakes > 0n) {
+      const headroom = BigInt(s.bankroll) - BigInt(s.bankroll_floor);
+      const point = Math.min(MAX_CRASH_POINT, Math.max(1, headroom > 0n ? Number((headroom * 100n) / stakes) / 100 : 1));
+      if (point < crashPoint(r)) limit = point;
+    }
+  }
+  return one<Round>(db, 'UPDATE aviator_rounds SET limit_point = $2 WHERE id = $1 RETURNING *', [r.id, limit]);
 }
 
 async function newRound(db: Db, now: Date, s: Settings): Promise<Round> {
@@ -103,7 +136,10 @@ async function advanceRound(db: Db, now: Date, s: Settings): Promise<Round | nul
   let r = await maybeOne<Round>(db, 'SELECT * FROM aviator_rounds ORDER BY id DESC LIMIT 1 FOR UPDATE');
   if (!s.paused && (!r || (r.status === 'crashed' && now >= nextRoundDue(r, s)))) r = await newRound(db, now, s);
   if (!r) return null;
-  if (r.status === 'waiting' && now >= r.start_time) r = await one<Round>(db, `UPDATE aviator_rounds SET status = 'active' WHERE id = $1 RETURNING *`, [r.id]);
+  if (r.status === 'waiting' && now >= r.start_time) {
+    r = await one<Round>(db, `UPDATE aviator_rounds SET status = 'active' WHERE id = $1 RETURNING *`, [r.id]);
+    r = await setLimit(db, r);
+  }
   if (r.status === 'active' && now >= crashTime(r)) {
     r = await one<Round>(db, `UPDATE aviator_rounds SET status = 'crashed' WHERE id = $1 RETURNING *`, [r.id]);
     await settleLosses(db, r);
@@ -131,8 +167,10 @@ async function roundState(db: Db, r: Round, s: Settings, now: Date, userId: numb
   } else if (r.status === 'active') {
     state.multiplier = Math.round(currentMultiplier(r, now) * 100) / 100;
   } else {
-    state.multiplier = crashPoint(r);
-    state.crash_point = crashPoint(r);
+    state.multiplier = endPoint(r);
+    state.crash_point = endPoint(r);
+    state.house_limit = houseLimited(r);
+    state.seed_crash_point = crashPoint(r);
     state.server_seed = r.server_seed;
     state.next_round_in = Math.max(0, Math.ceil((nextRoundDue(r, s).getTime() - now.getTime()) / 1000));
   }
@@ -169,7 +207,8 @@ export async function gameState(pool: { connect(): Promise<PoolClient> }, read: 
 function roundFairness(r: Round) {
   const over = r.status === 'crashed';
   return {
-    round_id: Number(r.id), crash_point: over ? crashPoint(r) : null, hash: r.hash, server_seed: over ? r.server_seed : null,
+    round_id: Number(r.id), crash_point: over ? endPoint(r) : null, seed_crash_point: over ? crashPoint(r) : null,
+    house_limit: over ? houseLimited(r) : null, hash: r.hash, server_seed: over ? r.server_seed : null,
     house_edge_percent: r.house_edge === null ? null : Math.round(r.house_edge * 100 * 10_000) / 10_000,
   };
 }
@@ -215,12 +254,21 @@ export async function placeBet(db: Db, userId: number, rawAmount: unknown, now: 
   if (amount > BigInt(s.max_bet)) throw badRequest('aviator.max_bet', `Maximum bet is ${creditText(s.max_bet)} credits`);
   const r = await maybeOne<Round>(db, 'SELECT * FROM aviator_rounds ORDER BY id DESC LIMIT 1 FOR UPDATE');
   if (!r || r.status !== 'waiting' || now >= r.start_time) throw conflict('aviator.betting_closed', 'Bets are accepted only during the betting window');
+  // Locked after the round, as in cash-outs, so the bankroll check and the stake that follows stay together.
+  const house = await getSettings(db, true);
+  if (house.bankroll !== null) {
+    const headroom = BigInt(house.bankroll) - BigInt(house.bankroll_floor);
+    if (headroom < ((await pendingStakes(db, r.id)) + amount) * MIN_COVER) {
+      throw conflict('aviator.house_limit', 'The house cannot take more bets in this round. Try a smaller bet or the next round.');
+    }
+  }
   const held = await wallet(db, userId, true);
   if (held < amount) throw badRequest('aviator.insufficient', 'Insufficient demo credits');
   if (await maybeOne(db, 'SELECT 1 FROM aviator_bets WHERE round_id = $1 AND user_id = $2', [r.id, userId])) {
     throw conflict('aviator.already_bet', 'You already placed a bet in this round');
   }
   await db.query('UPDATE aviator_wallets SET balance = balance - $2, updated_at = now() WHERE user_id = $1', [userId, amount.toString()]);
+  await db.query('UPDATE aviator_settings SET bankroll = bankroll + $1 WHERE id = 1 AND bankroll IS NOT NULL', [amount.toString()]);
   const bet = await one<{ id: string }>(db, 'INSERT INTO aviator_bets (round_id, user_id, amount) VALUES ($1, $2, $3) RETURNING id', [r.id, userId, amount.toString()]);
   return { message: 'Demo bet placed', bet_id: Number(bet.id), round_id: Number(r.id), balance: credits(held - amount) };
 }
@@ -249,6 +297,8 @@ export async function cashout(db: Db, userId: number, rawBetId: unknown, now: Da
   if (held + payout > MAX_AMOUNT) payout = MAX_AMOUNT - held; // the wallet's own ceiling
   await db.query(`UPDATE aviator_bets SET result = 'win', multiplier = $2, payout = $3 WHERE id = $1`, [bet.id, multiplier, payout.toString()]);
   await db.query('UPDATE aviator_wallets SET balance = balance + $2, updated_at = now() WHERE user_id = $1', [userId, payout.toString()]);
+  await db.query('UPDATE aviator_settings SET bankroll = bankroll - $1 WHERE id = 1 AND bankroll IS NOT NULL', [payout.toString()]);
+  await setLimit(db, r);
   return {
     crashed: false as const, message: capped ? 'Cashout successful (capped at the maximum win)' : 'Cashout successful', capped,
     payout: credits(payout), multiplier, balance: credits(held + payout),
@@ -313,7 +363,11 @@ export async function processRequest(db: Db, staffId: number, publicId: string, 
 export interface SettingsInput {
   betting_seconds?: number; crash_display_seconds?: number; growth_rate?: number; house_edge_percent?: number;
   min_bet?: string | number; max_bet?: string | number; max_win?: string | number; paused?: boolean; pause_message?: string;
+  bankroll?: string | number | null; bankroll_floor?: string | number;
 }
+
+// Credits that may be zero (house money and floor).
+const parseCredits = (raw: unknown) => (['0', '0.0', '0.00'].includes(String(raw).trim()) ? 0n : parseAmount(raw));
 
 export async function updateSettings(db: Db, staffId: number, input: SettingsInput) {
   const s = await getSettings(db, true);
@@ -342,6 +396,17 @@ export async function updateSettings(db: Db, staffId: number, input: SettingsInp
     if (v === null) errors.push(`${name.replace(/_/g, ' ')}: ${AMOUNT_ERROR.toLowerCase()}`);
     else next[name] = v.toString();
   }
+  if (input.bankroll === null) next.bankroll = null;
+  else if (input.bankroll !== undefined) {
+    const v = parseCredits(input.bankroll);
+    if (v === null) errors.push(`house money: ${AMOUNT_ERROR.toLowerCase()}`);
+    else next.bankroll = v.toString();
+  }
+  if (input.bankroll_floor !== undefined) {
+    const v = parseCredits(input.bankroll_floor);
+    if (v === null) errors.push(`house floor: ${AMOUNT_ERROR.toLowerCase()}`);
+    else next.bankroll_floor = v.toString();
+  }
   if (input.paused !== undefined) next.paused = input.paused;
   if (input.pause_message !== undefined) next.pause_message = input.pause_message.trim() || null;
   if (!errors.length) {
@@ -351,8 +416,10 @@ export async function updateSettings(db: Db, staffId: number, input: SettingsInp
   if (errors.length) throw badRequest('validation_failed', `Invalid settings: ${errors.join('; ')}`);
   const saved = await one<Settings>(db,
     `UPDATE aviator_settings SET betting_seconds = $1, crash_display_seconds = $2, growth_rate = $3, house_edge = $4, min_bet = $5,
-       max_bet = $6, max_win = $7, paused = $8, pause_message = $9, updated_by = $10, updated_at = now() WHERE id = 1 RETURNING *`,
-    [next.betting_seconds, next.crash_display_seconds, next.growth_rate, next.house_edge, next.min_bet, next.max_bet, next.max_win, next.paused, next.pause_message, staffId]);
+       max_bet = $6, max_win = $7, paused = $8, pause_message = $9, updated_by = $10, bankroll = $11, bankroll_floor = $12, updated_at = now()
+     WHERE id = 1 RETURNING *`,
+    [next.betting_seconds, next.crash_display_seconds, next.growth_rate, next.house_edge, next.min_bet, next.max_bet, next.max_win, next.paused, next.pause_message, staffId,
+      next.bankroll, next.bankroll_floor]);
   const after = settingsView(saved);
   const changed = (Object.keys(after) as (keyof typeof after)[]).filter(k => k !== 'updated_at' && before[k] !== after[k]);
   return { before, after, changed };
@@ -447,7 +514,8 @@ function roundSummary(r: Round, stats: Map<string, { bets: number; staked: numbe
   const over = r.status === 'crashed';
   return {
     id: Number(r.id), status: r.status, start_time: r.start_time.toISOString(),
-    crash_point: over ? crashPoint(r) : null, // never the crash point of a round still running
+    crash_point: over ? endPoint(r) : null, // never the crash point of a round still running
+    seed_crash_point: over ? crashPoint(r) : null, house_limit: over ? houseLimited(r) : null,
     ...st, house_profit: over ? Math.round((st.staked - st.paid) * 100) / 100 : null,
     provably_fair: Boolean(r.server_seed), house_edge_percent: r.house_edge === null ? null : Math.round(r.house_edge * 100 * 10_000) / 10_000,
   };

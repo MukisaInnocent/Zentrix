@@ -81,7 +81,8 @@ async function openRound(id) {
     const check = (ok) => h('span', { class: `zx-badge ${ok ? 'zx-badge--success' : 'zx-badge--danger'}` }, ok ? 'matches' : 'does not match');
     s.body.replaceChildren(
       panel('Round', kv([
-        ['Status', r.round.status], ['Started', when(r.round.start_time)], ['Crash point', x(r.round.crash_point)],
+        ['Status', r.round.status], ['Started', when(r.round.start_time)], ['Ended at', x(r.round.crash_point)],
+        ['Crash point from the seed', x(r.round.seed_crash_point)], ['Ended by the house limit', r.round.house_limit ? 'Yes' : 'No'],
         ['Bets', `${r.round.bets} (${r.round.wins} won)`], ['Staked', credits(r.round.staked)], ['Paid out', credits(r.round.paid)],
         ['House profit', r.round.house_profit === null ? '-' : credits(r.round.house_profit)], ['House edge', r.round.house_edge_percent === null ? '-' : `${r.round.house_edge_percent}%`],
       ])),
@@ -193,6 +194,7 @@ async function loadFlags() {
 }
 
 // ----- Settings -----
+let houseLimitOn = false;
 async function loadSettings() {
   const s = await api.get('/api/admin/aviator/settings');
   const form = $('#settings-form');
@@ -200,8 +202,13 @@ async function loadSettings() {
     const input = form.elements.namedItem(name);
     if (!input) continue;
     if (input.type === 'checkbox') input.checked = Boolean(value);
-    else input.value = typeof value === 'number' && ['min_bet', 'max_bet', 'max_win'].includes(name) ? value.toFixed(2) : value;
+    else input.value = typeof value === 'number' && ['min_bet', 'max_bet', 'max_win', 'bankroll_floor'].includes(name) ? value.toFixed(2) : value;
   }
+  houseLimitOn = s.house_limit;
+  form.elements.namedItem('bankroll_set').value = '';
+  $('#s-bankroll-now').textContent = s.house_limit
+    ? `House money now: ${credits(s.bankroll)} (floor ${credits(s.bankroll_floor)}, so players can win up to ${credits(Math.max(0, s.bankroll - s.bankroll_floor))}).`
+    : 'The house limit is off: rounds end only at the crash point from the seed.';
   $('#s-updated').textContent = `Last changed ${when(s.updated_at)}.`;
   for (const el of form.elements) el.disabled = !isAdmin();
 }
@@ -214,10 +221,18 @@ function bindSettings() {
     const body = {
       betting_seconds: Number(v('betting_seconds')), crash_display_seconds: Number(v('crash_display_seconds')), growth_rate: Number(v('growth_rate')),
       house_edge_percent: Number(v('house_edge_percent')), min_bet: v('min_bet'), max_bet: v('max_bet'), max_win: v('max_win'),
-      paused: form.elements.namedItem('paused').checked, pause_message: v('pause_message'),
+      paused: form.elements.namedItem('paused').checked, pause_message: v('pause_message'), bankroll_floor: v('bankroll_floor'),
     };
     const error = form.querySelector('[data-form-error]');
     error.hidden = true;
+    // House money moves with every bet, so it is sent only when the admin types a new amount or turns the limit off.
+    if (!form.elements.namedItem('house_limit').checked) body.bankroll = null;
+    else if (v('bankroll_set')) body.bankroll = v('bankroll_set');
+    else if (!houseLimitOn) {
+      error.textContent = 'Enter the house money to turn the house limit on.';
+      error.hidden = false;
+      return;
+    }
     const ok = await act(async () => {
       try {
         const r = await api.put('/api/admin/aviator/settings', body);

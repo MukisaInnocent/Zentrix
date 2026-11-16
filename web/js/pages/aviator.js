@@ -260,10 +260,11 @@ export function init() {
         if (data.crash_display_seconds) crashDisplayMs = data.crash_display_seconds * 1000;
         if (data.limits) {
             const changed = data.limits.min_bet !== limits.min_bet || data.limits.max_bet !== limits.max_bet
-                || data.limits.max_win !== limits.max_win;
+                || data.limits.max_win !== limits.max_win || data.limits.house_limit !== limits.house_limit;
             limits = data.limits;
             if (changed) {
-                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits · max win ${formatCredits(limits.max_win)} per bet`;
+                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits · max win ${formatCredits(limits.max_win)} per bet`
+                    + (limits.house_limit ? ' · House limit: if paying every player still in the air would go past what the house can pay, the round ends there and those bets lose.' : '');
                 betInput.min = limits.min_bet;
                 betInput.max = limits.max_bet;
             }
@@ -327,7 +328,7 @@ export function init() {
                 ? 'Cash out before it flies away!'
                 : currentBet?.result === 'win' ? 'Safely landed your credits' : 'Betting is closed for this round';
         } else if (gameState === 'crashed') {
-            statusEl.textContent = 'FLEW AWAY';
+            statusEl.textContent = data.house_limit ? 'HOUSE LIMIT REACHED' : 'FLEW AWAY';
             countdownEl.hidden = true;
             multiplierEl.textContent = `${crashPoint.toFixed(2)}x`;
             multiplierEl.classList.remove('hot');
@@ -906,7 +907,8 @@ export function init() {
                 line(`Round #${r.round_id}`, r.reason);
                 return;
             }
-            line('Crash point', `${r.crash_point.toFixed(2)}x`, r.crash_matches);
+            line('Crash point from the seed', `${r.seed_crash_point.toFixed(2)}x`, r.crash_matches);
+            if (r.house_limit) line('Ended early at the house limit', `${r.crash_point.toFixed(2)}x`);
             line('Server seed', r.server_seed);
             line('Published hash', r.hash, r.hash_matches);
             line('House edge', `${r.house_edge_percent}%`);

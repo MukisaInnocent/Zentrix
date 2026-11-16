@@ -25,6 +25,7 @@ const Settings = z.strictObject({
   house_edge_percent: z.number().optional(), min_bet: z.union([z.string(), z.number()]).optional(),
   max_bet: z.union([z.string(), z.number()]).optional(), max_win: z.union([z.string(), z.number()]).optional(),
   paused: z.boolean().optional(), pause_message: z.string().max(200).optional(),
+  bankroll: z.union([z.string(), z.number(), z.null()]).optional(), bankroll_floor: z.union([z.string(), z.number()]).optional(),
 });
 const Adjust = z.strictObject({ mode: z.enum(['add', 'subtract', 'set']), amount: z.union([z.string(), z.number()]), reason: z.string().max(200) });
 const Id = z.uuid();

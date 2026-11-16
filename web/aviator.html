@@ -96,7 +96,7 @@
       </ul>
       <details class="fair-box">
         <summary>Provably fair · verify a round</summary>
-        <p>Before each round starts, the server publishes the SHA-256 hash of a secret seed. When the round ends the seed is revealed, so anyone can check it matches the hash and produces the same crash point.</p>
+        <p>Before each round starts, the server publishes the SHA-256 hash of a secret seed. When the round ends the seed is revealed, so anyone can check it matches the hash and produces the same crash point. When the house limit is on and a round ends early because the house cannot pay more, the check shows both the crash point from the seed and where the round ended.</p>
         <p class="fair-current">Current round hash: <code id="current-hash">–</code></p>
         <div class="input-row">
           <input type="number" id="verify-round" placeholder="Round #" min="1" aria-label="Round number">
