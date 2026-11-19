@@ -237,6 +237,34 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
     app.services.now = () => new Date();
   });
 
+  // Owner, 2026-11-19 (after the security review): deposit money must be bet before it can be moved out.
+  it('lets deposit money out only once it has been bet; winnings and main-balance money move freely', async () => {
+    const clock = await freshClock();
+    const { m, id } = await player();
+    await grant('member_deposit', 5_000n, id);
+    await grant('member_main', 1_000n, id);
+    await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '6000' }, key());
+    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body).toMatchObject({ balance: 6000, mustBet: 5000, withdrawable: 1000 });
+    expect((await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '1001' }, key())).body.error?.code).toBe('aviator.bet_deposit_first');
+
+    // Bet 3,000 and cash out at 1.1x: 2,000 still to be bet; the winnings move freely.
+    await m.client.get<Body>('/api/aviator/game/state');
+    const round = (await m.client.get<Body>('/api/aviator/game/state')).body;
+    expect(round.status).toBe('waiting');
+    await app.owner.query('UPDATE aviator_rounds SET crash_point = 5 WHERE id = $1', [round.round_id]);
+    const bet = await m.client.post<Body>('/api/aviator/game/bet', { amount: '3000' }, key());
+    expect(bet.status, JSON.stringify(bet.body)).toBe(200);
+    clock.set(Date.parse(round.start_time) + 1000);
+    await m.client.get<Body>('/api/aviator/game/state');
+    expect((await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bet.body.bet_id }, key())).body.payout).toBe(3300);
+    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body).toMatchObject({ balance: 6300, mustBet: 2000, withdrawable: 4300 });
+    expect((await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '4301' }, key())).body.error?.code).toBe('aviator.bet_deposit_first');
+    const out = await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '4300' }, key());
+    expect([out.status, out.body.balance]).toEqual([201, 2000]);
+    expect(await balanceOf('member_main', id)).toBe(4_300n);
+    app.services.now = () => new Date();
+  });
+
   it('takes no bets while the house is at its floor', async () => {
     await freshClock();
     const { m, id } = await player();

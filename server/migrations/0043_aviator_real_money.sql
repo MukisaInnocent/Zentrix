@@ -41,17 +41,28 @@ ALTER TABLE aviator_requests
   ADD COLUMN currency_code char(3) REFERENCES currencies (code),
   ADD COLUMN ledger_txn bigint REFERENCES ledger_transactions (id);
 
+-- Deposit money must be bet before it can be moved out (owner, 2026-11-19, after the security review): money moved
+-- in from the deposit balance adds to required_minor, each bet takes its stake off, and a move out may not leave
+-- less than required_minor in the Aviator balance. Winnings and main-balance money move out freely.
+CREATE TABLE aviator_wagering (
+  user_id bigint NOT NULL REFERENCES users (id),
+  currency_code char(3) NOT NULL REFERENCES currencies (code),
+  required_minor bigint NOT NULL DEFAULT 0 CHECK (required_minor >= 0),
+  PRIMARY KEY (user_id, currency_code)
+);
+
 DO $$
 BEGIN
   IF zx_app_role_exists() THEN
-    GRANT SELECT, INSERT, UPDATE ON aviator_currencies TO zentrix_app;
-    REVOKE DELETE, TRUNCATE ON aviator_currencies FROM zentrix_app;
+    GRANT SELECT, INSERT, UPDATE ON aviator_currencies, aviator_wagering TO zentrix_app;
+    REVOKE DELETE, TRUNCATE ON aviator_currencies, aviator_wagering FROM zentrix_app;
   END IF;
 END
 $$;
 
 -- Down Migration
 
+DROP TABLE aviator_wagering;
 ALTER TABLE aviator_requests DROP COLUMN ledger_txn, DROP COLUMN currency_code;
 DROP INDEX aviator_bets_currency_idx;
 ALTER TABLE aviator_bets DROP CONSTRAINT aviator_bets_real_check, DROP COLUMN payout_txn, DROP COLUMN stake_txn, DROP COLUMN currency_code;

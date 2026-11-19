@@ -5,7 +5,7 @@ import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
 import {
-  currencyConfig, fromHundredths, houseAccount, major, parseMoney, playCurrency, requireCurrency, toHundredths, UNAVAILABLE, walletAccount,
+  currencyConfig, fromHundredths, houseAccount, major, parseMoney, playCurrency, recordStake, requireCurrency, toHundredths, UNAVAILABLE, walletAccount,
 } from './money.js';
 
 // Aviator, brought from the owner's Aviator project (app/routes/game.py, wallet.py, game_settings.py) as it is
@@ -277,6 +277,7 @@ export async function placeBet(db: PoolClient, userId: number, rawAmount: unknow
   const house = await houseAccount(db, cur.code);
   if (await balanceOf(db, house) <= cur.floorMinor) throw conflict('aviator.house_closed', 'Aviator is closed for the moment. Please try again later.');
   const wallet = await walletAccount(db, userId, cur.code);
+  await recordStake(db, userId, cur.code, amount); // deposit money counts as bet (rolled back if the bet fails)
   let txn: number;
   try {
     txn = await post(db, { kind: 'aviator_stake', memo: `Aviator bet, round ${r.id}`, refType: 'aviator_bet', refId: `${r.id}:${userId}`, actorUserId: userId, legs: move(wallet, house, amount) });
