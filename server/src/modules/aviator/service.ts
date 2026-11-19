@@ -19,9 +19,6 @@ export const FAIRNESS_FORMULA =
   'r = int(first 13 hex chars of HMAC_SHA256(key=server_seed, msg="aviator-demo-crash"), 16) / 2^52; '
   + 'crash = clamp(floor((1 - house_edge) / (1 - r) * 100) / 100, 1.00, 10000)';
 const DEFAULT_GROWTH = 1.1;
-// House limit (owner, 2026-11-16): a bet is taken only while the house could pay every bet in the round at this
-// multiplier, so no accepted bet is a certain loss.
-const MIN_COVER = 2n;
 
 export const seedHash = (seed: string) => createHash('sha256').update(seed, 'ascii').digest('hex');
 
@@ -254,14 +251,7 @@ export async function placeBet(db: Db, userId: number, rawAmount: unknown, now: 
   if (amount > BigInt(s.max_bet)) throw badRequest('aviator.max_bet', `Maximum bet is ${creditText(s.max_bet)} credits`);
   const r = await maybeOne<Round>(db, 'SELECT * FROM aviator_rounds ORDER BY id DESC LIMIT 1 FOR UPDATE');
   if (!r || r.status !== 'waiting' || now >= r.start_time) throw conflict('aviator.betting_closed', 'Bets are accepted only during the betting window');
-  // Locked after the round, as in cash-outs, so the bankroll check and the stake that follows stay together.
-  const house = await getSettings(db, true);
-  if (house.bankroll !== null) {
-    const headroom = BigInt(house.bankroll) - BigInt(house.bankroll_floor);
-    if (headroom < ((await pendingStakes(db, r.id)) + amount) * MIN_COVER) {
-      throw conflict('aviator.house_limit', 'The house cannot take more bets in this round. Try a smaller bet or the next round.');
-    }
-  }
+  // Members may stake anything up to their balance (owner, 2026-11-19); the house limit applies in flight.
   const held = await wallet(db, userId, true);
   if (held < amount) throw badRequest('aviator.insufficient', 'Insufficient demo credits');
   if (await maybeOne(db, 'SELECT 1 FROM aviator_bets WHERE round_id = $1 AND user_id = $2', [r.id, userId])) {

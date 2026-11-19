@@ -192,20 +192,19 @@ describe("aviator (the owner's project, demo credits)", () => {
     await app.owner.query('UPDATE aviator_rounds SET crash_point = 50 WHERE id = $1', [round.round_id]);
     const betA = await a.client.post<Body>('/api/aviator/game/bet', { amount: '20' }); // house 120
     expect(betA.status, JSON.stringify(betA.body)).toBe(200);
-    // A bet is refused when the house could not pay every bet in the round at 2x: (20 + 20) x 2 > 120 - 50.
-    expect((await b.client.post<Body>('/api/aviator/game/bet', { amount: '20' })).body.error?.code).toBe('aviator.house_limit');
-    const betB = await b.client.post<Body>('/api/aviator/game/bet', { amount: '10' }); // house 130
+    // Members stake anything up to their balance (owner, 2026-11-19).
+    const betB = await b.client.post<Body>('/api/aviator/game/bet', { amount: '20' }); // house 140
     expect(betB.status).toBe(200);
 
-    // Take-off: (130 - 50) / 30 in the air = 2.66x limit. B cashes out near 2x, which raises the limit.
+    // Take-off: (140 - 50) / 40 in the air = 2.25x limit. B cashes out near 2x, which raises the limit.
     const start = Date.parse(round.start_time);
     clock = new Date(start + 7300);
     expect((await a.client.get<Body>('/api/aviator/game/state')).body.status).toBe('active');
     const cashB = await b.client.post<Body>('/api/aviator/game/cashout', { bet_id: betB.body.bet_id });
     expect(cashB.status, JSON.stringify(cashB.body)).toBe(200);
-    const houseAfter = 13000 - Math.round(cashB.body.payout * 100); // hundredths
+    const houseAfter = 14000 - Math.round(cashB.body.payout * 100); // hundredths
     const limit = Math.floor(((houseAfter - 5000) * 100) / 2000) / 100;
-    expect(limit).toBeGreaterThan(2.66);
+    expect(limit).toBeGreaterThan(2.25);
     expect(limit).toBeLessThan(50);
 
     // The round ends at the limit; A, still in the air, loses. The seed's crash point is kept and shown.
