@@ -265,7 +265,7 @@ export function init() {
                 || data.limits.max_win !== limits.max_win || data.limits.house_limit !== limits.house_limit;
             limits = data.limits;
             if (changed) {
-                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits · max win ${formatCredits(limits.max_win)} per bet`;
+                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits · max winnings ${formatCredits(limits.max_win)} per bet (on top of your stake)`;
                 betInput.min = limits.min_bet;
                 betInput.max = limits.max_bet;
             }

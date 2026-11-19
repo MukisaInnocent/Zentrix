@@ -105,7 +105,7 @@ const pendingStakes = async (db: Db, roundId: string) =>
 // House limit (owner, 2026-11-16): the multiplier at which paying every bet still in the air would take the bankroll
 // down to the floor, floored to the cent. Set when the round takes off and again after each cash-out (a cash-out
 // below the limit can only raise it). NULL when there is no bankroll, no bet in the air, or the seed's crash point
-// comes first. Payouts capped by the maximum win are counted in full, so the limit errs on the house's side.
+// comes first. Winnings capped by the maximum win are counted in full, so the limit errs on the house's side.
 async function setLimit(db: Db, r: Round): Promise<Round> {
   const s = await getSettings(db);
   let limit: number | null = null;
@@ -297,9 +297,12 @@ export async function cashout(db: Db, userId: number, rawBetId: unknown, now: Da
   const multiplier = currentMultiplier(r, now);
   const held = await wallet(db, userId, true);
   let payout = BigInt(Math.round(Number(bet.amount) * multiplier)); // round half up to the hundredth, as the project
+  // The maximum win caps the winnings above the stake (owner, 2026-11-19): the stake always comes back. Before, it
+  // capped the whole payout, so a bet as large as the maximum win won nothing.
+  const stake = BigInt(bet.amount);
   const maxWin = BigInt((await getSettings(db)).max_win);
-  const capped = payout > maxWin;
-  if (capped) payout = maxWin;
+  const capped = payout - stake > maxWin;
+  if (capped) payout = stake + maxWin;
   if (held + payout > MAX_AMOUNT) payout = MAX_AMOUNT - held; // the wallet's own ceiling
   await db.query(`UPDATE aviator_bets SET result = 'win', multiplier = $2, payout = $3 WHERE id = $1`, [bet.id, multiplier, payout.toString()]);
   await db.query('UPDATE aviator_wallets SET balance = balance + $2, updated_at = now() WHERE user_id = $1', [userId, payout.toString()]);
@@ -417,7 +420,6 @@ export async function updateSettings(db: Db, staffId: number, input: SettingsInp
   if (input.pause_message !== undefined) next.pause_message = input.pause_message.trim() || null;
   if (!errors.length) {
     if (BigInt(next.min_bet) > BigInt(next.max_bet)) errors.push('minimum bet cannot be larger than the maximum bet');
-    if (BigInt(next.max_win) < BigInt(next.max_bet)) errors.push('maximum win cannot be smaller than the maximum bet');
   }
   if (errors.length) throw badRequest('validation_failed', `Invalid settings: ${errors.join('; ')}`);
   const saved = await one<Settings>(db,
