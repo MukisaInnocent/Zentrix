@@ -1,4 +1,5 @@
 import { api, ApiError } from '../core/api.js';
+import { setupTermsGate } from './aviator-gate.js';
 
 // Aviator: the owner's Aviator project (app/templates/dashboard.html and app/static/main.js) brought over as it is
 // (owner, 2026-11-06; updated from the project 2026-11-06, later). The game script below is the project's, with three changes the site needs: it runs as this
@@ -128,6 +129,7 @@ function initWallet(refreshBalance) {
 }
 
 export function init() {
+    void setupTermsGate();
     // ------------------------------------------------------------------
     // Round timing (sent by the server with every state update)
     // ------------------------------------------------------------------

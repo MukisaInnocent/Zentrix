@@ -13,7 +13,7 @@ const page = document.body.dataset.page;
 const shell = document.body.dataset.shell ?? 'public';
 // Until the activation fee is confirmed a member sees only the payment page and the account basics.
 // Aviator is open before activation too (owner, 2026-11-11: demo credits only).
-const OPEN_BEFORE_ACTIVATION = new Set(['activate', 'aviator', 'profile', 'contact', 'terms', 'privacy', 'risk', 'refund']);
+const OPEN_BEFORE_ACTIVATION = new Set(['activate', 'aviator', 'aviator-terms', 'profile', 'contact', 'terms', 'privacy', 'risk', 'refund']);
 
 async function loadMe(redirect) {
   try {

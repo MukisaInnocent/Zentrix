@@ -9,8 +9,8 @@ import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireAuth, requireStaff } from '../auth/middleware.js';
 import {
-  adjustBalance, auditTrail, balance, cashout, exportCsv, flags, gameState, getSettings, history, listPlayers, listRequests, listRounds,
-  live, moveCredits, placeBet, playerDetail, processRequest, reports, roundDetail, settingsView, transactions, updateSettings, verify,
+  acceptTerms, adjustBalance, auditTrail, balance, cashout, exportCsv, flags, gameState, getSettings, history, listPlayers, listRequests, listRounds,
+  live, moveCredits, placeBet, playerDetail, processRequest, reports, roundDetail, settingsView, transactions, termsStatus, updateSettings, verify,
 } from './service.js';
 
 // Aviator (owner's project, 2026-11-06; updated 2026-11-06, later). The same endpoints as the project's /api/game and
@@ -18,6 +18,7 @@ import {
 // no cash value, so nothing here needs the activation fee); the project's admin dashboard is in the staff
 // console under /api/admin/aviator (without its own users, logins and 2FA: the site's staff accounts are used).
 const Amount = z.strictObject({ amount: z.union([z.string(), z.number()]) });
+const Terms = z.strictObject({ version: z.string().max(20) });
 const BetId = z.strictObject({ bet_id: z.union([z.string(), z.number()]) });
 const Action = z.strictObject({ action: z.enum(['approve', 'reject']) });
 const Settings = z.strictObject({
@@ -39,6 +40,13 @@ export function aviatorRouter(services: Services): Router {
   const me = (req: Request) => req.auth!.userId;
   const byUser = (req: Request) => `u${req.auth!.userId}`;
 
+  router.get('/terms', async (req, res) => {
+    res.json(await termsStatus(pool, me(req)));
+  });
+  router.post('/terms/accept', async (req, res) => {
+    const { version } = parse(Terms, req.body);
+    res.json(await withTransaction(pool, db => acceptTerms(db, me(req), version)));
+  });
   router.get('/game/state', async (req, res) => {
     res.json(await gameState(pool, pool, me(req), services.now()));
   });

@@ -735,3 +735,16 @@
 /* The bet amount fits its box with the site's system font (2026-11-06, later). */
 .avx .stepper input { padding-inline: .25rem; -moz-appearance: textfield; appearance: textfield; }
 .avx .stepper input::-webkit-inner-spin-button, .avx .stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Aviator terms gate (owner, 2026-11-19): the game and wallet stay hidden until the member accepts. */
+.avx[data-terms="pending"] .game-layout,
+.avx[data-terms="pending"] .wallet-layout { display: none; }
+.avx .avx-gate { max-inline-size: 46rem; margin-block-end: 1.5rem; padding: 1.5rem; }
+.avx .avx-gate h2 { margin-block: 0 0.75rem; }
+.avx .avx-gate ul { margin-block: 0.75rem 1.25rem; padding-inline-start: 1.25rem; color: var(--text-dim); line-height: 1.6; }
+.avx .avx-gate a { color: var(--cyan); }
+.avx .avx-gate-check { display: flex; gap: 0.6rem; align-items: flex-start; margin-block-end: 1rem; line-height: 1.5; cursor: pointer; }
+.avx .avx-gate-check input { margin-block-start: 0.3rem; inline-size: 1.1rem; block-size: 1.1rem; flex: none; }
+.avx .avx-gate-error { color: var(--red); margin-block: 0 1rem; }
+.avx .avx-gate .action-btn { min-height: 52px; inline-size: auto; padding-inline: 2rem; }
+.avx .avx-gate .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }

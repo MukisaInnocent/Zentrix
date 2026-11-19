@@ -78,6 +78,13 @@ describe("aviator (the owner's project, demo credits)", () => {
     expect(state.server_seed).toBeUndefined();
     expect((await m.client.get<Body>(`/api/aviator/game/verify/${state.round_id}`)).body).toMatchObject({ verifiable: false, crash_point: null, server_seed: null });
     await app.owner.query('UPDATE aviator_rounds SET crash_point = 5 WHERE id = $1', [state.round_id]);
+    // The Aviator terms come first (owner, 2026-11-19).
+    expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '10' })).body.error?.code).toBe('aviator.terms_required');
+    const terms = (await m.client.get<Body>('/api/aviator/terms')).body;
+    expect(terms).toMatchObject({ accepted: false });
+    expect((await m.client.post<Body>('/api/aviator/terms/accept', { version: '2000-01-01' })).body.error?.code).toBe('aviator.terms_changed');
+    expect((await m.client.post<Body>('/api/aviator/terms/accept', { version: terms.version })).body).toMatchObject({ accepted: true });
+    expect((await m.client.get<Body>('/api/aviator/terms')).body.accepted).toBe(true);
     const bet = await m.client.post<Body>('/api/aviator/game/bet', { amount: '10' });
     expect(bet.status, JSON.stringify(bet.body)).toBe(200);
     expect(bet.body.balance).toBe(90);
@@ -180,7 +187,11 @@ describe("aviator (the owner's project, demo credits)", () => {
     let clock = new Date(Math.max(Date.now(), last.getTime()) + 120_000);
     app.services.now = () => clock;
     const [a, b] = [await activated(), await activated()];
-    for (const m of [a, b]) await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '100' });
+    const { version } = (await a.client.get<Body>('/api/aviator/terms')).body;
+    for (const m of [a, b]) {
+      await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '100' });
+      await m.client.post<Body>('/api/aviator/terms/accept', { version });
+    }
 
     // House money 100, floor 50: players can win at most 50 more than they stake.
     expect((await admin.put<Body>('/api/admin/aviator/settings', { bankroll: 'abc' })).status).toBe(400);

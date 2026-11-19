@@ -242,9 +242,25 @@ export async function balance(db: Db, userId: number) {
   return { balance: credits(await wallet(db, userId)) };
 }
 
+// Aviator Terms and Conditions (owner, 2026-11-19; web/aviator-terms.html). Change the version when the terms change:
+// every member then accepts again before betting.
+export const TERMS_VERSION = '2026-11-19';
+
+export async function termsStatus(db: Db, userId: number) {
+  const row = await maybeOne(db, 'SELECT 1 FROM aviator_terms_acceptances WHERE user_id = $1 AND version = $2', [userId, TERMS_VERSION]);
+  return { version: TERMS_VERSION, accepted: Boolean(row) };
+}
+
+export async function acceptTerms(db: Db, userId: number, version: string) {
+  if (version !== TERMS_VERSION) throw conflict('aviator.terms_changed', 'The terms have changed. Reload the page and read them again.');
+  await db.query('INSERT INTO aviator_terms_acceptances (user_id, version) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, version]);
+  return { version: TERMS_VERSION, accepted: true };
+}
+
 export async function placeBet(db: Db, userId: number, rawAmount: unknown, now: Date) {
   const amount = parseAmount(rawAmount);
   if (amount === null) throw badRequest('validation_failed', AMOUNT_ERROR, { amount: [AMOUNT_ERROR] });
+  if (!(await termsStatus(db, userId)).accepted) throw conflict('aviator.terms_required', 'Accept the Aviator Terms and Conditions before you play');
   const s = await getSettings(db);
   if (s.paused) throw conflict('aviator.paused', 'Betting is paused right now');
   if (amount < BigInt(s.min_bet)) throw badRequest('aviator.min_bet', `Minimum bet is ${creditText(s.min_bet)} credits`);

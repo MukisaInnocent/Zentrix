@@ -23,6 +23,24 @@
     <span class="avx-balance">Demo credits: <strong id="nav-balance" class="nav-balance" data-value="0">0.00 cr</strong></span>
   </div>
 
+  <!-- Owner, 2026-11-19: members accept the Aviator terms before they play (web/js/pages/aviator-gate.js). -->
+  <section id="terms-gate" class="card avx-gate" hidden aria-labelledby="terms-gate-title">
+    <h2 id="terms-gate-title">Before you play</h2>
+    <p>Please read the <a href="/aviator-terms" target="_blank" rel="noopener">Aviator Terms and Conditions</a>. In short:</p>
+    <ul>
+      <li>Aviator uses demo credits. They have no cash value and cannot be withdrawn.</li>
+      <li>Cash out before the round ends to win; if the round ends first, your bet is lost.</li>
+      <li>House limit: if paying every player still in the air would take the house balance below its floor, the round ends at that point and those bets lose.</li>
+      <li>Bots, scripts and more than one account are not allowed.</li>
+      <li>You must be 18 or older. Play for fun and take breaks.</li>
+    </ul>
+    <form id="terms-form">
+      <label class="avx-gate-check"><input type="checkbox" id="terms-check" required> I am 18 or older, and I have read and accept the Aviator Terms and Conditions, including the house limit.</label>
+      <p id="terms-error" class="avx-gate-error" role="alert" hidden></p>
+      <button type="submit" class="action-btn" id="terms-accept" disabled>Accept and play</button>
+    </form>
+  </section>
+
   <div class="game-layout">
     <section class="game-panel card fade-in" aria-label="Aviator demo game">
       <div class="game-heading">
@@ -76,6 +94,7 @@
       </div>
       <p id="my-bet-info" class="bet-info" aria-live="polite">No bet in this round. Press <kbd>Space</kbd> to bet or cash out.</p>
       <p id="limits-hint" class="limits-hint"></p>
+      <p class="limits-hint"><a href="/aviator-terms">Aviator Terms and Conditions</a></p>
     </section>
 
     <aside class="sidebar game-history card fade-in">
