@@ -39,6 +39,14 @@ export async function playCurrency(db: Db, userId: number): Promise<PlayCurrency
   return row && row.exponent <= 2 ? { code: row.currency_code, exponent: row.exponent, floorMinor: BigInt(row.floor_minor) } : null;
 }
 
+// The member's own currency, whether or not Aviator plays in it: money can always be moved back out (security
+// review, 2026-11-19: switching a currency off must not trap balances).
+async function ownCurrency(db: Db, userId: number): Promise<PlayCurrency> {
+  const row = await one<{ currency_code: string; exponent: number }>(db,
+    'SELECT u.currency_code, c.exponent FROM users u JOIN currencies c ON c.code = u.currency_code WHERE u.id = $1', [userId]);
+  return { code: row.currency_code, exponent: row.exponent, floorMinor: 0n };
+}
+
 export const UNAVAILABLE = 'Aviator is not available in your country yet.';
 export async function requireCurrency(db: Db, userId: number): Promise<PlayCurrency> {
   const c = await playCurrency(db, userId);
@@ -51,6 +59,7 @@ export function parseMoney(raw: unknown, exponent: number, allowZero = false): b
   const text = typeof raw === 'number' ? String(raw) : typeof raw === 'string' ? raw : '';
   try {
     const v = toMinor(text, exponent);
+    if (v > 1_000_000_000_000n) throw badRequest('validation_failed', 'That amount is too large', { amount: ['That amount is too large'] });
     if (v > 0n || (allowZero && v === 0n)) return v;
   } catch (err) {
     if (!(err instanceof MoneyFormatError)) throw err;
@@ -64,15 +73,15 @@ export const houseAccount = (db: Db, currency: string) => accountId(db, { kind: 
 
 export async function walletBalance(db: Db, userId: number) {
   const cur = await playCurrency(db, userId);
-  const member = await one<{ currency_code: string }>(db, 'SELECT currency_code FROM users WHERE id = $1', [userId]);
-  if (!cur) return { balance: 0, currency: member.currency_code, exponent: null, available: false };
-  return { balance: major(await balanceOf(db, await walletAccount(db, userId, cur.code)), cur.exponent), currency: cur.code, exponent: cur.exponent, available: true };
+  const own = cur ?? await ownCurrency(db, userId);
+  const held = await maybeOne<{ balance_minor: string }>(db, `SELECT balance_minor FROM accounts WHERE kind = 'member_aviator' AND user_id = $1 AND currency_code = $2`, [userId, own.code]);
+  return { balance: own.exponent <= 2 ? major(BigInt(held?.balance_minor ?? '0'), own.exponent) : 0, currency: own.code, exponent: own.exponent, available: Boolean(cur) };
 }
 
 // Money in: from the deposit balance first, then the main balance (owner, 2026-11-19). Money out: to the main
 // balance, from which the member withdraws as usual.
 export async function transfer(db: PoolClient, userId: number, direction: 'in' | 'out', raw: unknown) {
-  const cur = await requireCurrency(db, userId);
+  const cur = direction === 'in' ? await requireCurrency(db, userId) : await ownCurrency(db, userId);
   const amount = parseMoney(raw, cur.exponent);
   const wallet = await walletAccount(db, userId, cur.code);
   const before = await balanceOf(db, wallet);
@@ -137,12 +146,20 @@ export async function moneyOverview(db: Db) {
   return { currencies: out };
 }
 
+async function refuseWhileInFlight(db: Db, code: string, message: string) {
+  await db.query('SELECT id FROM aviator_rounds ORDER BY id DESC LIMIT 1 FOR UPDATE');
+  if (await maybeOne(db, `SELECT 1 FROM aviator_bets WHERE currency_code = $1 AND result = 'pending' LIMIT 1`, [code])) {
+    throw conflict('aviator.bets_in_flight', message);
+  }
+}
+
 export async function setCurrency(db: Db, staffId: number, code: string, input: { enabled?: boolean; floor?: string | number }) {
   const c = await maybeOne<{ exponent: number }>(db, 'SELECT exponent FROM currencies WHERE code = $1', [code]);
   if (!c) throw notFound('aviator.no_currency', 'Unknown currency');
   const before = await currencyConfig(db, code);
   const floor = input.floor === undefined ? (before ? BigInt(before.floor_minor) : 0n) : parseMoney(input.floor, c.exponent, true);
   const enabled = input.enabled ?? before?.enabled ?? false;
+  if (before && floor > BigInt(before.floor_minor)) await refuseWhileInFlight(db, code, 'Wait until no bets are in the air before raising the floor.');
   if (enabled && c.exponent > 2) throw badRequest('aviator.currency_decimals', 'Aviator plays only in currencies with at most 2 decimal places.');
   if (enabled) {
     const other = await maybeOne<{ currency_code: string }>(db, 'SELECT currency_code FROM aviator_currencies WHERE enabled AND currency_code <> $1', [code]);
@@ -165,6 +182,9 @@ export async function moveHouse(db: PoolClient, staffId: number, code: string, d
   const why = reason.trim();
   if (why.length < 3 || why.length > 200) throw badRequest('validation_failed', 'Give a reason (3-200 characters); it is kept in the audit log', { reason: ['3 to 200 characters'] });
   const amount = parseMoney(raw, cfg.exponent);
+  // Taking money back while bets are in the air could leave a winner unpaid (security review, 2026-11-19). The round
+  // lock orders this after any bet or cash-out in progress.
+  if (direction === 'return') await refuseWhileInFlight(db, code, 'Wait until no bets are in the air before taking house money back.');
   const house = await houseAccount(db, code);
   const revenue = await accountId(db, { kind: 'platform_revenue', currency: code });
   const before = await balanceOf(db, house);

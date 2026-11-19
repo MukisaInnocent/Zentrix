@@ -419,9 +419,9 @@ Branch `feat/livepay`. The manual flow stays for countries LivePay does not cove
 8. AWS: the API writes commands to S3 (`paygate/commands/`); the `paygate` function outside the VPC calls LivePay and writes the result to `paygate/results/`; that write starts the `payresults` job inside the VPC, which applies it. Written, not applied.
 9. IP whitelisting is not required (owner, 2026-10-30): no NAT gateway. Open with LivePay: the full list of status values, higher rate limits, the amount limits and fees, the licensed operator, and where the webhook secret comes from. Phone numbers are sent in international form (+256...), which LivePay says it accepts; check this on the first real payment.
 
-### Aviator with real money (draft, owner 2026-11-19; not started)
+### Aviator with real money (owner 2026-11-19; built on `feat/aviator-real-money`, migration 0043)
 
-The owner asked for real-money Aviator and says the gaming licence is issued. Nothing is built until the decisions below are answered. Today Aviator uses demo credits in its own tables (`aviator_wallets`, `aviator_bets`), outside the ledger.
+The owner asked for real-money Aviator; the Uganda licence is NLGRB-BMTOL-26-0290. Owner answers: house-banked (losses are company profit, wins the company's loss; rule 1 exception for Aviator), Aviator wallet from the deposit then main balance and out to the main balance, house money from platform revenue, Uganda only for now, real money only (no demo), no bet limits. Today Aviator uses demo credits in its own tables (`aviator_wallets`, `aviator_bets`), outside the ledger.
 
 Design (proposed):
 

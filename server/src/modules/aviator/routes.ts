@@ -65,17 +65,21 @@ export function aviatorRouter(services: Services): Router {
   });
   router.post('/game/bet', limiter(pool, { name: 'aviator-bet', windowMs: 60_000, limit: 30, key: byUser }), async (req, res) => {
     const { amount } = parse(Amount, req.body);
-    const out = await idempotent(pool, req, 'aviator.bet', async db => ({ status: 200, body: await placeBet(db, me(req), amount, services.now()) }));
+    const at = services.now(); // the time the bet arrived, also on a retry
+    const out = await idempotent(pool, req, 'aviator.bet', async db => ({ status: 200, body: await placeBet(db, me(req), amount, at) }), { isolation: 'read committed' });
     res.status(out.status).json(out.body);
   });
   router.post('/game/cashout', async (req, res) => {
     const { bet_id } = parse(BetId, req.body);
+    // The cash-out counts at the moment it arrived, however long it waits for the round's lock (security review,
+    // 2026-11-19): many players cash out at once and are handled one after another.
+    const at = services.now();
     const out = await idempotent(pool, req, 'aviator.cashout', async db => {
-      const result = await cashout(db, me(req), bet_id, services.now());
+      const result = await cashout(db, me(req), bet_id, at);
       if (result.crashed) return { status: 409, body: { error: { code: 'aviator.crashed', message: 'The round crashed before cashout' }, status: 'crashed' } };
       const { crashed: _c, ...body } = result;
       return { status: 200, body };
-    });
+    }, { isolation: 'read committed' });
     res.status(out.status).json(out.body);
   });
 

@@ -300,12 +300,18 @@ export async function cashout(db: PoolClient, userId: number, rawBetId: unknown,
   const r = await maybeOne<Round>(db, 'SELECT * FROM aviator_rounds WHERE id = $1 FOR UPDATE', [found.round_id]);
   const bet = await maybeOne<Bet>(db, 'SELECT * FROM aviator_bets WHERE id = $1 AND user_id = $2 FOR UPDATE', [betId, userId]);
   if (!r || !bet) throw notFound('aviator.no_round', 'Bet round no longer exists');
-  if (bet.result !== 'pending') throw conflict('aviator.settled', 'This bet has already been settled');
-  if (r.status !== 'active') throw conflict('aviator.not_flying', 'The round is not in flight');
-  if (now >= crashTime(r)) {
-    await db.query(`UPDATE aviator_rounds SET status = 'crashed' WHERE id = $1`, [r.id]);
-    await settleLosses(db, r);
-    return { crashed: true as const };
+  if (bet.result === 'win') throw conflict('aviator.settled', 'This bet has already been settled');
+  // `now` is when the request arrived. If it arrived before the round ended but waited behind other cash-outs while
+  // the round was closed, it is still paid: the house limit already covered every bet in the air up to that point.
+  const lateButInTime = bet.result === 'loss' && r.status === 'crashed' && now < crashTime(r);
+  if (bet.result === 'loss' && !lateButInTime) throw conflict('aviator.settled', 'This bet has already been settled');
+  if (!lateButInTime) {
+    if (r.status !== 'active') throw conflict('aviator.not_flying', 'The round is not in flight');
+    if (now >= crashTime(r)) {
+      await db.query(`UPDATE aviator_rounds SET status = 'crashed' WHERE id = $1`, [r.id]);
+      await settleLosses(db, r);
+      return { crashed: true as const };
+    }
   }
   if (!bet.currency_code) throw conflict('aviator.demo_closed', 'Demo bets have ended');
   const cfg = await currencyConfig(db, bet.currency_code);
@@ -325,7 +331,7 @@ export async function cashout(db: PoolClient, userId: number, rawBetId: unknown,
   const multiplier = Number(cents) / 100;
   await db.query(`UPDATE aviator_bets SET result = 'win', multiplier = $2, payout = $3, payout_txn = $4 WHERE id = $1`,
     [bet.id, multiplier, toHundredths(payout, cfg.exponent).toString(), txn]);
-  await setLimit(db, r);
+  if (r.status === 'active') await setLimit(db, r);
   return {
     crashed: false as const, message: 'Cashout successful', payout: major(payout, cfg.exponent), multiplier,
     balance: major(await balanceOf(db, wallet), cfg.exponent), currency: bet.currency_code,

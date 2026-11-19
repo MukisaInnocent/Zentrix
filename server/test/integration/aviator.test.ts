@@ -195,6 +195,48 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
     app.services.now = () => new Date();
   });
 
+  // Security review, 2026-11-19: many cash-outs at once all count at the moment they arrived; house money cannot be
+  // taken back while bets are in the air.
+  it('pays every player who cashes out at once, and pays a cash-out that arrived before the end but waited', async () => {
+    const clock = await freshClock();
+    await grant('platform_revenue', 100_000n);
+    await admin.post<Body>('/api/admin/aviator/house', { currency: 'UGX', direction: 'fund', amount: '100000', reason: 'More house money' }, key());
+    const players = await Promise.all(Array.from({ length: 8 }, () => player()));
+    for (const p of players) {
+      await grant('member_main', 2_000n, p.id);
+      await p.m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '2000' }, key());
+    }
+    const late = players[0]!;
+    await players[1]!.m.client.get<Body>('/api/aviator/game/state'); // the previous round ends
+    const round = (await late.m.client.get<Body>('/api/aviator/game/state')).body;
+    expect(round.status).toBe('waiting');
+    await app.owner.query('UPDATE aviator_rounds SET crash_point = 3 WHERE id = $1', [round.round_id]);
+    const bets = await Promise.all(players.map(p => p.m.client.post<Body>('/api/aviator/game/bet', { amount: '1000' }, key())));
+    expect(bets.map(b => b.status)).toEqual(Array(8).fill(200));
+    // No house money goes back while bets are in the air.
+    expect((await admin.post<Body>('/api/admin/aviator/house', { currency: 'UGX', direction: 'return', amount: '1', reason: 'Mid-round' }, key())).body.error?.code).toBe('aviator.bets_in_flight');
+
+    const start = Date.parse(round.start_time);
+    clock.set(start + 1000); // 1.1x
+    expect((await late.m.client.get<Body>('/api/aviator/game/state')).body.status).toBe('active');
+    const outs = await Promise.all(players.slice(1).map((p, i) => p.m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bets[i + 1]!.body.bet_id }, key())));
+    expect(outs.map(o => o.status), JSON.stringify(outs.map(o => o.body))).toEqual(Array(7).fill(200));
+    expect(outs.every(o => o.body.payout === 1100)).toBe(true);
+
+    // The round ends at 3x and is closed; then a cash-out that arrived at 2.9x is handled: it is paid.
+    const crashAt = start + (Math.log(3) / Math.log(1.1)) * 1000;
+    clock.set(crashAt + 500);
+    expect((await late.m.client.get<Body>('/api/aviator/game/state')).body.status).toBe('crashed');
+    clock.set(start + (Math.log(2.9) / Math.log(1.1)) * 1000 + 1);
+    const paid = await late.m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bets[0]!.body.bet_id }, key());
+    expect(paid.status, JSON.stringify(paid.body)).toBe(200);
+    expect(paid.body).toMatchObject({ multiplier: 2.9, payout: 2900, balance: 3900 });
+    // A cash-out that arrived after the end is still refused.
+    clock.set(crashAt + 600);
+    expect((await late.m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bets[0]!.body.bet_id }, key())).body.error?.code).toBe('aviator.settled');
+    app.services.now = () => new Date();
+  });
+
   it('takes no bets while the house is at its floor', async () => {
     await freshClock();
     const { m, id } = await player();
@@ -221,6 +263,22 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
     await m.client.post<Body>('/api/aviator/terms/accept', { version });
     expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '100' }, key())).body.error?.code).toBe('aviator.paused');
     await admin.put<Body>('/api/admin/aviator/settings', { paused: false });
+    app.services.now = () => new Date();
+  });
+
+  // Last: it switches UGX off. Members can still move their Aviator money out (security review, 2026-11-19).
+  it('lets members move their money out after Aviator is switched off', async () => {
+    await freshClock();
+    const { m, id } = await player();
+    await grant('member_main', 3_000n, id);
+    await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '3000' }, key());
+    expect((await admin.put<Body>('/api/admin/aviator/currencies/UGX', { enabled: false })).body.currency.enabled).toBe(false);
+    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body).toMatchObject({ available: false, balance: 3000, currency: 'UGX' });
+    expect((await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '100' }, key())).body.error?.code).toBe('aviator.unavailable');
+    const out = await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '3000' }, key());
+    expect([out.status, out.body.balance]).toEqual([201, 0]);
+    expect(await balanceOf('member_main', id)).toBe(3_000n);
+    expect((await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '1000000000000000' }, key())).body.error?.code).toBe('validation_failed');
     app.services.now = () => new Date();
   });
 });

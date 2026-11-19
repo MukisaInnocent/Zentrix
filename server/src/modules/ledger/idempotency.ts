@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import type { Pool, PoolClient } from '../../db/pool.js';
 import { maybeOne } from '../../db/sql.js';
-import { withTransaction } from '../../db/tx.js';
+import { type Isolation, withTransaction } from '../../db/tx.js';
 import { sha256 } from '../../lib/crypto.js';
 import { badRequest, conflict, DB_ERRORS, pgErrorCode } from '../../lib/errors.js';
 
@@ -20,14 +20,18 @@ export const moneyTx = <T>(pool: Pool, fn: (db: PoolClient) => Promise<T>) => wi
 // Every money-moving POST carries an Idempotency-Key. The response is stored in the same transaction as the
 // money change, so a replay returns it unchanged and a crash cannot leave a half-recorded result. Errors are
 // not stored: nothing moved, so the same key may be retried.
-export async function idempotent(pool: Pool, req: Request, scope: string, fn: (db: PoolClient) => Promise<StoredResponse>): Promise<StoredResponse> {
+// `isolation: 'read committed'` is only for hot paths whose code takes every row lock it relies on itself (Aviator
+// bets and cash-outs, 2026-11-19: many players cash out of one round at once, and SERIALIZABLE retries made the later
+// ones miss the round); deadlocks are still retried.
+export async function idempotent(pool: Pool, req: Request, scope: string, fn: (db: PoolClient) => Promise<StoredResponse>, opts: { isolation?: Isolation } = {}): Promise<StoredResponse> {
+  const run = <T>(f: (db: PoolClient) => Promise<T>) => (opts.isolation && opts.isolation !== 'serializable' ? withTransaction(pool, f, { isolation: opts.isolation, maxRetries: 3 }) : moneyTx(pool, f));
   const key = req.get('idempotency-key') ?? '';
   if (!KEY.test(key)) throw badRequest('idempotency.missing', 'This request needs an Idempotency-Key header.');
   const userId = req.auth!.userId;
   const hash = sha256(`${scope}\n${JSON.stringify(req.body ?? {})}`).toString('hex');
   for (let attempt = 0; ; attempt++) {
     try {
-      return await moneyTx(pool, async db => {
+      return await run(async db => {
         const prior = await maybeOne<{ scope: string; request_hash: string; response_status: number; response_body: Record<string, unknown> }>(
           db, 'SELECT scope, request_hash, response_status, response_body FROM idempotency_keys WHERE user_id = $1 AND key = $2', [userId, key],
         );
