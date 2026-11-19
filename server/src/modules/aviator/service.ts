@@ -75,13 +75,13 @@ export function settingsView(s: Settings) {
   return {
     betting_seconds: s.betting_seconds, crash_display_seconds: s.crash_display_seconds, growth_rate: s.growth_rate,
     house_edge_percent: Math.round(s.house_edge * 100 * 10_000) / 10_000,
-    min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), max_win: credits(s.max_win),
+    min_bet: credits(s.min_bet), max_bet: credits(s.max_bet),
     paused: s.paused, pause_message: s.pause_message ?? '', updated_at: s.updated_at.toISOString(),
     house_limit: s.bankroll !== null, bankroll: s.bankroll === null ? null : credits(s.bankroll), bankroll_floor: credits(s.bankroll_floor),
   };
 }
 const publicLimits = (s: Settings) => ({
-  min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), max_win: credits(s.max_win), house_limit: s.bankroll !== null,
+  min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), house_limit: s.bankroll !== null,
 });
 
 // Paused and the last round is over, so no new round may start.
@@ -105,7 +105,7 @@ const pendingStakes = async (db: Db, roundId: string) =>
 // House limit (owner, 2026-11-16): the multiplier at which paying every bet still in the air would take the bankroll
 // down to the floor, floored to the cent. Set when the round takes off and again after each cash-out (a cash-out
 // below the limit can only raise it). NULL when there is no bankroll, no bet in the air, or the seed's crash point
-// comes first. Winnings capped by the maximum win are counted in full, so the limit errs on the house's side.
+// comes first.
 async function setLimit(db: Db, r: Round): Promise<Round> {
   const s = await getSettings(db);
   let limit: number | null = null;
@@ -297,19 +297,14 @@ export async function cashout(db: Db, userId: number, rawBetId: unknown, now: Da
   const multiplier = currentMultiplier(r, now);
   const held = await wallet(db, userId, true);
   let payout = BigInt(Math.round(Number(bet.amount) * multiplier)); // round half up to the hundredth, as the project
-  // The maximum win caps the winnings above the stake (owner, 2026-11-19): the stake always comes back. Before, it
-  // capped the whole payout, so a bet as large as the maximum win won nothing.
-  const stake = BigInt(bet.amount);
-  const maxWin = BigInt((await getSettings(db)).max_win);
-  const capped = payout - stake > maxWin;
-  if (capped) payout = stake + maxWin;
+  // No maximum win (owner, 2026-11-19): only the house limit bounds what players win. The max_win column is unused.
   if (held + payout > MAX_AMOUNT) payout = MAX_AMOUNT - held; // the wallet's own ceiling
   await db.query(`UPDATE aviator_bets SET result = 'win', multiplier = $2, payout = $3 WHERE id = $1`, [bet.id, multiplier, payout.toString()]);
   await db.query('UPDATE aviator_wallets SET balance = balance + $2, updated_at = now() WHERE user_id = $1', [userId, payout.toString()]);
   await db.query('UPDATE aviator_settings SET bankroll = bankroll - $1 WHERE id = 1 AND bankroll IS NOT NULL', [payout.toString()]);
   await setLimit(db, r);
   return {
-    crashed: false as const, message: capped ? 'Cashout successful (capped at the maximum win)' : 'Cashout successful', capped,
+    crashed: false as const, message: 'Cashout successful',
     payout: credits(payout), multiplier, balance: credits(held + payout),
   };
 }
@@ -371,7 +366,7 @@ export async function processRequest(db: Db, staffId: number, publicId: string, 
 
 export interface SettingsInput {
   betting_seconds?: number; crash_display_seconds?: number; growth_rate?: number; house_edge_percent?: number;
-  min_bet?: string | number; max_bet?: string | number; max_win?: string | number; paused?: boolean; pause_message?: string;
+  min_bet?: string | number; max_bet?: string | number; paused?: boolean; pause_message?: string;
   bankroll?: string | number | null; bankroll_floor?: string | number;
 }
 
@@ -399,7 +394,7 @@ export async function updateSettings(db: Db, staffId: number, input: SettingsInp
     if (!(input.house_edge_percent >= 0 && input.house_edge_percent <= 20)) errors.push('house edge must be between 0 and 20 percent');
     else next.house_edge = Math.round((input.house_edge_percent / 100) * 1e6) / 1e6;
   }
-  for (const name of ['min_bet', 'max_bet', 'max_win'] as const) {
+  for (const name of ['min_bet', 'max_bet'] as const) {
     if (input[name] === undefined) continue;
     const v = parseAmount(input[name]);
     if (v === null) errors.push(`${name.replace(/_/g, ' ')}: ${AMOUNT_ERROR.toLowerCase()}`);

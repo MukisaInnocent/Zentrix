@@ -73,7 +73,7 @@ describe("aviator (the owner's project, demo credits)", () => {
 
     // Round 1: the seed's hash is shown while members bet, the seed only after the crash.
     const state = await poll();
-    expect(state).toMatchObject({ status: 'waiting', betting_seconds: 8, limits: { min_bet: 0.01, max_bet: 10000, max_win: 1000000 } });
+    expect(state).toMatchObject({ status: 'waiting', betting_seconds: 8, limits: { min_bet: 0.01, max_bet: 10000 } });
     expect(state.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(state.server_seed).toBeUndefined();
     expect((await m.client.get<Body>(`/api/aviator/game/verify/${state.round_id}`)).body).toMatchObject({ verifiable: false, crash_point: null, server_seed: null });
@@ -96,7 +96,7 @@ describe("aviator (the owner's project, demo credits)", () => {
     const cash = await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bet.body.bet_id });
     expect(cash.status, JSON.stringify(cash.body)).toBe(200);
     expect(cash.body.multiplier).toBeCloseTo(1.1);
-    expect([cash.body.payout, cash.body.balance, cash.body.capped]).toEqual([11, 101, false]);
+    expect([cash.body.payout, cash.body.balance]).toEqual([11, 101]);
 
     // The crash reveals the seed. This round's crash point was changed by hand, so it does not verify.
     const crashAt = 8 + Math.log(5) / Math.log(1.1);
@@ -131,32 +131,33 @@ describe("aviator (the owner's project, demo credits)", () => {
     expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '1' })).status).toBe(409);
 
     // Round 3: bet limits and the maximum win per bet.
-    await admin.put<Body>('/api/admin/aviator/settings', { paused: false, max_bet: '20', max_win: '20' });
+    await admin.put<Body>('/api/admin/aviator/settings', { paused: false, max_bet: '20' });
     const fresh = await poll();
-    expect(fresh).toMatchObject({ status: 'waiting', limits: { max_bet: 20, max_win: 20 } });
+    expect(fresh).toMatchObject({ status: 'waiting', limits: { max_bet: 20 } });
+    expect(fresh.limits.max_win).toBeUndefined();
     expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '21' })).status).toBe(400);
     await app.owner.query('UPDATE aviator_rounds SET crash_point = 50 WHERE id = $1', [fresh.round_id]);
     const big = await m.client.post<Body>('/api/aviator/game/bet', { amount: '20' });
     at(t0 + 28 + 8 + 10); // 2.59x
     expect((await poll()).status).toBe('active');
     const capped = await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: big.body.bet_id });
-    // The maximum win caps the winnings above the stake (owner, 2026-11-19): 20 back plus at most 20 won.
-    expect([capped.body.payout, capped.body.capped, capped.body.balance]).toEqual([40, true, 101]);
-    await admin.put<Body>('/api/admin/aviator/settings', { max_bet: '10000', max_win: '1000000' });
+    // No maximum win (owner, 2026-11-19): 20 at 1.1^10 = 2.5937x pays 51.87 in full.
+    expect([capped.body.payout, capped.body.balance]).toEqual([51.87, 112.87]);
+    await admin.put<Body>('/api/admin/aviator/settings', { max_bet: '10000' });
 
     // Staff console: balance changes need a reason and are audited; reports, rounds, players and exports.
     const player = (await admin.get<Body>(`/api/admin/aviator/players?q=${m.input.username}`)).body.players[0];
-    expect(player).toMatchObject({ username: m.input.username, balance: 101, bets: 3 });
+    expect(player).toMatchObject({ username: m.input.username, balance: 112.87, bets: 3 });
     expect((await admin.post<Body>(`/api/admin/aviator/players/${player.userId}/balance`, { mode: 'add', amount: '10', reason: '' })).status).toBe(400);
     expect((await admin.post<Body>(`/api/admin/aviator/players/${player.userId}/balance`, { mode: 'subtract', amount: '500', reason: 'test' })).status).toBe(400);
     expect((await support.post<Body>(`/api/admin/aviator/players/${player.userId}/balance`, { mode: 'set', amount: '0', reason: 'test' })).status).toBe(403);
     const set = await admin.post<Body>(`/api/admin/aviator/players/${player.userId}/balance`, { mode: 'set', amount: '0', reason: 'Reset for testing' });
     expect(set.body.balance).toBe(0);
     const detail = (await admin.get<Body>(`/api/admin/aviator/players/${player.userId}`)).body;
-    expect(detail.transactions[0]).toMatchObject({ type: 'adjustment', amount: 101, before: 101, after: 0, reason: 'Reset for testing' });
+    expect(detail.transactions[0]).toMatchObject({ type: 'adjustment', amount: 112.87, before: 112.87, after: 0, reason: 'Reset for testing' });
     expect(detail.stats).toMatchObject({ bets: 3, wins: 2 });
     const report = (await support.get<Body>('/api/admin/aviator/reports?days=7')).body;
-    expect(report.totals).toMatchObject({ bets: 3, staked: 50, paid: 51, house_profit: -1, target_rtp: 0.99 });
+    expect(report.totals).toMatchObject({ bets: 3, staked: 50, paid: 62.87, house_profit: -12.87, target_rtp: 0.99 });
     const rounds = (await admin.get<Body>('/api/admin/aviator/rounds')).body.rounds as Body[];
     expect(rounds.filter(r => r.status !== 'crashed').every(r => r.crash_point === null)).toBe(true);
     expect((await admin.get<Body>(`/api/admin/aviator/rounds/${state.round_id}`)).body.bets[0]).toMatchObject({ username: m.input.username, result: 'win' });

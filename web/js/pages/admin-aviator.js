@@ -202,7 +202,7 @@ async function loadSettings() {
     const input = form.elements.namedItem(name);
     if (!input) continue;
     if (input.type === 'checkbox') input.checked = Boolean(value);
-    else input.value = typeof value === 'number' && ['min_bet', 'max_bet', 'max_win', 'bankroll_floor'].includes(name) ? value.toFixed(2) : value;
+    else input.value = typeof value === 'number' && ['min_bet', 'max_bet', 'bankroll_floor'].includes(name) ? value.toFixed(2) : value;
   }
   houseLimitOn = s.house_limit;
   form.elements.namedItem('bankroll_set').value = '';
@@ -220,7 +220,7 @@ function bindSettings() {
     const v = name => form.elements.namedItem(name).value.trim();
     const body = {
       betting_seconds: Number(v('betting_seconds')), crash_display_seconds: Number(v('crash_display_seconds')), growth_rate: Number(v('growth_rate')),
-      house_edge_percent: Number(v('house_edge_percent')), min_bet: v('min_bet'), max_bet: v('max_bet'), max_win: v('max_win'),
+      house_edge_percent: Number(v('house_edge_percent')), min_bet: v('min_bet'), max_bet: v('max_bet'),
       paused: form.elements.namedItem('paused').checked, pause_message: v('pause_message'), bankroll_floor: v('bankroll_floor'),
     };
     const error = form.querySelector('[data-form-error]');

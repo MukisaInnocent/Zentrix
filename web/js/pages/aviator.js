@@ -137,7 +137,7 @@ export function init() {
     let lnGrowth = Math.log(growth);
     let bettingMs = 8000;
     let crashDisplayMs = 3000;
-    let limits = { min_bet: 0.01, max_bet: Infinity, max_win: Infinity };
+    let limits = { min_bet: 0.01, max_bet: Infinity };
 
     // ------------------------------------------------------------------
     // DOM
@@ -262,10 +262,10 @@ export function init() {
         if (data.crash_display_seconds) crashDisplayMs = data.crash_display_seconds * 1000;
         if (data.limits) {
             const changed = data.limits.min_bet !== limits.min_bet || data.limits.max_bet !== limits.max_bet
-                || data.limits.max_win !== limits.max_win || data.limits.house_limit !== limits.house_limit;
+                || data.limits.house_limit !== limits.house_limit;
             limits = data.limits;
             if (changed) {
-                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits · max winnings ${formatCredits(limits.max_win)} per bet (on top of your stake)`;
+                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits`;
                 betInput.min = limits.min_bet;
                 betInput.max = limits.max_bet;
             }
