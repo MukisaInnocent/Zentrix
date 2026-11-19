@@ -14,11 +14,13 @@ export const SYSTEM_KINDS = [
   'platform_revenue', 'fees', 'referral_budget', 'promotions_budget', 'owner_capital', 'suspense', 'voucher_liability', 'fx_clearing',
   // Task money issued by admins, not real money yet (owner, 2026-11-05). Debit-normal: grows by what is issued.
   'task_credit',
+  // Aviator with real money (owner, 2026-11-19): the company's Aviator money per currency.
+  'aviator_house',
 ] as const;
 export type SystemKind = (typeof SYSTEM_KINDS)[number];
 
 export type AccountRef =
-  | { kind: 'member_main' | 'member_deposit' | 'member_withdrawal_hold' | 'member_debt'; userId: number; currency: string }
+  | { kind: 'member_main' | 'member_deposit' | 'member_withdrawal_hold' | 'member_debt' | 'member_aviator'; userId: number; currency: string }
   | { kind: 'member_task'; userId: number; module: TaskModule; currency: string }
   | { kind: 'payment_clearing'; channelId: number; currency: string }
   // One per task: its budget, issued from task_credit, which pays the task's rewards.

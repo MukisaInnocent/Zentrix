@@ -419,6 +419,24 @@ Branch `feat/livepay`. The manual flow stays for countries LivePay does not cove
 8. AWS: the API writes commands to S3 (`paygate/commands/`); the `paygate` function outside the VPC calls LivePay and writes the result to `paygate/results/`; that write starts the `payresults` job inside the VPC, which applies it. Written, not applied.
 9. IP whitelisting is not required (owner, 2026-10-30): no NAT gateway. Open with LivePay: the full list of status values, higher rate limits, the amount limits and fees, the licensed operator, and where the webhook secret comes from. Phone numbers are sent in international form (+256...), which LivePay says it accepts; check this on the first real payment.
 
+### Aviator with real money (draft, owner 2026-11-19; not started)
+
+The owner asked for real-money Aviator and says the gaming licence is issued. Nothing is built until the decisions below are answered. Today Aviator uses demo credits in its own tables (`aviator_wallets`, `aviator_bets`), outside the ledger.
+
+Design (proposed):
+
+1. **Ledger accounts** (migration): `member_aviator` (one per member and currency: the Aviator wallet) and `aviator_house` (one per currency: the house balance the house limit protects). Rule 7 holds: every stake, payout and transfer is a ledger transaction.
+2. **Money in and out**: the member moves money from the main balance into the Aviator wallet and back (`aviator_transfer_in`, `aviator_transfer_out`, Idempotency-Key, SERIALIZABLE). Winnings reach the main balance only through a transfer out, and are withdrawn through the normal withdrawal flow (charges, tax, LivePay, approval threshold). No deposits straight into Aviator.
+3. **Bets**: `aviator_stake` moves the bet from `member_aviator` to `aviator_house`; `aviator_payout` moves the payout from `aviator_house` back. One bet per member per round, as now. The round logic, provably fair seeds and the house limit stay as they are; the house limit reads `aviator_house` and the floor in that currency.
+4. **House money**: the owner funds `aviator_house` from `owner_capital` through Treasury (a new kind `aviator_fund`, audited), and can take surplus back (`aviator_defund`) without going below the floor or below what is in flight.
+5. **Solvency (rule 6)**: `member_aviator` balances count as money owed to members in the balance check and the Overall balance page; `aviator_house` is platform money. Withdrawals pause on failure, as today.
+6. **Switch**: setting `aviator.real_money` (off by default, per country) so it can be turned on for licensed countries only and turned off at once. Demo mode stays available or is removed (owner).
+7. **Terms**: a new version of `/aviator-terms` for real money (licence number, operator, countries, taxes, responsible play tools); every member accepts again (`TERMS_VERSION`).
+8. **Responsible play** (usually a licence condition): age 18+ declared at acceptance, daily loss or transfer limit set by the member, self-exclusion for a chosen period, and a staff block.
+9. **Tests first** (money rule 4): balances, races between two cash-outs and a transfer, idempotent replays, the house limit with ledger money, solvency. Then an independent security review, then a deploy behind the switch, then a small real test by the owner.
+
+Rules affected: rule 1 (winnings are paid from other players' lost stakes and the house money) and the scope of rule 4 need the owner's explicit change before any build.
+
 ---
 
 ## 8. Testing strategy

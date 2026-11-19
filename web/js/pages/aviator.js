@@ -1,17 +1,20 @@
-import { api, ApiError } from '../core/api.js';
+import { api, ApiError, newIdempotencyKey } from '../core/api.js';
 import { setupTermsGate } from './aviator-gate.js';
 
 // Aviator: the owner's Aviator project (app/templates/dashboard.html and app/static/main.js) brought over as it is
 // (owner, 2026-11-06; updated from the project 2026-11-06, later). The game script below is the project's, with three changes the site needs: it runs as this
 // page's module (no inline scripts or onclick handlers under the site's CSP), requests go to /api/aviator with the
-// site's session and CSRF token, and the demo-credit wallet (the project's wallet page) sits on the same page.
+// site's session and CSRF token, and the wallet (the project's wallet page) sits on the same page. Real money since
+// 2026-11-19 (owner): amounts are in the member's currency, every POST carries a fresh Idempotency-Key, and the server
+// does all the money arithmetic (the browser only shows what it returns).
 
 const API_BASE = '/api/aviator';
 
 // The project's fetchAPI, on the site's API client (session cookie, CSRF token, error messages).
 async function fetchAPI(endpoint, method = 'GET', body = null) {
     try {
-        return method === 'GET' ? await api.get(`${API_BASE}${endpoint}`) : await api.post(`${API_BASE}${endpoint}`, body ?? {});
+        return method === 'GET' ? await api.get(`${API_BASE}${endpoint}`)
+            : await api.post(`${API_BASE}${endpoint}`, body ?? {}, { idempotencyKey: newIdempotencyKey() });
     } catch (err) {
         throw new Error(err instanceof ApiError ? err.message : 'API Request Failed', { cause: err });
     }
@@ -34,9 +37,12 @@ function showMessage(msg, type = 'error') {
     toastTimer = setTimeout(() => el.classList.remove('show'), 4200);
 }
 
+// The member's currency, from the server (UGX has no decimals).
+const money = { currency: '', exponent: 0 };
 function formatCredits(value) {
-    return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Number(value).toLocaleString(undefined, { minimumFractionDigits: money.exponent, maximumFractionDigits: money.exponent });
 }
+const withCurrency = (value) => `${money.currency} ${formatCredits(value)}`.trim();
 
 // Smoothly count an element's number from its current value to `target`.
 function animateNumber(el, target, { suffix = '', duration = 700 } = {}) {
@@ -70,7 +76,8 @@ function relativeTime(iso) {
     return new Date(then).toLocaleDateString();
 }
 
-// The project's wallet page: add or remove demo credits (demo mode: they apply at once), and the activity list.
+// The project's wallet page: move money into Aviator (from the deposit balance, then the main balance) or out to the
+// main balance, and the activity list.
 function initWallet(refreshBalance) {
     const list = document.getElementById('trans-list');
     async function loadTransactions() {
@@ -80,7 +87,7 @@ function initWallet(refreshBalance) {
             if (!trans.length) {
                 const li = document.createElement('li');
                 li.className = 'history-empty';
-                li.textContent = 'No activity yet. Add some demo credits to start flying.';
+                li.textContent = 'No activity yet. Add money to your Aviator balance to start flying.';
                 list.appendChild(li);
                 return;
             }
@@ -88,7 +95,7 @@ function initWallet(refreshBalance) {
                 const li = document.createElement('li');
                 li.className = `tx-item ${t.type}`;
                 const what = document.createElement('span');
-                what.textContent = `${{ deposit: 'Credits added', withdrawal: 'Credits removed', adjustment: 'Changed by staff' }[t.type] ?? t.type} · ${relativeTime(t.date)}`;
+                what.textContent = `${{ deposit: 'Added to Aviator', withdrawal: 'Moved to main balance', adjustment: 'Changed by staff' }[t.type] ?? t.type} · ${relativeTime(t.date)}`;
                 const amount = document.createElement('strong');
                 amount.textContent = `${t.type === 'deposit' ? '+' : t.type === 'withdrawal' ? '-' : ''}${formatCredits(t.amount)}`;
                 const status = document.createElement('em');
@@ -102,16 +109,16 @@ function initWallet(refreshBalance) {
         }
     }
     for (const [formId, inputId, endpoint, done] of [
-        ['dep-form', 'dep-amount', '/wallet/deposit', 'Credits added to your wallet'],
-        ['with-form', 'with-amount', '/wallet/withdraw', 'Credits removed from your wallet'],
+        ['dep-form', 'dep-amount', '/wallet/deposit', null],
+        ['with-form', 'with-amount', '/wallet/withdraw', null],
     ]) {
         document.getElementById(formId).addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById(inputId);
             try {
-                await fetchAPI(endpoint, 'POST', { amount: input.value });
+                const result = await fetchAPI(endpoint, 'POST', { amount: input.value });
                 input.value = '';
-                showMessage(done, 'success');
+                showMessage(done ?? result.message, 'success');
                 await loadTransactions();
                 await refreshBalance();
             } catch (error) {
@@ -137,7 +144,6 @@ export function init() {
     let lnGrowth = Math.log(growth);
     let bettingMs = 8000;
     let crashDisplayMs = 3000;
-    let limits = { min_bet: 0.01, max_bet: Infinity };
 
     // ------------------------------------------------------------------
     // DOM
@@ -179,9 +185,12 @@ export function init() {
         if (saved) betInput.value = saved;
     } catch { /* storage unavailable */ }
 
+    // No minimum or maximum bet (owner, 2026-11-19): anything from the smallest unit up to the Aviator balance.
     function setBetAmount(value) {
-        const v = Math.min(limits.max_bet, Math.max(limits.min_bet, Math.round(value * 100) / 100));
-        betInput.value = v.toFixed(2);
+        const unit = 10 ** -money.exponent;
+        const top = balance === null ? Infinity : Math.max(unit, balance);
+        const v = Math.min(top, Math.max(unit, Math.floor(value / unit) * unit));
+        betInput.value = v.toFixed(money.exponent);
         try { localStorage.setItem('aviator.bet', betInput.value); } catch { /* ignore */ }
         syncButtons();
     }
@@ -195,7 +204,7 @@ export function init() {
         else if (chip === 'double') setBetAmount(v * 2);
         else setBetAmount(v + Number(chip));
     }));
-    betInput.addEventListener('change', () => setBetAmount(parseFloat(betInput.value) || 0.01));
+    betInput.addEventListener('change', () => setBetAmount(parseFloat(betInput.value) || 0));
     betInput.addEventListener('input', syncButtons);
 
     document.addEventListener('keydown', (e) => {
@@ -220,7 +229,7 @@ export function init() {
         document.querySelectorAll('[data-step], [data-chip]').forEach((b) => { b.disabled = !canBet; });
 
         if (gameState === 'waiting' && !currentBet) {
-            setBetButton('Place bet', `${formatCredits(parseFloat(betInput.value) || 0)} credits`);
+            setBetButton('Place bet', withCurrency(parseFloat(betInput.value) || 0));
         } else if (gameState === 'waiting') {
             setBetButton('Bet placed', 'Waiting for takeoff…');
         } else if (gameState === 'paused') {
@@ -243,13 +252,13 @@ export function init() {
         if (!currentBet) {
             myBetInfo.textContent = 'No bet in this round.';
         } else if (currentBet.result === 'pending') {
-            myBetInfo.textContent = `Bet placed: ${formatCredits(currentBet.amount)} demo credits`;
+            myBetInfo.textContent = `Bet placed: ${withCurrency(currentBet.amount)}`;
         } else if (currentBet.result === 'win') {
             myBetInfo.classList.add('win');
-            myBetInfo.textContent = `Cashed out at ${currentBet.multiplier.toFixed(2)}x · +${formatCredits(currentBet.payout)} demo credits`;
+            myBetInfo.textContent = `Cashed out at ${currentBet.multiplier.toFixed(2)}x · +${withCurrency(currentBet.payout)}`;
         } else {
             myBetInfo.classList.add('loss');
-            myBetInfo.textContent = `Flew away at ${crashPoint ? crashPoint.toFixed(2) : '?'}x · ${formatCredits(currentBet.amount)} demo credits lost`;
+            myBetInfo.textContent = `Flew away at ${crashPoint ? crashPoint.toFixed(2) : '?'}x · ${withCurrency(currentBet.amount)} lost`;
         }
     }
 
@@ -260,15 +269,21 @@ export function init() {
         }
         if (data.betting_seconds) bettingMs = data.betting_seconds * 1000;
         if (data.crash_display_seconds) crashDisplayMs = data.crash_display_seconds * 1000;
-        if (data.limits) {
-            const changed = data.limits.min_bet !== limits.min_bet || data.limits.max_bet !== limits.max_bet
-                || data.limits.house_limit !== limits.house_limit;
-            limits = data.limits;
-            if (changed) {
-                $('limits-hint').textContent = `Bet ${formatCredits(limits.min_bet)} – ${formatCredits(limits.max_bet)} credits`;
-                betInput.min = limits.min_bet;
-                betInput.max = limits.max_bet;
+        if (data.currency && data.currency !== money.currency) {
+            money.currency = data.currency;
+            money.exponent = data.exponent ?? 0;
+            const step = (10 ** -money.exponent).toFixed(money.exponent);
+            betInput.min = step;
+            betInput.step = step;
+            // Quick-add chips in sensible steps for the currency (UGX: 1,000 and 5,000).
+            const small = money.exponent === 0 ? 1000 : 10;
+            for (const [b, n] of [[document.querySelector('[data-chip="+10"]'), small], [document.querySelector('[data-chip="+50"]'), small * 5]]) {
+                if (!b) continue;
+                b.dataset.chip = `+${n}`;
+                b.textContent = `+${n.toLocaleString()}`;
             }
+            $('limits-hint').textContent = `Bet any amount up to your Aviator balance, in ${money.currency}.`;
+            setBetAmount(parseFloat(betInput.value) || small);
         }
         $('current-hash').textContent = data.hash || '–';
         $('current-hash').title = data.hash || '';
@@ -289,8 +304,9 @@ export function init() {
 
     function renderState(data) {
         applyServerSettings(data);
-        if (data.status === 'paused') {
+        if (data.status === 'paused' || data.status === 'unavailable') {
             renderPaused(data);
+            if (data.status === 'unavailable') statusEl.textContent = 'NOT AVAILABLE';
             return;
         }
         const prevState = gameState;
@@ -327,7 +343,7 @@ export function init() {
             countdownEl.hidden = true;
             captionEl.textContent = currentBet?.result === 'pending'
                 ? 'Cash out before it flies away!'
-                : currentBet?.result === 'win' ? 'Safely landed your credits' : 'Betting is closed for this round';
+                : currentBet?.result === 'win' ? 'Safely landed your winnings' : 'Betting is closed for this round';
         } else if (gameState === 'crashed') {
             statusEl.textContent = data.house_limit ? 'HOUSE LIMIT REACHED' : 'FLEW AWAY';
             countdownEl.hidden = true;
@@ -840,7 +856,8 @@ export function init() {
         try {
             const data = await fetchAPI('/wallet/balance');
             balance = data.balance;
-            animateNumber($('nav-balance'), balance, { suffix: ' cr' });
+            if (data.currency && !money.currency) { money.currency = data.currency; money.exponent = data.exponent ?? 0; }
+            animateNumber($('nav-balance'), balance, { suffix: ` ${money.currency}` });
         } catch { /* shown on the next try */ }
     }
 
@@ -850,7 +867,7 @@ export function init() {
         syncButtons();
         try {
             await fetchAPI('/game/bet', 'POST', { amount: betInput.value });
-            showMessage(`Bet of ${formatCredits(betInput.value)} credits placed. Good flight!`, 'success');
+            showMessage(`Bet of ${withCurrency(betInput.value)} placed. Good flight!`, 'success');
             refreshBalance();
         } catch (error) {
             showMessage(error.message);
@@ -867,7 +884,7 @@ export function init() {
         try {
             const result = await fetchAPI('/game/cashout', 'POST', { bet_id: currentBet.id });
             scene.celebrate(`+${formatCredits(result.payout)}`);
-            showMessage(`Cashed out at ${result.multiplier.toFixed(2)}x: +${formatCredits(result.payout)} credits`, 'success');
+            showMessage(`Cashed out at ${result.multiplier.toFixed(2)}x: +${withCurrency(result.payout)}`, 'success');
             refreshBalance();
         } catch (error) {
             showMessage(error.message);

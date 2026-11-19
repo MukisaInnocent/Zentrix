@@ -17,12 +17,13 @@
   <div class="zx-page-head">
     <div>
       <h1>Aviator</h1>
-      <p>The Aviator game's dashboard (the owner's project). Members play with demo credits that have no cash value and never touch member balances. There is deliberately no control to choose or change a round's crash point.</p>
+      <p>The Aviator game's dashboard (the owner's project). Members play with real money (licence NLGRB-BMTOL-26-0290, Uganda) through an Aviator balance; lost stakes go to the house and winnings are paid from it. Figures are in the currency's main unit. There is no control to choose a round's crash point; the house limit ends a round only to keep the house money above its floor.</p>
     </div>
   </div>
 
   <div class="zx-tabs" role="tablist" aria-label="Aviator sections">
     <button class="zx-tab" type="button" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="zx-tab" type="button" role="tab" data-tab="money" aria-selected="false">Real money</button>
     <button class="zx-tab" type="button" role="tab" data-tab="live" aria-selected="false">Live round</button>
     <button class="zx-tab" type="button" role="tab" data-tab="rounds" aria-selected="false">Rounds</button>
     <button class="zx-tab" type="button" role="tab" data-tab="players" aria-selected="false">Players</button>
@@ -68,6 +69,15 @@
     </div>
   </section>
 
+  <section data-panel="money" class="zx-card zx-stack-3" hidden>
+    <h2>Real money</h2>
+    <p class="zx-hint">Per currency: whether Aviator plays for real money there, the house money and its floor, money members moved in and out, stakes, payouts and the company's result (what players lost minus what they won). House money comes from platform revenue and can go back to it, never below the floor. While the house is at or below its floor, no bets are taken. One currency at a time for now.</p>
+    <div class="zx-table-wrap"><table class="zx-table">
+      <thead><tr><th scope="col">Currency</th><th scope="col">Status</th><th scope="col">House money</th><th scope="col">Floor</th><th scope="col">Members' Aviator balances</th><th scope="col">Moved in</th><th scope="col">Moved out</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">In flight</th><th scope="col">Company result</th><th scope="col"></th></tr></thead>
+      <tbody id="money-rows"></tbody>
+    </table></div>
+  </section>
+
   <section data-panel="live" class="zx-stack-4" hidden>
     <div class="zx-kpis" id="live-kpis"></div>
     <div class="zx-card zx-stack-3">
@@ -93,22 +103,22 @@
       <input id="players-q" class="zx-input" type="search" placeholder="Search by username" aria-label="Search players by username" maxlength="40">
     </div>
     <div class="zx-table-wrap"><table class="zx-table">
-      <thead><tr><th scope="col">Member</th><th scope="col">Account</th><th scope="col">Credits</th><th scope="col">Bets</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">Net</th><th scope="col">Last bet</th><th scope="col"></th></tr></thead>
+      <thead><tr><th scope="col">Member</th><th scope="col">Account</th><th scope="col">Aviator balance</th><th scope="col">Bets</th><th scope="col">Staked</th><th scope="col">Paid out</th><th scope="col">Net</th><th scope="col">Last bet</th><th scope="col"></th></tr></thead>
       <tbody id="players-rows"></tbody>
     </table></div>
   </section>
 
   <section data-panel="transactions" class="zx-card zx-stack-3" hidden>
     <div class="zx-section-title">
-      <h2>Credit transactions</h2>
+      <h2>Money moved in and out</h2>
       <span class="zx-row-actions">
         <a class="zx-btn zx-btn--secondary zx-btn--sm" href="/api/admin/aviator/export/transactions.csv" data-admin-only>Export CSV</a>
         <a class="zx-btn zx-btn--secondary zx-btn--sm" href="/api/admin/aviator/export/bets.csv" data-admin-only>Export bets</a>
       </span>
     </div>
-    <p class="zx-hint">Members add and remove demo credits instantly. Older pending requests can still be approved or rejected.</p>
+    <p class="zx-hint">Members move money into Aviator from their deposit and main balances, and out to their main balance, at once. Older demo-credit requests can still be approved or rejected; they move no money.</p>
     <div class="zx-table-wrap"><table class="zx-table">
-      <thead><tr><th scope="col">Date</th><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Credits</th><th scope="col">Reason</th><th scope="col">Member's credits now</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+      <thead><tr><th scope="col">Date</th><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Reason</th><th scope="col">Balance after</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
       <tbody id="tx-rows"></tbody>
     </table></div>
   </section>
@@ -133,17 +143,8 @@
         <div class="zx-field"><label for="s-display">Pause after a crash (seconds)</label><input id="s-display" name="crash_display_seconds" class="zx-input" type="number" min="1" max="30" step="1" required><span class="zx-hint">1 to 30</span></div>
         <div class="zx-field"><label for="s-growth">Climb speed (multiplier growth per second)</label><input id="s-growth" name="growth_rate" class="zx-input" type="number" min="1.01" max="1.5" step="0.01" required><span class="zx-hint">1.01 to 1.5</span></div>
         <div class="zx-field"><label for="s-edge">House edge (%)</label><input id="s-edge" name="house_edge_percent" class="zx-input" type="number" min="0" max="20" step="0.01" required><span class="zx-hint">0 to 20. Members get back 100% minus this on average.</span></div>
-        <div class="zx-field"><label for="s-min">Minimum bet (credits)</label><input id="s-min" name="min_bet" class="zx-input" type="number" min="0.01" step="0.01" required></div>
-        <div class="zx-field"><label for="s-max">Maximum bet (credits)</label><input id="s-max" name="max_bet" class="zx-input" type="number" min="0.01" step="0.01" required></div>
       </div>
-      <h3>House limit</h3>
-      <p class="zx-hint">Every bet adds its stake to the house money and every cash-out takes its payout. When paying the players still in the air would take the house money below the floor, the round ends at that point and those bets lose. Members are told this rule.</p>
-      <p class="zx-hint" id="s-bankroll-now"></p>
-      <label class="zx-check"><input id="s-limit" name="house_limit" type="checkbox"> House limit on</label>
-      <div class="zx-check-grid">
-        <div class="zx-field"><label for="s-bankroll">Set house money to (credits)</label><input id="s-bankroll" name="bankroll_set" class="zx-input" type="number" min="0" step="0.01"><span class="zx-hint">Leave blank to keep the current amount.</span></div>
-        <div class="zx-field"><label for="s-floor">Floor (credits)</label><input id="s-floor" name="bankroll_floor" class="zx-input" type="number" min="0" step="0.01" required><span class="zx-hint">Players never win the house money below this.</span></div>
-      </div>
+      <p class="zx-hint">House money, its floor and the currencies that play are on the Real money tab. There is no minimum or maximum bet.</p>
       <label class="zx-check"><input id="s-paused" name="paused" type="checkbox"> Pause the game (no new rounds start once the current one ends)</label>
       <div class="zx-field"><label for="s-message">Message for members while paused</label><input id="s-message" name="pause_message" class="zx-input" type="text" maxlength="200"></div>
       <p class="zx-hint" id="s-updated"></p>

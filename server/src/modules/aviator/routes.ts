@@ -8,15 +8,17 @@ import { notFound } from '../../lib/errors.js';
 import type { Services } from '../../services.js';
 import { audit } from '../audit/audit.js';
 import { requireAuth, requireStaff } from '../auth/middleware.js';
+import { idempotent } from '../ledger/idempotency.js';
+import { moneyOverview, moveHouse, setCurrency, transfer, walletBalance } from './money.js';
 import {
-  acceptTerms, adjustBalance, auditTrail, balance, cashout, exportCsv, flags, gameState, getSettings, history, listPlayers, listRequests, listRounds,
-  live, moveCredits, placeBet, playerDetail, processRequest, reports, roundDetail, settingsView, transactions, termsStatus, updateSettings, verify,
+  acceptTerms, adjustBalance, auditTrail, cashout, exportCsv, flags, gameState, getSettings, history, listPlayers, listRequests, listRounds,
+  live, placeBet, playerDetail, processRequest, reports, roundDetail, settingsView, transactions, termsStatus, updateSettings, verify,
 } from './service.js';
 
 // Aviator (owner's project, 2026-11-06; updated 2026-11-06, later). The same endpoints as the project's /api/game and
-// /api/wallet, under /api/aviator, for every signed-in member, activated or not (owner, 2026-11-11: demo credits only,
-// no cash value, so nothing here needs the activation fee); the project's admin dashboard is in the staff
-// console under /api/admin/aviator (without its own users, logins and 2FA: the site's staff accounts are used).
+// /api/wallet, under /api/aviator, for every signed-in member; the project's admin dashboard is in the staff console
+// under /api/admin/aviator (the site's staff accounts are used). Real money since 2026-11-19 (owner): bets, cash-outs
+// and transfers move ledger money, so each needs an Idempotency-Key and runs SERIALIZABLE (idempotent()).
 const Amount = z.strictObject({ amount: z.union([z.string(), z.number()]) });
 const Terms = z.strictObject({ version: z.string().max(20) });
 const BetId = z.strictObject({ bet_id: z.union([z.string(), z.number()]) });
@@ -28,6 +30,9 @@ const Settings = z.strictObject({
   paused: z.boolean().optional(), pause_message: z.string().max(200).optional(),
   bankroll: z.union([z.string(), z.number(), z.null()]).optional(), bankroll_floor: z.union([z.string(), z.number()]).optional(),
 });
+const Currency = z.string().regex(/^[A-Z]{3}$/);
+const CurrencySettings = z.strictObject({ enabled: z.boolean().optional(), floor: z.union([z.string(), z.number()]).optional() });
+const HouseMove = z.strictObject({ currency: Currency, direction: z.enum(['fund', 'return']), amount: z.union([z.string(), z.number()]), reason: z.string().max(200) });
 const Adjust = z.strictObject({ mode: z.enum(['add', 'subtract', 'set']), amount: z.union([z.string(), z.number()]), reason: z.string().max(200) });
 const Id = z.uuid();
 const q = (v: unknown, fallback = '') => (typeof v === 'string' ? v : fallback);
@@ -60,24 +65,30 @@ export function aviatorRouter(services: Services): Router {
   });
   router.post('/game/bet', limiter(pool, { name: 'aviator-bet', windowMs: 60_000, limit: 30, key: byUser }), async (req, res) => {
     const { amount } = parse(Amount, req.body);
-    res.json(await withTransaction(pool, db => placeBet(db, me(req), amount, services.now())));
+    const out = await idempotent(pool, req, 'aviator.bet', async db => ({ status: 200, body: await placeBet(db, me(req), amount, services.now()) }));
+    res.status(out.status).json(out.body);
   });
   router.post('/game/cashout', async (req, res) => {
     const { bet_id } = parse(BetId, req.body);
-    const result = await withTransaction(pool, db => cashout(db, me(req), bet_id, services.now()));
-    if (result.crashed) return void res.status(409).json({ error: { code: 'aviator.crashed', message: 'The round crashed before cashout' }, status: 'crashed' });
-    const { crashed: _c, ...body } = result;
-    res.json(body);
+    const out = await idempotent(pool, req, 'aviator.cashout', async db => {
+      const result = await cashout(db, me(req), bet_id, services.now());
+      if (result.crashed) return { status: 409, body: { error: { code: 'aviator.crashed', message: 'The round crashed before cashout' }, status: 'crashed' } };
+      const { crashed: _c, ...body } = result;
+      return { status: 200, body };
+    });
+    res.status(out.status).json(out.body);
   });
 
   router.get('/wallet/balance', async (req, res) => {
-    res.json(await withTransaction(pool, db => balance(db, me(req))));
+    res.json(await withTransaction(pool, db => walletBalance(db, me(req))));
   });
-  // Demo mode: credits are added or removed at once (the project, 2026-11-06, later).
-  for (const [path, kind] of [['deposit', 'deposit'], ['withdraw', 'withdrawal']] as const) {
+  // Real money (owner, 2026-11-19): deposit = money in from the deposit balance first, then the main balance;
+  // withdraw = money out to the main balance, from which the member withdraws as usual.
+  for (const [path, direction] of [['deposit', 'in'], ['withdraw', 'out']] as const) {
     router.post(`/wallet/${path}`, limiter(pool, { name: `aviator-${path}`, windowMs: 60 * 60_000, limit: 60, key: byUser }), async (req, res) => {
       const { amount } = parse(Amount, req.body);
-      res.status(201).json(await withTransaction(pool, db => moveCredits(db, me(req), kind, amount)));
+      const out = await idempotent(pool, req, `aviator.transfer_${direction}`, async db => ({ status: 201, body: await transfer(db, me(req), direction, amount) }));
+      res.status(out.status).json(out.body);
     });
   }
   router.get('/wallet/transactions', async (req, res) => {
@@ -149,6 +160,31 @@ export function aviatorAdminRouter(services: Services): Router {
       return done;
     });
     res.json({ message: `Request ${result.status} successfully`, request: result });
+  });
+  // Real money: the house money and floor per currency, money moved in and out, stakes, payouts and the company's
+  // result (owner, 2026-11-19). Admins switch a currency on, set its floor and move house money.
+  router.get('/money', VIEW, async (_req, res) => {
+    res.json(await moneyOverview(pool));
+  });
+  router.put('/currencies/:code', EDIT, async (req, res) => {
+    const code = Currency.safeParse(req.params.code);
+    if (!code.success) throw notFound();
+    const input = parse(CurrencySettings, req.body);
+    const done = await withTransaction(pool, async db => {
+      const result = await setCurrency(db, req.auth!.userId, code.data, input);
+      await audit(db, req, { action: 'aviator.currency_update', targetType: 'aviator_currency', targetId: code.data, before: result.before ?? {}, after: result.after });
+      return result;
+    });
+    res.json({ message: 'Saved', currency: done.after });
+  });
+  router.post('/house', EDIT, async (req, res) => {
+    const input = parse(HouseMove, req.body);
+    const out = await idempotent(pool, req, 'aviator.house', async db => {
+      const result = await moveHouse(db, req.auth!.userId, input.currency, input.direction, input.amount, input.reason);
+      await audit(db, req, { action: `aviator.house_${input.direction}`, targetType: 'aviator_house', targetId: input.currency, before: { house: result.before }, after: { house: result.after, amount: result.amount }, reason: result.reason });
+      return { status: 200, body: { message: input.direction === 'fund' ? 'House money added' : 'House money returned to revenue', ...result } };
+    });
+    res.status(out.status).json(out.body);
   });
   router.get('/flags', VIEW, async (_req, res) => {
     res.json(await flags(pool));

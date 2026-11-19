@@ -3,13 +3,18 @@ import type { PoolClient } from '../../db/pool.js';
 import type { Db } from '../../db/sql.js';
 import { maybeOne, one, rows } from '../../db/sql.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { balanceOf, InsufficientFundsError, move, post } from '../ledger/ledger.js';
+import {
+  currencyConfig, fromHundredths, houseAccount, major, parseMoney, playCurrency, requireCurrency, toHundredths, UNAVAILABLE, walletAccount,
+} from './money.js';
 
 // Aviator, brought from the owner's Aviator project (app/routes/game.py, wallet.py, game_settings.py) as it is
 // (owner, 2026-11-06; updated 2026-11-06, later). One shared round for everyone: a betting window, then the multiplier grows
 // as growth_rate^t seconds until the round's crash point; after a short pause the next round opens. Admins edit the
 // timing, house edge, bet limits and a pause switch. Crash points are provably fair: each round's secret seed is
-// hashed and the hash shown while members bet, and the seed is revealed after the crash. Players use demo credits
-// (no cash value). Amounts are hundredths of a credit.
+// hashed and the hash shown while members bet, and the seed is revealed after the crash. Since 2026-11-19 (owner,
+// migration 0043) members play with real money through the ledger (money.ts); demo credits have ended. Bet and
+// payout amounts in aviator_bets are hundredths of the currency's major unit.
 
 const GAME_CLOCK_LOCK_KEY = 0x41564941; // the project's advisory lock key
 const MAX_AMOUNT = 9_999_999_999n; // 99,999,999.99 credits, as the project's Numeric(10, 2)
@@ -41,7 +46,10 @@ interface Round {
   server_seed: string | null; hash: string | null; house_edge: number | null; growth_rate: number | null;
   limit_point: string | null;
 }
-interface Bet { id: string; round_id: string; user_id: string; amount: string; multiplier: number; result: 'pending' | 'win' | 'loss'; payout: string }
+interface Bet {
+  id: string; round_id: string; user_id: string; amount: string; multiplier: number; result: 'pending' | 'win' | 'loss'; payout: string;
+  currency_code: string | null;
+}
 
 // crashPoint: the seed's crash point (what the fairness check verifies). endPoint: where the round really ends, the
 // lower of that and the house limit (owner, 2026-11-16).
@@ -75,14 +83,9 @@ export function settingsView(s: Settings) {
   return {
     betting_seconds: s.betting_seconds, crash_display_seconds: s.crash_display_seconds, growth_rate: s.growth_rate,
     house_edge_percent: Math.round(s.house_edge * 100 * 10_000) / 10_000,
-    min_bet: credits(s.min_bet), max_bet: credits(s.max_bet),
     paused: s.paused, pause_message: s.pause_message ?? '', updated_at: s.updated_at.toISOString(),
-    house_limit: s.bankroll !== null, bankroll: s.bankroll === null ? null : credits(s.bankroll), bankroll_floor: credits(s.bankroll_floor),
   };
 }
-const publicLimits = (s: Settings) => ({
-  min_bet: credits(s.min_bet), max_bet: credits(s.max_bet), house_limit: s.bankroll !== null,
-});
 
 // Paused and the last round is over, so no new round may start.
 const isParked = (r: Round | null, s: Settings, now: Date) => s.paused && (!r || (r.status === 'crashed' && now >= nextRoundDue(r, s)));
@@ -99,23 +102,24 @@ async function settleLosses(db: Db, r: Round): Promise<void> {
   await db.query(`UPDATE aviator_bets SET result = 'loss', multiplier = $2, payout = 0 WHERE round_id = $1 AND result = 'pending'`, [r.id, endPoint(r)]);
 }
 
-const pendingStakes = async (db: Db, roundId: string) =>
-  BigInt((await one<{ total: string }>(db, `SELECT coalesce(sum(amount), 0) AS total FROM aviator_bets WHERE round_id = $1 AND result = 'pending'`, [roundId])).total);
-
-// House limit (owner, 2026-11-16): the multiplier at which paying every bet still in the air would take the bankroll
-// down to the floor, floored to the cent. Set when the round takes off and again after each cash-out (a cash-out
-// below the limit can only raise it). NULL when there is no bankroll, no bet in the air, or the seed's crash point
-// comes first.
+// House limit (owner, 2026-11-16; on the ledger since 2026-11-19): for each currency with bets in the air, the
+// multiplier at which paying them all would take that currency's house money (aviator_house) down to its floor,
+// floored to the cent; the round ends at the lowest. Stakes are already in the house when the round takes off. Set
+// at take-off and again after each cash-out (a cash-out below the limit can only raise it). NULL when nothing is in
+// the air or the seed's crash point comes first.
 async function setLimit(db: Db, r: Round): Promise<Round> {
-  const s = await getSettings(db);
   let limit: number | null = null;
-  if (s.bankroll !== null) {
-    const stakes = await pendingStakes(db, r.id);
-    if (stakes > 0n) {
-      const headroom = BigInt(s.bankroll) - BigInt(s.bankroll_floor);
-      const point = Math.min(MAX_CRASH_POINT, Math.max(1, headroom > 0n ? Number((headroom * 100n) / stakes) / 100 : 1));
-      if (point < crashPoint(r)) limit = point;
-    }
+  const groups = await rows<{ currency_code: string; stakes: string }>(db,
+    `SELECT currency_code, sum(amount) AS stakes FROM aviator_bets WHERE round_id = $1 AND result = 'pending' AND currency_code IS NOT NULL
+     GROUP BY currency_code`, [r.id]);
+  for (const g of groups) {
+    const cfg = await currencyConfig(db, g.currency_code);
+    if (!cfg) continue;
+    const house = await balanceOf(db, await houseAccount(db, g.currency_code));
+    const headroom = toHundredths(house - BigInt(cfg.floor_minor), cfg.exponent);
+    const stakes = BigInt(g.stakes);
+    const point = Math.min(MAX_CRASH_POINT, Math.max(1, headroom > 0n ? Number((headroom * 100n) / stakes) / 100 : 1));
+    if (point < crashPoint(r) && (limit === null || point < limit)) limit = point;
   }
   return one<Round>(db, 'UPDATE aviator_rounds SET limit_point = $2 WHERE id = $1 RETURNING *', [r.id, limit]);
 }
@@ -151,7 +155,7 @@ async function userBet(db: Db, r: Round, userId: number) {
 }
 
 const commonState = (s: Settings, now: Date) => ({
-  server_time: now.toISOString(), betting_seconds: s.betting_seconds, crash_display_seconds: s.crash_display_seconds, limits: publicLimits(s),
+  server_time: now.toISOString(), betting_seconds: s.betting_seconds, crash_display_seconds: s.crash_display_seconds,
 });
 
 async function roundState(db: Db, r: Round, s: Settings, now: Date, userId: number) {
@@ -179,6 +183,8 @@ async function roundState(db: Db, r: Round, s: Settings, now: Date, userId: numb
 // GET state: a plain read first, so polling members do not block each other; a transition takes the clock lock.
 export async function gameState(pool: { connect(): Promise<PoolClient> }, read: Db, userId: number, now: Date) {
   const s = await getSettings(read);
+  const cur = await playCurrency(read, userId);
+  if (!cur) return { ...commonState(s, now), status: 'unavailable', round_id: null, message: UNAVAILABLE };
   let r = await maybeOne<Round>(read, 'SELECT * FROM aviator_rounds ORDER BY id DESC LIMIT 1');
   if (needsTransition(r, s, now)) {
     const db = await pool.connect();
@@ -197,7 +203,7 @@ export async function gameState(pool: { connect(): Promise<PoolClient> }, read: 
   if (isParked(r, s, now)) {
     return { ...commonState(s, now), status: 'paused', round_id: r ? Number(r.id) : null, message: s.pause_message || 'The game is paused for maintenance. Please check back soon.' };
   }
-  return roundState(read, r!, s, now, userId);
+  return { ...(await roundState(read, r!, s, now, userId)), currency: cur.code, exponent: cur.exponent };
 }
 
 // Public fairness record; the seed is only revealed once the round is over.
@@ -233,18 +239,15 @@ export async function verify(db: Db, roundId: number) {
   return verifyRound(r);
 }
 
+// The demo-credit wallet: only older pending staff requests still touch it.
 async function wallet(db: Db, userId: number, lock = false): Promise<bigint> {
   await db.query('INSERT INTO aviator_wallets (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [userId]);
   return BigInt((await one<{ balance: string }>(db, `SELECT balance FROM aviator_wallets WHERE user_id = $1${lock ? ' FOR UPDATE' : ''}`, [userId])).balance);
 }
 
-export async function balance(db: Db, userId: number) {
-  return { balance: credits(await wallet(db, userId)) };
-}
-
 // Aviator Terms and Conditions (owner, 2026-11-19; web/aviator-terms.html). Change the version when the terms change:
 // every member then accepts again before betting.
-export const TERMS_VERSION = '2026-11-19';
+export const TERMS_VERSION = '2026-11-19-money';
 
 export async function termsStatus(db: Db, userId: number) {
   const row = await maybeOne(db, 'SELECT 1 FROM aviator_terms_acceptances WHERE user_id = $1 AND version = $2', [userId, TERMS_VERSION]);
@@ -257,29 +260,39 @@ export async function acceptTerms(db: Db, userId: number, version: string) {
   return { version: TERMS_VERSION, accepted: true };
 }
 
-export async function placeBet(db: Db, userId: number, rawAmount: unknown, now: Date) {
-  const amount = parseAmount(rawAmount);
-  if (amount === null) throw badRequest('validation_failed', AMOUNT_ERROR, { amount: [AMOUNT_ERROR] });
+// Real money (owner, 2026-11-19): the stake moves from the member's Aviator balance into the house. No minimum or
+// maximum bet: anything up to the Aviator balance (owner). While the house is at or below its floor no bet is taken,
+// since every round would end at once.
+export async function placeBet(db: PoolClient, userId: number, rawAmount: unknown, now: Date) {
   if (!(await termsStatus(db, userId)).accepted) throw conflict('aviator.terms_required', 'Accept the Aviator Terms and Conditions before you play');
+  const cur = await requireCurrency(db, userId);
+  const amount = parseMoney(rawAmount, cur.exponent);
   const s = await getSettings(db);
   if (s.paused) throw conflict('aviator.paused', 'Betting is paused right now');
-  if (amount < BigInt(s.min_bet)) throw badRequest('aviator.min_bet', `Minimum bet is ${creditText(s.min_bet)} credits`);
-  if (amount > BigInt(s.max_bet)) throw badRequest('aviator.max_bet', `Maximum bet is ${creditText(s.max_bet)} credits`);
   const r = await maybeOne<Round>(db, 'SELECT * FROM aviator_rounds ORDER BY id DESC LIMIT 1 FOR UPDATE');
   if (!r || r.status !== 'waiting' || now >= r.start_time) throw conflict('aviator.betting_closed', 'Bets are accepted only during the betting window');
-  // Members may stake anything up to their balance (owner, 2026-11-19); the house limit applies in flight.
-  const held = await wallet(db, userId, true);
-  if (held < amount) throw badRequest('aviator.insufficient', 'Insufficient demo credits');
   if (await maybeOne(db, 'SELECT 1 FROM aviator_bets WHERE round_id = $1 AND user_id = $2', [r.id, userId])) {
     throw conflict('aviator.already_bet', 'You already placed a bet in this round');
   }
-  await db.query('UPDATE aviator_wallets SET balance = balance - $2, updated_at = now() WHERE user_id = $1', [userId, amount.toString()]);
-  await db.query('UPDATE aviator_settings SET bankroll = bankroll + $1 WHERE id = 1 AND bankroll IS NOT NULL', [amount.toString()]);
-  const bet = await one<{ id: string }>(db, 'INSERT INTO aviator_bets (round_id, user_id, amount) VALUES ($1, $2, $3) RETURNING id', [r.id, userId, amount.toString()]);
-  return { message: 'Demo bet placed', bet_id: Number(bet.id), round_id: Number(r.id), balance: credits(held - amount) };
+  const house = await houseAccount(db, cur.code);
+  if (await balanceOf(db, house) <= cur.floorMinor) throw conflict('aviator.house_closed', 'Aviator is closed for the moment. Please try again later.');
+  const wallet = await walletAccount(db, userId, cur.code);
+  let txn: number;
+  try {
+    txn = await post(db, { kind: 'aviator_stake', memo: `Aviator bet, round ${r.id}`, refType: 'aviator_bet', refId: `${r.id}:${userId}`, actorUserId: userId, legs: move(wallet, house, amount) });
+  } catch (err) {
+    if (err instanceof InsufficientFundsError) throw badRequest('aviator.insufficient', 'Your Aviator balance is too low for this bet.');
+    throw err;
+  }
+  const bet = await one<{ id: string }>(db,
+    'INSERT INTO aviator_bets (round_id, user_id, amount, currency_code, stake_txn) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [r.id, userId, toHundredths(amount, cur.exponent).toString(), cur.code, txn]);
+  return { message: 'Bet placed', bet_id: Number(bet.id), round_id: Number(r.id), balance: major(await balanceOf(db, wallet), cur.exponent), currency: cur.code };
 }
 
-export async function cashout(db: Db, userId: number, rawBetId: unknown, now: Date) {
+// The payout is the stake times the multiplier at the server's moment of cash-out, floored to the cent of the
+// multiplier and to the currency's minor unit, paid from the house. No maximum win (owner, 2026-11-19).
+export async function cashout(db: PoolClient, userId: number, rawBetId: unknown, now: Date) {
   const betId = Number(rawBetId);
   if (!Number.isInteger(betId) || betId <= 0) throw badRequest('validation_failed', 'A valid bet ID is required');
   const found = await maybeOne<Bet>(db, 'SELECT * FROM aviator_bets WHERE id = $1 AND user_id = $2', [betId, userId]);
@@ -294,40 +307,34 @@ export async function cashout(db: Db, userId: number, rawBetId: unknown, now: Da
     await settleLosses(db, r);
     return { crashed: true as const };
   }
-  const multiplier = currentMultiplier(r, now);
-  const held = await wallet(db, userId, true);
-  let payout = BigInt(Math.round(Number(bet.amount) * multiplier)); // round half up to the hundredth, as the project
-  // No maximum win (owner, 2026-11-19): only the house limit bounds what players win. The max_win column is unused.
-  if (held + payout > MAX_AMOUNT) payout = MAX_AMOUNT - held; // the wallet's own ceiling
-  await db.query(`UPDATE aviator_bets SET result = 'win', multiplier = $2, payout = $3 WHERE id = $1`, [bet.id, multiplier, payout.toString()]);
-  await db.query('UPDATE aviator_wallets SET balance = balance + $2, updated_at = now() WHERE user_id = $1', [userId, payout.toString()]);
-  await db.query('UPDATE aviator_settings SET bankroll = bankroll - $1 WHERE id = 1 AND bankroll IS NOT NULL', [payout.toString()]);
+  if (!bet.currency_code) throw conflict('aviator.demo_closed', 'Demo bets have ended');
+  const cfg = await currencyConfig(db, bet.currency_code);
+  if (!cfg) throw conflict('aviator.unavailable', UNAVAILABLE);
+  const cents = BigInt(Math.floor(currentMultiplier(r, now) * 100));
+  const stake = fromHundredths(BigInt(bet.amount), cfg.exponent);
+  const payout = (stake * cents) / 100n;
+  const wallet = await walletAccount(db, userId, bet.currency_code);
+  const house = await houseAccount(db, bet.currency_code);
+  let txn: number;
+  try {
+    txn = await post(db, { kind: 'aviator_payout', memo: `Aviator win, round ${r.id}`, refType: 'aviator_bet', refId: bet.id, actorUserId: userId, legs: move(house, wallet, payout) });
+  } catch (err) {
+    if (err instanceof InsufficientFundsError) throw conflict('aviator.house_short', 'The house cannot pay this cash-out. Please contact support.');
+    throw err;
+  }
+  const multiplier = Number(cents) / 100;
+  await db.query(`UPDATE aviator_bets SET result = 'win', multiplier = $2, payout = $3, payout_txn = $4 WHERE id = $1`,
+    [bet.id, multiplier, toHundredths(payout, cfg.exponent).toString(), txn]);
   await setLimit(db, r);
   return {
-    crashed: false as const, message: 'Cashout successful',
-    payout: credits(payout), multiplier, balance: credits(held + payout),
+    crashed: false as const, message: 'Cashout successful', payout: major(payout, cfg.exponent), multiplier,
+    balance: major(await balanceOf(db, wallet), cfg.exponent), currency: bet.currency_code,
   };
-}
-
-// Demo mode (wallet.py, 2026-11-06, later): credits are added or removed at once, no staff approval.
-export async function moveCredits(db: Db, userId: number, kind: 'deposit' | 'withdrawal', rawAmount: unknown) {
-  const amount = parseAmount(rawAmount);
-  if (amount === null) throw badRequest('validation_failed', AMOUNT_ERROR, { amount: [AMOUNT_ERROR] });
-  const before = await wallet(db, userId, true);
-  const after = kind === 'deposit' ? before + amount : before - amount;
-  if (after < 0n) throw badRequest('aviator.insufficient', 'Insufficient balance');
-  if (after > MAX_AMOUNT) throw badRequest('aviator.too_much', 'The balance would exceed the maximum');
-  await db.query('UPDATE aviator_wallets SET balance = $2, updated_at = now() WHERE user_id = $1', [userId, after.toString()]);
-  await db.query(
-    `INSERT INTO aviator_requests (user_id, kind, amount, status, balance_before, balance_after, decided_at) VALUES ($1, $2, $3, 'completed', $4, $5, now())`,
-    [userId, kind, amount.toString(), before.toString(), after.toString()],
-  );
-  return { message: kind === 'deposit' ? 'Credits added to your wallet' : 'Credits removed from your wallet', balance: credits(after) };
 }
 
 export async function transactions(db: Db, userId: number) {
   const list = await rows<{ kind: string; amount: string; status: string; created_at: Date }>(
-    db, 'SELECT kind, amount, status, created_at FROM aviator_requests WHERE user_id = $1 ORDER BY id DESC LIMIT 100', [userId],
+    db, 'SELECT kind, amount, status, created_at FROM aviator_requests WHERE user_id = $1 AND currency_code IS NOT NULL ORDER BY id DESC LIMIT 100', [userId],
   );
   return list.map(t => ({ type: t.kind, amount: credits(t.amount), status: t.status, date: t.created_at.toISOString() }));
 }
@@ -430,6 +437,8 @@ export async function updateSettings(db: Db, staffId: number, input: SettingsInp
 
 // Adjust a member's demo credits (add, subtract or set), with a reason kept with the record and in the audit log.
 export async function adjustBalance(db: Db, staffId: number, userId: number, mode: 'add' | 'subtract' | 'set', rawAmount: unknown, reason: string) {
+  // Real money since 2026-11-19: Aviator balances change only through transfers, bets and payouts (ledger).
+  if (await playCurrency(db, userId)) throw conflict('aviator.real_money', 'Aviator balances are real money: they change only through transfers, bets and payouts.');
   let amount: bigint | null;
   if (mode === 'set' && ['0', '0.0', '0.00'].includes(String(rawAmount).trim())) amount = 0n;
   else amount = parseAmount(rawAmount);
@@ -452,7 +461,7 @@ export async function adjustBalance(db: Db, staffId: number, userId: number, mod
   return { mode, amount: credits(amount), before: credits(before), after: credits(after), reason: why };
 }
 
-const SETTLED = `result IN ('win', 'loss')`;
+const SETTLED = `result IN ('win', 'loss') AND currency_code IS NOT NULL`;
 const num = (v: string | null | undefined) => Number(v ?? 0);
 
 function totals(row: { bets: string; staked: string | null; paid: string | null; wins: string }) {
@@ -474,14 +483,14 @@ export async function reports(db: Db, days: number) {
     `SELECT ${TOTALS_SQL}, count(DISTINCT user_id) AS players FROM aviator_bets WHERE ${SETTLED} AND created_at >= ${since}`, [days]);
   const extra = await one<{ rounds: string; deposits: string | null; withdrawals: string | null }>(db,
     `SELECT (SELECT count(*) FROM aviator_rounds WHERE status = 'crashed' AND start_time >= ${since}) AS rounds,
-            (SELECT sum(amount) FROM aviator_requests WHERE kind = 'deposit' AND status IN ('completed', 'approved') AND created_at >= ${since}) AS deposits,
-            (SELECT sum(amount) FROM aviator_requests WHERE kind = 'withdrawal' AND status IN ('completed', 'approved') AND created_at >= ${since}) AS withdrawals`, [days]);
+            (SELECT sum(amount) FROM aviator_requests WHERE kind = 'deposit' AND currency_code IS NOT NULL AND created_at >= ${since}) AS deposits,
+            (SELECT sum(amount) FROM aviator_requests WHERE kind = 'withdrawal' AND currency_code IS NOT NULL AND created_at >= ${since}) AS withdrawals`, [days]);
   const daily = await rows<{ day: string; bets: string; staked: string | null; paid: string | null; wins: string; players: string }>(db,
     `SELECT to_char((created_at AT TIME ZONE 'Africa/Kampala')::date, 'YYYY-MM-DD') AS day, ${TOTALS_SQL}, count(DISTINCT user_id) AS players
      FROM aviator_bets WHERE ${SETTLED} AND created_at >= ${since} GROUP BY 1 ORDER BY 1 DESC`, [days]);
   const biggest = await rows<{ id: string; username: string; amount: string; multiplier: number; payout: string; created_at: Date }>(db,
     `SELECT b.id, u.username, b.amount, b.multiplier, b.payout, b.created_at FROM aviator_bets b JOIN users u ON u.id = b.user_id
-     WHERE b.result = 'win' AND b.created_at >= ${since} ORDER BY b.payout - b.amount DESC LIMIT 10`, [days]);
+     WHERE b.result = 'win' AND b.currency_code IS NOT NULL AND b.created_at >= ${since} ORDER BY b.payout - b.amount DESC LIMIT 10`, [days]);
   const players = (order: 'DESC' | 'ASC') => rows<{ public_id: string; username: string; bets: string; staked: string; paid: string }>(db,
     `SELECT u.public_id, u.username, count(*) AS bets, sum(b.amount) AS staked, sum(b.payout) AS paid
      FROM aviator_bets b JOIN users u ON u.id = b.user_id WHERE b.${SETTLED} AND b.created_at >= ${since}
@@ -508,7 +517,7 @@ export async function reports(db: Db, days: number) {
 async function roundStats(db: Db, ids: string[]) {
   if (!ids.length) return new Map<string, { bets: number; staked: number; paid: number; wins: number }>();
   const list = await rows<{ round_id: string; bets: string; staked: string; paid: string; wins: string }>(db,
-    `SELECT round_id, ${TOTALS_SQL} FROM aviator_bets WHERE round_id = ANY($1::bigint[]) GROUP BY round_id`, [ids]);
+    `SELECT round_id, ${TOTALS_SQL} FROM aviator_bets WHERE round_id = ANY($1::bigint[]) AND currency_code IS NOT NULL GROUP BY round_id`, [ids]);
   return new Map(list.map(r => [r.round_id, { bets: Number(r.bets), staked: credits(r.staked), paid: credits(r.paid), wins: Number(r.wins) }]));
 }
 
@@ -533,7 +542,7 @@ export async function listRounds(db: Db, limit: number) {
 async function roundBets(db: Db, roundId: string) {
   const list = await rows<{ id: string; public_id: string; username: string; amount: string; result: string; multiplier: number; payout: string }>(db,
     `SELECT b.id, u.public_id, u.username, b.amount, b.result, b.multiplier, b.payout FROM aviator_bets b JOIN users u ON u.id = b.user_id
-     WHERE b.round_id = $1 ORDER BY b.amount DESC`, [roundId]);
+     WHERE b.round_id = $1 AND b.currency_code IS NOT NULL ORDER BY b.amount DESC`, [roundId]);
   return list.map(b => ({
     bet_id: Number(b.id), userId: b.public_id, username: b.username, amount: credits(b.amount), result: b.result,
     multiplier: b.result === 'win' ? Math.round(b.multiplier * 100) / 100 : null, payout: credits(b.payout),
@@ -560,13 +569,13 @@ export async function live(db: Db, now: Date) {
 // Players: members who have an Aviator wallet or bets, with search by username.
 export async function listPlayers(db: Db, q: string) {
   const list = await rows<{ public_id: string; username: string; status: string; balance: string; bets: string; staked: string | null; paid: string | null; last_bet: Date | null }>(db,
-    `SELECT u.public_id, u.username, u.status, w.balance,
-            (SELECT count(*) FROM aviator_bets b WHERE b.user_id = u.id) AS bets,
+    `SELECT u.public_id, u.username, u.status, (w.balance_minor * 10 ^ (2 - c.exponent))::bigint AS balance,
+            (SELECT count(*) FROM aviator_bets b WHERE b.user_id = u.id AND b.currency_code IS NOT NULL) AS bets,
             (SELECT sum(amount) FROM aviator_bets b WHERE b.user_id = u.id AND b.${SETTLED}) AS staked,
             (SELECT sum(payout) FROM aviator_bets b WHERE b.user_id = u.id AND b.${SETTLED}) AS paid,
-            (SELECT max(created_at) FROM aviator_bets b WHERE b.user_id = u.id) AS last_bet
-     FROM aviator_wallets w JOIN users u ON u.id = w.user_id
-     WHERE $1 = '' OR u.username ILIKE '%' || $1 || '%'
+            (SELECT max(created_at) FROM aviator_bets b WHERE b.user_id = u.id AND b.currency_code IS NOT NULL) AS last_bet
+     FROM accounts w JOIN users u ON u.id = w.user_id JOIN currencies c ON c.code = w.currency_code
+     WHERE w.kind = 'member_aviator' AND ($1 = '' OR u.username ILIKE '%' || $1 || '%')
      ORDER BY last_bet DESC NULLS LAST, u.username LIMIT 200`, [q.replace(/[%_\\]/g, m => `\\${m}`)]);
   return list.map(p => ({
     userId: p.public_id, username: p.username, status: p.status, balance: credits(p.balance), bets: Number(p.bets),
@@ -576,14 +585,16 @@ export async function listPlayers(db: Db, q: string) {
 
 export async function playerDetail(db: Db, userId: number) {
   const u = await one<{ public_id: string; username: string; status: string; created_at: Date }>(db, 'SELECT public_id, username, status, created_at FROM users WHERE id = $1', [userId]);
-  const bal = await maybeOne<{ balance: string }>(db, 'SELECT balance FROM aviator_wallets WHERE user_id = $1', [userId]);
+  const bal = await maybeOne<{ balance: string }>(db,
+    `SELECT (a.balance_minor * 10 ^ (2 - c.exponent))::bigint AS balance FROM accounts a JOIN users u ON u.id = a.user_id AND a.currency_code = u.currency_code
+     JOIN currencies c ON c.code = a.currency_code WHERE a.kind = 'member_aviator' AND a.user_id = $1`, [userId]);
   const t = await one<{ bets: string; staked: string | null; paid: string | null; wins: string; best: number | null }>(db,
     `SELECT ${TOTALS_SQL}, max(multiplier) FILTER (WHERE result = 'win') AS best FROM aviator_bets WHERE user_id = $1 AND ${SETTLED}`, [userId]);
   const bets = await rows<{ id: string; round_id: string; amount: string; result: string; multiplier: number; payout: string; created_at: Date }>(db,
-    'SELECT id, round_id, amount, result, multiplier, payout, created_at FROM aviator_bets WHERE user_id = $1 ORDER BY id DESC LIMIT 50', [userId]);
+    'SELECT id, round_id, amount, result, multiplier, payout, created_at FROM aviator_bets WHERE user_id = $1 AND currency_code IS NOT NULL ORDER BY id DESC LIMIT 50', [userId]);
   const moves = await rows<{ kind: string; amount: string; status: string; balance_before: string | null; balance_after: string | null; reason: string | null; created_at: Date; staff: string | null }>(db,
     `SELECT r.kind, r.amount, r.status, r.balance_before, r.balance_after, r.reason, r.created_at, s.username AS staff
-     FROM aviator_requests r LEFT JOIN users s ON s.id = r.decided_by WHERE r.user_id = $1 ORDER BY r.id DESC LIMIT 50`, [userId]);
+     FROM aviator_requests r LEFT JOIN users s ON s.id = r.decided_by WHERE r.user_id = $1 AND r.currency_code IS NOT NULL ORDER BY r.id DESC LIMIT 50`, [userId]);
   const stats = totals(t);
   return {
     user: { id: u.public_id, username: u.username, status: u.status, createdAt: u.created_at, balance: credits(bal?.balance ?? '0') },
@@ -638,10 +649,11 @@ export async function exportCsv(db: Db, kind: string): Promise<{ csv: string; ro
   let header: string[];
   let data: unknown[][];
   if (kind === 'bets') {
-    header = ['bet_id', 'round_id', 'username', 'amount', 'result', 'multiplier', 'payout', 'created_at'];
-    data = (await rows<{ id: string; round_id: string; username: string; amount: string; result: string; multiplier: number; payout: string; created_at: Date }>(db,
-      `SELECT b.id, b.round_id, u.username, b.amount, b.result, b.multiplier, b.payout, b.created_at FROM aviator_bets b JOIN users u ON u.id = b.user_id ORDER BY b.id DESC LIMIT $1`, [EXPORT_LIMIT]))
-      .map(b => [b.id, b.round_id, b.username, creditText(b.amount), b.result, Math.round((b.multiplier || 0) * 10_000) / 10_000, creditText(b.payout), b.created_at]);
+    header = ['bet_id', 'round_id', 'username', 'currency', 'amount', 'result', 'multiplier', 'payout', 'created_at'];
+    data = (await rows<{ id: string; round_id: string; username: string; currency_code: string; amount: string; result: string; multiplier: number; payout: string; created_at: Date }>(db,
+      `SELECT b.id, b.round_id, u.username, b.currency_code, b.amount, b.result, b.multiplier, b.payout, b.created_at FROM aviator_bets b JOIN users u ON u.id = b.user_id
+       WHERE b.currency_code IS NOT NULL ORDER BY b.id DESC LIMIT $1`, [EXPORT_LIMIT]))
+      .map(b => [b.id, b.round_id, b.username, b.currency_code, creditText(b.amount), b.result, Math.round((b.multiplier || 0) * 10_000) / 10_000, creditText(b.payout), b.created_at]);
   } else if (kind === 'rounds') {
     header = ['round_id', 'status', 'start_time', 'crash_point', 'bets', 'staked', 'paid', 'house_profit', 'house_edge_percent', 'hash', 'server_seed'];
     const list = await rows<Round>(db, 'SELECT * FROM aviator_rounds ORDER BY id DESC LIMIT $1', [EXPORT_LIMIT]);
@@ -651,10 +663,12 @@ export async function exportCsv(db: Db, kind: string): Promise<{ csv: string; ro
       return [r.id, r.status, r.start_time, s.crash_point, s.bets, s.staked, s.paid, s.house_profit, s.house_edge_percent, r.hash, r.status === 'crashed' ? r.server_seed : null];
     });
   } else if (kind === 'transactions') {
-    header = ['type', 'username', 'amount', 'status', 'balance_before', 'balance_after', 'reason', 'created_at'];
-    data = (await rows<{ kind: string; username: string; amount: string; status: string; balance_before: string | null; balance_after: string | null; reason: string | null; created_at: Date }>(db,
-      `SELECT r.kind, u.username, r.amount, r.status, r.balance_before, r.balance_after, r.reason, r.created_at FROM aviator_requests r JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT $1`, [EXPORT_LIMIT]))
-      .map(t => [t.kind, t.username, creditText(t.amount), t.status, t.balance_before && creditText(t.balance_before), t.balance_after && creditText(t.balance_after), t.reason, t.created_at]);
+    header = ['type', 'username', 'currency', 'amount', 'status', 'balance_before', 'balance_after', 'reason', 'created_at'];
+    data = (await rows<{ kind: string; username: string; currency_code: string; amount: string; status: string; balance_before: string | null; balance_after: string | null; reason: string | null; created_at: Date }>(db,
+      `SELECT r.kind, u.username, r.currency_code, r.amount, r.status, r.balance_before, r.balance_after, r.reason, r.created_at FROM aviator_requests r JOIN users u ON u.id = r.user_id
+       WHERE r.currency_code IS NOT NULL ORDER BY r.id DESC LIMIT $1`, [EXPORT_LIMIT]))
+      .map(t => [t.kind === 'deposit' ? 'moved_in' : t.kind === 'withdrawal' ? 'moved_out' : t.kind, t.username, t.currency_code, creditText(t.amount), t.status,
+        t.balance_before && creditText(t.balance_before), t.balance_after && creditText(t.balance_after), t.reason, t.created_at]);
   } else {
     return null;
   }

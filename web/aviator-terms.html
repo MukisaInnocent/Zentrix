@@ -18,62 +18,72 @@
     <span class="zx-dot-icon zx-dot-icon--main"><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#alert"></use></svg></span>
     <div>
       <h1>Aviator Terms and Conditions</h1>
-      <p>Version of 19 November 2026. Read these terms before you play.</p>
+      <p>Real-money version of 19 November 2026. Read these terms before you play.</p>
     </div>
   </div>
-  <!-- Owner, 2026-11-19. When this text changes, change TERMS_VERSION in server/src/modules/aviator/service.ts so every member accepts again. -->
+  <!-- Owner, 2026-11-19 (real money). When this text changes, change TERMS_VERSION in server/src/modules/aviator/service.ts so every member accepts again. -->
   <article class="zx-card zx-legal">
     <h3>1. About these terms</h3>
-    <p>These terms apply to the Aviator game on Pexerearn. They apply together with the site's <a href="/terms">Terms of Service</a>, <a href="/risk">Risk Warning</a> and <a href="/privacy">Privacy Policy</a>. If these terms and the site's terms differ about Aviator, these terms apply. You must accept these terms before you place your first bet. If the terms change, you will be asked to accept the new version before you play again.</p>
+    <p>These terms apply to the Aviator game on Pexerearn, which is played with real money. They apply together with the site's <a href="/terms">Terms of Service</a>, <a href="/risk">Risk Warning</a> and <a href="/privacy">Privacy Policy</a>. If these terms and the site's terms differ about Aviator, these terms apply. You must accept these terms before you place your first bet. If the terms change, you will be asked to accept the new version before you play again.</p>
 
-    <h3>2. Who may play</h3>
-    <p>You must be at least 18 years old, signed in to your own Pexerearn account and allowed to take part in games of this kind where you live. Each person may use one account only. Do not play if the law where you are does not allow it.</p>
+    <h3>2. Licence and where Aviator is offered</h3>
+    <p>Aviator is operated by Pexerearn under licence number NLGRB-BMTOL-26-0290 issued by the National Lotteries and Gaming Regulatory Board of Uganda. It is offered only to members registered in a country where it is switched on; today that is Uganda, in Uganda shillings (UGX). In other countries the game shows that it is not available.</p>
 
-    <h3>3. Demo credits</h3>
-    <p>Aviator is played with demo credits only. Demo credits have no cash value. They cannot be withdrawn, exchanged for money, moved to your Pexerearn balance, transferred to another member or used anywhere else on the site. You can add or remove demo credits on the Aviator page at any time, free of charge. Pexerearn staff may correct, adjust or reset demo credits, and every such change is recorded with a reason.</p>
-    <p>Aviator does not offer real-money play. If real-money play is ever offered, it will start only under the required licence and with new terms that you must read and accept first.</p>
+    <h3>3. Who may play</h3>
+    <p>You must be at least 18 years old, signed in to your own Pexerearn account and allowed to take part in games of chance where you live. Each person may use one account only. Do not play if the law where you are does not allow it. We may ask you to prove your age or identity before you play or withdraw.</p>
 
-    <h3>4. How a round works</h3>
+    <h3>4. Your Aviator balance</h3>
+    <ul>
+      <li>Aviator has its own balance, in your account's currency. You add money to it from your deposit balance first, then your main balance.</li>
+      <li>You can move money from your Aviator balance back to your main balance at any time, except money staked in a round in flight. From the main balance you withdraw it to your registered phone on the Withdraw page, with the usual withdrawal charges, tax, limits and checks.</li>
+      <li>Every bet, win and move is recorded in Pexerearn's accounts and shown in your activity.</li>
+    </ul>
+
+    <h3>5. How a round works</h3>
     <ul>
       <li>Each round opens with a short betting window. You may place one bet per round during that window.</li>
       <li>When the window closes the plane takes off and the multiplier rises from 1.00x.</li>
-      <li>Press Cash out before the round ends to win your bet multiplied by the multiplier at that moment.</li>
+      <li>Press Cash out before the round ends to receive your bet multiplied by the multiplier at that moment (rounded down to the cent of the multiplier and to the smallest unit of the currency).</li>
       <li>If the round ends before you cash out, your bet is lost.</li>
       <li>The server's clock decides when you cashed out and when the round ended. Delays on your device or network are at your own risk.</li>
     </ul>
 
-    <h3>5. Bets and limits</h3>
-    <p>You may bet any amount up to your demo-credit balance, within the minimum and maximum bet shown on the game page. There is no fixed maximum win: what you can win is limited only by the house limit in section 7. The bet limits may change, and a change applies from the next round.</p>
+    <h3>6. Bets</h3>
+    <p>There is no minimum or maximum bet: you may bet any amount up to your Aviator balance. There is no fixed maximum win; what can be won in a round is limited only by the house limit in section 8.</p>
 
-    <h3>6. Fair play and the crash point</h3>
+    <h3>7. Fair play and the crash point</h3>
     <p>Before each round starts, the server publishes the SHA-256 hash of a secret seed. The seed decides the round's crash point. When the round ends the seed is revealed, so you can check on the game page that it matches the published hash and produces that crash point. No one chooses the seed's crash point.</p>
 
-    <h3>7. The house limit (risk management)</h3>
-    <p>To protect the game's operator, Aviator keeps a house balance. Every bet adds its stake to the house balance, and every cash-out takes its payout from it. The operator sets a minimum, called the floor, below which the house balance may not fall.</p>
+    <h3>8. The house limit (risk management)</h3>
+    <p>Aviator is played against the house. Stakes that are lost go to the house, and winnings are paid from the house. The house keeps a minimum amount, called the floor, in each currency.</p>
     <ul>
       <li>While the plane is flying, the server works out what it would cost to pay every bet still in the air at the current multiplier.</li>
-      <li>If paying those bets would take the house balance below the floor, the round ends at that multiplier. It can end before the seed's crash point.</li>
+      <li>If paying those bets would take the house below its floor, the round ends at that multiplier. It can end before the seed's crash point, and when large bets are in the air it can end at 1.00x, so that every bet still in the air loses.</li>
       <li>Every bet still in the air when the round ends this way is lost, just as at any other end of a round. Bets already cashed out are paid in full.</li>
       <li>A round ended by the house limit shows "HOUSE LIMIT REACHED". The round check shows both the crash point from the seed and the multiplier at which the round ended.</li>
       <li>The house limit applies to all players in a round equally. It never looks at who placed a bet.</li>
+      <li>While the house is at or below its floor, no bets are taken.</li>
     </ul>
-    <p>This means the most that can be won in a round depends on the house balance at that moment. When many players or large bets are in the air, a round may end at a lower multiplier than it otherwise would.</p>
 
-    <h3>8. Other safeguards</h3>
+    <h3>9. Other safeguards</h3>
     <ul>
-      <li><strong>Settings.</strong> The operator may change the betting window, climb speed, house edge, bet limits, house balance and floor. Changes apply from the next round, except a change to the house balance, which applies from the next cash-out or round.</li>
+      <li><strong>Settings.</strong> The operator may change the betting window, climb speed, house edge, house money and floor. Changes apply from the next round, except a change to the house money, which applies from the next cash-out or round.</li>
       <li><strong>Pause.</strong> The operator may pause the game. A round already in flight finishes normally, and no new round starts until the game is resumed.</li>
-      <li><strong>Errors.</strong> If a fault, outage or error affects a round or a balance, the operator may cancel the round or correct the demo-credit balances concerned, and will record why.</li>
-      <li><strong>Misuse.</strong> Bots, scripts, automated play, playing from more than one account, sharing accounts or using a fault in the game to gain credits are not allowed. The operator may review unusually high returns, reset the demo credits involved and suspend Aviator access or the account under the site's Terms of Service.</li>
+      <li><strong>Errors.</strong> If a fault, outage or error affects a round or a balance, the operator may cancel the round, return the stakes concerned or correct the balances concerned, and will record why.</li>
+      <li><strong>Misuse.</strong> Bots, scripts, automated play, playing from more than one account, sharing accounts, using money that is not yours, or using a fault in the game are not allowed. The operator may review unusually high returns, hold the winnings concerned while it investigates, and suspend Aviator access or the account under the site's Terms of Service and the law.</li>
+      <li><strong>Money checks.</strong> Moves into and out of Aviator, and withdrawals, may be checked under anti-money-laundering rules. Money added to Aviator is meant for play.</li>
     </ul>
 
-    <h3>9. Responsible play</h3>
-    <p>Aviator is a game of chance for entertainment. Results are random and past rounds do not predict future ones. There is no strategy that guarantees a win, and nothing on Pexerearn promises any income from Aviator. Take breaks, and stop if playing stops being fun. If you are worried about your play, contact support through the <a href="/contact">Contact</a> page.</p>
+    <h3>10. Taxes</h3>
+    <p>Winnings may be subject to tax under the law of the country where you play. Where the law requires Pexerearn to deduct tax, it will be deducted and shown to you.</p>
 
-    <h3>10. Our responsibility</h3>
-    <p>The game is provided as it is. We do our best to keep it running and fair, but we do not promise that it will always be available or free of errors. Because demo credits have no cash value, Pexerearn is not liable for the loss of demo credits for any reason.</p>
+    <h3>11. Responsible play</h3>
+    <p>Aviator is a game of chance. You can lose the money you bet. Results are random and past rounds do not predict future ones. There is no strategy that guarantees a win, and nothing on Pexerearn promises any income from Aviator. Only play with money you can afford to lose, set yourself limits, take breaks, and stop if playing stops being fun. If you want your Aviator access closed for a period, or you are worried about your play, contact support through the <a href="/contact">Contact</a> page.</p>
 
-    <h3>11. Changes and contact</h3>
+    <h3>12. Our responsibility</h3>
+    <p>We do our best to keep the game running and fair, but we do not promise that it will always be available or free of errors. Nothing in these terms limits any right you have under the law.</p>
+
+    <h3>13. Changes and contact</h3>
     <p>We may update these terms. The version date at the top changes when we do, and you will be asked to accept the new version before you play again. Questions about these terms can be sent through the <a href="/contact">Contact</a> page.</p>
   </article>
 </div>

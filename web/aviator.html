@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aviator · Pexerearn</title>
-<meta name="description" content="Aviator with demo credits.">
+<meta name="description" content="Aviator: cash out before the plane flies away.">
 <meta name="theme-color" content="#5b2bd6">
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
@@ -20,7 +20,7 @@
   <div id="message-box" class="avx-alert" role="status" aria-live="polite"></div>
   <div class="avx-top">
     <h1>Aviator</h1>
-    <span class="avx-balance">Demo credits: <strong id="nav-balance" class="nav-balance" data-value="0">0.00 cr</strong></span>
+    <span class="avx-balance">Aviator balance: <strong id="nav-balance" class="nav-balance" data-value="0">0</strong></span>
   </div>
 
   <!-- Owner, 2026-11-19: members accept the Aviator terms before they play (web/js/pages/aviator-gate.js). -->
@@ -28,7 +28,8 @@
     <h2 id="terms-gate-title">Before you play</h2>
     <p>Please read the <a href="/aviator-terms" target="_blank" rel="noopener">Aviator Terms and Conditions</a>. In short:</p>
     <ul>
-      <li>Aviator uses demo credits. They have no cash value and cannot be withdrawn.</li>
+      <li>Aviator is played with real money. Only bet what you can afford to lose.</li>
+      <li>Move money in from your deposit or main balance; move it back to your main balance to withdraw it.</li>
       <li>Cash out before the round ends to win; if the round ends first, your bet is lost.</li>
       <li>House limit: if paying every player still in the air would take the house balance below its floor, the round ends at that point and those bets lose.</li>
       <li>Bots, scripts and more than one account are not allowed.</li>
@@ -42,13 +43,12 @@
   </section>
 
   <div class="game-layout">
-    <section class="game-panel card fade-in" aria-label="Aviator demo game">
+    <section class="game-panel card fade-in" aria-label="Aviator game">
       <div class="game-heading">
         <div>
-          <span class="eyebrow">Demo mode · Live round</span>
+          <span class="eyebrow">Live round</span>
           <h2>Take off &amp; cash out</h2>
         </div>
-        <span class="demo-note">Demo credits have no cash value</span>
       </div>
 
       <div class="ticker" id="ticker" aria-label="Recent crash points"></div>
@@ -84,7 +84,7 @@
         <div>
           <button id="btn-bet" class="action-btn" type="button">
             <span class="btn-title">Place bet</span>
-            <small class="btn-sub">10.00 credits</small>
+            <small class="btn-sub"></small>
           </button>
           <button id="btn-cashout" class="action-btn" type="button" hidden>
             <span>Cash out</span>
@@ -128,24 +128,24 @@
 
   <div class="wallet-layout">
     <section class="card">
-      <h2>Demo credits</h2>
-      <p class="note">Demo mode: adding and removing credits applies instantly.</p>
+      <h2>Aviator balance</h2>
+      <p class="note">Real money. Moves apply at once.</p>
       <div class="segmented" role="tablist">
-        <button type="button" role="tab" data-tab="deposit" aria-selected="true">Add credits</button>
-        <button type="button" role="tab" data-tab="withdraw" aria-selected="false">Remove credits</button>
+        <button type="button" role="tab" data-tab="deposit" aria-selected="true">Add money</button>
+        <button type="button" role="tab" data-tab="withdraw" aria-selected="false">Withdraw</button>
       </div>
       <form id="dep-form" class="request-form">
-        <p>Top up your demo credits instantly.</p>
+        <p>Taken from your deposit balance first, then your main balance. To pay in new money, use <a href="/deposit">Deposit</a>.</p>
         <div class="input-row">
-          <input type="number" id="dep-amount" placeholder="Credits" min="0.01" step="0.01" aria-label="Credits to add">
+          <input type="number" id="dep-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to add to Aviator">
           <button type="submit" class="btn-success">Add</button>
         </div>
       </form>
       <form id="with-form" class="request-form" hidden>
-        <p>This only adjusts demo credits; it does not transfer or pay out money.</p>
+        <p>Moves money to your main balance. From there, withdraw it to your phone on the <a href="/withdraw">Withdraw</a> page.</p>
         <div class="input-row">
-          <input type="number" id="with-amount" placeholder="Credits" min="0.01" step="0.01" aria-label="Credits to remove">
-          <button type="submit">Remove</button>
+          <input type="number" id="with-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to move to the main balance">
+          <button type="submit">Move to main balance</button>
         </div>
       </form>
     </section>

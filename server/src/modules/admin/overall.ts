@@ -84,7 +84,7 @@ export async function buildOverall(db: Db, livepay: ProviderBalanceSnapshot | nu
   const owed = await rows<{ currency_code: string; total: string }>(
     db,
     `SELECT currency_code, sum(balance_minor)::text AS total FROM accounts
-     WHERE kind IN ('member_main', 'member_deposit', 'member_withdrawal_hold') GROUP BY 1`,
+     WHERE kind IN ('member_main', 'member_deposit', 'member_withdrawal_hold', 'member_aviator') GROUP BY 1`, // Aviator balances are owed too (2026-11-19)
   );
   const channels = await rows<{ code: string; name: string; provider: string | null; currency_code: string; ledger: string | null; statement: string | null; statement_at: Date | null }>(
     db,

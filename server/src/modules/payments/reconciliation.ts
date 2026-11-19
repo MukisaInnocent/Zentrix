@@ -30,6 +30,7 @@ export interface CurrencyReport {
   memberDepositMinor: string;
   memberTaskMinor: string;
   memberHeldMinor: string;
+  memberAviatorMinor: string;
   ledgerHeldMinor: string;
   fundsHeldMinor: string;
   coverageMinor: string;
@@ -89,8 +90,10 @@ export async function buildReport(db: Db): Promise<Report> {
     const deposit = sum('member_deposit');
     const task = sum('member_task');
     const held = sum('member_withdrawal_hold');
+    // Aviator balances are real money owed to members (owner, 2026-11-19).
+    const aviator = sum('member_aviator');
     // Task earnings are not counted: they cannot be withdrawn and are not real money yet (owner, 2026-11-05).
-    const liabilities = main + deposit + held;
+    const liabilities = main + deposit + held + aviator;
     const positions = channels.filter(c => c.currency_code === currency).map((c): ChannelPosition => {
       const ledger = BigInt(c.ledger ?? '0');
       return {
@@ -112,12 +115,12 @@ export async function buildReport(db: Db): Promise<Report> {
     if (drift.some(d => d.currency_code === currency)) findings.push({ severity: 'critical', kind: 'drift', message: `Cached ${currency} balances differ from their ledger entries.` });
     if (unbalanced.some(u => u.currency_code === currency)) findings.push({ severity: 'critical', kind: 'unbalanced', message: `${currency} ledger debits and credits do not match.` });
     const system: Record<string, string> = {};
-    for (const kind of ['platform_revenue', 'fees', 'referral_budget', 'promotions_budget', 'campaign_escrow', 'task_credit', 'owner_capital', 'voucher_liability', 'suspense']) {
+    for (const kind of ['platform_revenue', 'fees', 'referral_budget', 'promotions_budget', 'campaign_escrow', 'task_credit', 'owner_capital', 'voucher_liability', 'suspense', 'aviator_house']) {
       system[kind] = sum(kind).toString();
     }
     return {
       currency, ok: !findings.some(f => f.severity === 'critical'), liabilitiesMinor: liabilities.toString(), memberMainMinor: main.toString(), memberDepositMinor: deposit.toString(),
-      memberTaskMinor: task.toString(), memberHeldMinor: held.toString(), ledgerHeldMinor: ledgerHeld.toString(), fundsHeldMinor: funds.toString(),
+      memberTaskMinor: task.toString(), memberHeldMinor: held.toString(), memberAviatorMinor: aviator.toString(), ledgerHeldMinor: ledgerHeld.toString(), fundsHeldMinor: funds.toString(),
       coverageMinor: (funds - liabilities).toString(), unverifiedChannels: positions.filter(p => p.statementMinor === null).length, system, channels: positions, findings,
     };
   });

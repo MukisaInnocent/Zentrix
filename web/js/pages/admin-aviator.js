@@ -1,6 +1,6 @@
 import { api } from '../core/api.js';
 import { $, $$, h } from '../core/dom.js';
-import { act, ago, askForm, debounce, emptyRow, kv, panel, sheet, when } from '../admin/kit.js';
+import { act, ago, askForm, debounce, emptyRow, kv, moneyPost, panel, sheet, when } from '../admin/kit.js';
 
 // Aviator: the owner's Aviator project admin dashboard (2026-11-06, later), in the staff console. Tabs: overview, live round,
 // rounds, players, credit transactions, review flags, game settings and the Aviator audit trail. The project's own
@@ -8,12 +8,13 @@ import { act, ago, askForm, debounce, emptyRow, kv, panel, sheet, when } from '.
 // settings and credits; finance and support look. The server audits every change.
 let me = null;
 const isAdmin = () => Boolean(me?.roles.includes('admin'));
-const credits = n => Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Amounts in the currency's main unit (real money since 2026-11-19; UGX has no decimals).
+const credits = n => Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const pct = n => (n === null || n === undefined ? '-' : `${(n * 100).toFixed(2)}%`);
 const x = n => (n === null || n === undefined ? '-' : `${Number(n).toFixed(2)}x`);
 const signed = n => `${n > 0 ? '+' : ''}${credits(n)}`;
 const tone = n => (n > 0 ? 'zx-text-success' : n < 0 ? 'zx-text-danger' : '');
-const TX = { deposit: 'Credits added', withdrawal: 'Credits removed', adjustment: 'Staff change' };
+const TX = { deposit: 'Moved in', withdrawal: 'Moved out', adjustment: 'Staff change (demo)' };
 const BADGE = { pending: 'zx-badge--warning', approved: 'zx-badge--success', completed: 'zx-badge--success', rejected: 'zx-badge--danger', win: 'zx-badge--success', loss: 'zx-badge--danger', waiting: 'zx-badge--brand', active: 'zx-badge--warning', crashed: '' };
 const badge = s => h('span', { class: `zx-badge ${BADGE[s] ?? ''}` }, s);
 const kpi = (label, value, note, kind = '') => h('div', { class: `zx-kpi${kind ? ` zx-kpi--${kind}` : ''}` },
@@ -40,7 +41,7 @@ async function loadOverview() {
     kpi('House profit', credits(t.house_profit), 'Staked less paid out', t.house_profit < 0 ? 'danger' : ''),
     kpi('Return to players', pct(t.rtp), `Target ${pct(t.target_rtp)}`, rtpGap),
     kpi('Rounds', t.rounds, 'Finished in the period'),
-    kpi('Credits added', credits(t.deposits), `Removed ${credits(t.withdrawals)}`),
+    kpi('Moved into Aviator', credits(t.deposits), `Moved out ${credits(t.withdrawals)}`),
   );
   fill('#ov-daily', r.daily.map(d => h('tr', {}, td(d.date), td(d.bets), td(d.players), td(credits(d.staked), 'zx-td-mono'), td(credits(d.paid), 'zx-td-mono'),
     td(credits(d.house_profit), `zx-td-mono ${tone(d.house_profit)}`), td(pct(d.rtp)))), 7, 'No bets in this period.');
@@ -50,6 +51,50 @@ async function loadOverview() {
   const winners = r.top_winners.filter(p => p.net > 0);
   const losers = r.top_losers.filter(p => p.net < 0);
   fill('#ov-players', [...winners.map(p => row(p, 'winner')), ...losers.map(p => row(p, 'loser'))], 3, 'No settled bets in this period.');
+}
+
+// ----- Real money (owner, 2026-11-19) -----
+async function currencyAction(c, kind) {
+  const isFund = kind === 'fund';
+  const values = await askForm(kind === 'floor' ? {
+    title: `Floor for ${c.currency}`,
+    text: 'The house money never goes below this: the house limit ends a round first, and no bets are taken at or below it.',
+    fields: [{ name: 'floor', label: `Floor (${c.currency})`, inputmode: 'decimal', required: true, value: String(c.floor) }],
+    submitLabel: 'Save',
+    submit: v => api.put(`/api/admin/aviator/currencies/${c.currency}`, { floor: v.floor }),
+  } : {
+    title: isFund ? `Add house money (${c.currency})` : `Return house money to revenue (${c.currency})`,
+    text: isFund ? 'Moves money from platform revenue into the Aviator house.' : `Moves money from the Aviator house back to platform revenue, never below the floor (${credits(c.floor)}).`,
+    fields: [
+      { name: 'amount', label: `Amount (${c.currency})`, inputmode: 'decimal', required: true },
+      { name: 'reason', label: 'Reason (kept in the audit log)', required: true, minLength: 3, maxLength: 200 },
+    ],
+    submitLabel: isFund ? 'Add' : 'Return',
+    submit: v => moneyPost('/api/admin/aviator/house', { currency: c.currency, direction: kind, amount: v.amount, reason: v.reason }),
+  });
+  if (values) await loadMoney();
+}
+async function toggleCurrency(c) {
+  const on = !c.enabled;
+  if (on && !confirm(`Switch real-money Aviator on for ${c.currency}? Members in that currency can then move money in and bet.`)) return;
+  await act(async () => {
+    await api.put(`/api/admin/aviator/currencies/${c.currency}`, { enabled: on });
+    await loadMoney();
+  }, on ? `Real money on for ${c.currency}.` : `Aviator closed for ${c.currency}.`);
+}
+async function loadMoney() {
+  const { currencies } = await api.get('/api/admin/aviator/money');
+  fill('#money-rows', currencies.map(c => h('tr', {},
+    td(c.currency, 'zx-td-strong'), h('td', {}, h('span', { class: `zx-badge ${c.enabled ? 'zx-badge--success' : ''}` }, c.enabled ? 'On' : 'Off')),
+    td(credits(c.house), `zx-td-mono ${c.house <= c.floor ? 'zx-text-danger' : ''}`), td(credits(c.floor), 'zx-td-mono'), td(`${credits(c.memberBalances)} (${c.playersWithBalance})`, 'zx-td-mono'),
+    td(credits(c.movedIn), 'zx-td-mono'), td(credits(c.movedOut), 'zx-td-mono'), td(credits(c.staked), 'zx-td-mono'), td(credits(c.paid), 'zx-td-mono'),
+    td(credits(c.inFlight), 'zx-td-mono'), td(signed(c.companyResult), `zx-td-mono ${tone(c.companyResult)}`),
+    h('td', {}, isAdmin()
+      ? h('span', { class: 'zx-row-actions' },
+        button('Add house money', () => void currencyAction(c, 'fund')), button('Return', () => void currencyAction(c, 'return'), 'ghost'),
+        button('Floor', () => void currencyAction(c, 'floor'), 'ghost'), button(c.enabled ? 'Switch off' : 'Switch on', () => void toggleCurrency(c), c.enabled ? 'ghost' : 'secondary'))
+      : '-'))),
+  12, 'No currencies set up.');
 }
 
 // ----- Live round -----
@@ -108,25 +153,6 @@ async function loadRounds() {
 }
 
 // ----- Players -----
-async function adjust(userId, username, balance, s) {
-  const values = await askForm({
-    title: `Change ${username}'s demo credits`,
-    text: `They have ${credits(balance)} credits now. Demo credits have no cash value.`,
-    fields: [
-      { name: 'mode', label: 'Change', type: 'select', options: [{ value: 'add', label: 'Add' }, { value: 'subtract', label: 'Subtract' }, { value: 'set', label: 'Set to' }] },
-      { name: 'amount', label: 'Credits', inputmode: 'decimal', required: true },
-      { name: 'reason', label: 'Reason (kept in the audit log)', required: true, minLength: 3, maxLength: 200 },
-    ],
-    submitLabel: 'Save',
-    submit: v => api.post(`/api/admin/aviator/players/${userId}/balance`, v),
-  });
-  if (values) {
-    s.close();
-    await openPlayer(userId);
-    void loadPlayers();
-  }
-}
-
 async function openPlayer(userId) {
   const s = sheet('Player');
   await act(async () => {
@@ -135,7 +161,7 @@ async function openPlayer(userId) {
     const st = d.stats;
     s.body.replaceChildren(
       panel('Player', kv([
-        ['Member', memberLink(d.user.id, d.user.username)], ['Account', d.user.status], ['Demo credits', credits(d.user.balance)],
+        ['Member', memberLink(d.user.id, d.user.username)], ['Account', d.user.status], ['Aviator balance', credits(d.user.balance)],
         ['Bets', `${st.bets} (${st.wins} won)`], ['Staked', credits(st.staked)], ['Paid out', credits(st.paid)],
         ['Net', h('span', { class: tone(st.net) }, signed(st.net))], ['Return', pct(st.rtp)], ['Best cash-out', x(st.best_multiplier)],
       ])),
@@ -145,15 +171,14 @@ async function openPlayer(userId) {
           h('tbody', {}, ...d.bets.map(b => h('tr', {}, td(`#${b.round_id}`), td(credits(b.amount), 'zx-td-mono'), h('td', {}, badge(b.result)),
             td(b.result === 'win' ? x(b.multiplier) : '-'), td(credits(b.payout), 'zx-td-mono'), td(ago(b.date), 'zx-td-muted'))))))
         : h('p', { class: 'zx-hint' }, 'No bets yet.')),
-      panel('Credit activity', d.transactions.length
+      panel('Money moved', d.transactions.length
         ? h('div', { class: 'zx-table-wrap' }, h('table', { class: 'zx-table' },
-          h('thead', {}, h('tr', {}, ...['Type', 'Credits', 'Before', 'After', 'Reason', 'Status', 'When'].map(c => h('th', { scope: 'col' }, c)))),
+          h('thead', {}, h('tr', {}, ...['Type', 'Amount', 'Before', 'After', 'Reason', 'Status', 'When'].map(c => h('th', { scope: 'col' }, c)))),
           h('tbody', {}, ...d.transactions.map(t => h('tr', {}, td(TX[t.type] ?? t.type), td(credits(t.amount), 'zx-td-mono'),
             td(t.before === null ? '-' : credits(t.before), 'zx-td-mono'), td(t.after === null ? '-' : credits(t.after), 'zx-td-mono'),
             td([t.reason, t.staff && `by ${t.staff}`].filter(Boolean).join(' ') || '-'), h('td', {}, badge(t.status)), td(ago(t.date), 'zx-td-muted'))))))
-        : h('p', { class: 'zx-hint' }, 'No credit activity yet.')),
+        : h('p', { class: 'zx-hint' }, 'No money moved yet.')),
     );
-    if (isAdmin()) s.setActions(button('Change credits', () => void adjust(userId, d.user.username, d.user.balance, s), 'secondary'));
   });
 }
 
@@ -182,7 +207,7 @@ async function loadTransactions() {
     h('td', {}, r.status === 'pending' && canDecide
       ? h('span', { class: 'zx-row-actions' }, button('Approve', () => void decide(r, 'approve')), button('Reject', () => void decide(r, 'reject'), 'ghost'))
       : '-'))),
-  8, 'No credit activity yet.');
+  8, 'No money moved yet.');
 }
 
 // ----- Flags -----
@@ -194,7 +219,6 @@ async function loadFlags() {
 }
 
 // ----- Settings -----
-let houseLimitOn = false;
 async function loadSettings() {
   const s = await api.get('/api/admin/aviator/settings');
   const form = $('#settings-form');
@@ -202,13 +226,8 @@ async function loadSettings() {
     const input = form.elements.namedItem(name);
     if (!input) continue;
     if (input.type === 'checkbox') input.checked = Boolean(value);
-    else input.value = typeof value === 'number' && ['min_bet', 'max_bet', 'bankroll_floor'].includes(name) ? value.toFixed(2) : value;
+    else input.value = value;
   }
-  houseLimitOn = s.house_limit;
-  form.elements.namedItem('bankroll_set').value = '';
-  $('#s-bankroll-now').textContent = s.house_limit
-    ? `House money now: ${credits(s.bankroll)} (floor ${credits(s.bankroll_floor)}, so players can win up to ${credits(Math.max(0, s.bankroll - s.bankroll_floor))}).`
-    : 'The house limit is off: rounds end only at the crash point from the seed.';
   $('#s-updated').textContent = `Last changed ${when(s.updated_at)}.`;
   for (const el of form.elements) el.disabled = !isAdmin();
 }
@@ -220,19 +239,11 @@ function bindSettings() {
     const v = name => form.elements.namedItem(name).value.trim();
     const body = {
       betting_seconds: Number(v('betting_seconds')), crash_display_seconds: Number(v('crash_display_seconds')), growth_rate: Number(v('growth_rate')),
-      house_edge_percent: Number(v('house_edge_percent')), min_bet: v('min_bet'), max_bet: v('max_bet'),
-      paused: form.elements.namedItem('paused').checked, pause_message: v('pause_message'), bankroll_floor: v('bankroll_floor'),
+      house_edge_percent: Number(v('house_edge_percent')),
+      paused: form.elements.namedItem('paused').checked, pause_message: v('pause_message'),
     };
     const error = form.querySelector('[data-form-error]');
     error.hidden = true;
-    // House money moves with every bet, so it is sent only when the admin types a new amount or turns the limit off.
-    if (!form.elements.namedItem('house_limit').checked) body.bankroll = null;
-    else if (v('bankroll_set')) body.bankroll = v('bankroll_set');
-    else if (!houseLimitOn) {
-      error.textContent = 'Enter the house money to turn the house limit on.';
-      error.hidden = false;
-      return;
-    }
     const ok = await act(async () => {
       try {
         const r = await api.put('/api/admin/aviator/settings', body);
@@ -249,7 +260,7 @@ function bindSettings() {
 }
 
 // ----- Audit -----
-const ACTIONS = { 'aviator.balance_adjust': 'Credits changed', 'aviator.settings_update': 'Settings changed', 'aviator.export': 'Exported', 'aviator.request_approved': 'Request approved', 'aviator.request_rejected': 'Request rejected' };
+const ACTIONS = { 'aviator.currency_update': 'Currency changed', 'aviator.house_fund': 'House money added', 'aviator.house_return': 'House money returned', 'aviator.balance_adjust': 'Credits changed', 'aviator.settings_update': 'Settings changed', 'aviator.export': 'Exported', 'aviator.request_approved': 'Request approved', 'aviator.request_rejected': 'Request rejected' };
 function details(a) {
   if (!a.details || typeof a.details !== 'object') return '-';
   return Object.entries(a.details).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(', ');
@@ -260,7 +271,7 @@ async function loadAudit() {
     6, 'No Aviator changes yet.');
 }
 
-const LOADERS = { overview: loadOverview, live: loadLive, rounds: loadRounds, players: loadPlayers, transactions: loadTransactions, flags: loadFlags, settings: loadSettings, audit: loadAudit };
+const LOADERS = { overview: loadOverview, money: loadMoney, live: loadLive, rounds: loadRounds, players: loadPlayers, transactions: loadTransactions, flags: loadFlags, settings: loadSettings, audit: loadAudit };
 let current = 'overview';
 
 function show(tab) {
