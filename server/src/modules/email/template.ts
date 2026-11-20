@@ -11,6 +11,10 @@ export interface EmailContent {
   note?: string;
   // Why the member gets this email and where to change it; shown in the footer.
   footer?: string;
+  // Plain, personal layout (owner, 2026-11-20, for announcements): no banner, no coloured button, a greeting and a
+  // sign-off, so it reads like a letter. Gmail files banner-and-button mail under Promotions; plain mail far less often.
+  plain?: boolean;
+  greeting?: string;
 }
 
 export interface RenderedEmail {
@@ -29,7 +33,45 @@ export function escapeHtml(value: string): string {
 
 const para = (text: string, style: string) => `<p style="${style}">${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
 
+function renderPlain(content: EmailContent, opts: { origin: string; testMode: boolean }): RenderedEmail {
+  const body = 'margin:0 0 14px;font-size:15px;line-height:22px;color:#222222';
+  const small = 'margin:18px 0 0;font-size:12px;line-height:18px;color:#777777';
+  const lines = [
+    ...(content.greeting ? [para(content.greeting, body)] : []),
+    `<p style="${body}"><b>${escapeHtml(content.heading)}</b></p>`,
+    ...content.paragraphs.map(p => para(p, body)),
+    ...(content.button
+      ? [`<p style="${body}">${escapeHtml(content.button.label)}: <a href="${escapeHtml(content.button.url)}" style="color:#1a56db">${escapeHtml(content.button.url)}</a></p>`]
+      : []),
+    ...(content.note ? [para(content.note, body)] : []),
+    para('Thank you,\nThe Pexerearn team', body),
+    ...(opts.testMode ? [para('TEST MODE: no real money.', small)] : []),
+    ...(content.footer ? [para(content.footer, small)] : []),
+  ];
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(content.heading)}</title></head>
+<body style="margin:0;padding:16px;background:#ffffff;font-family:Arial,Helvetica,sans-serif">
+<div style="max-width:600px">
+${lines.join('\n')}
+</div>
+</body></html>`;
+  const text = [
+    ...(content.greeting ? [content.greeting, ''] : []),
+    content.heading,
+    '',
+    ...content.paragraphs.flatMap(p => [p, '']),
+    ...(content.button ? [`${content.button.label}: ${content.button.url}`, ''] : []),
+    ...(content.note ? [content.note, ''] : []),
+    'Thank you,',
+    'The Pexerearn team',
+    ...(opts.testMode ? ['', 'TEST MODE: no real money.'] : []),
+    ...(content.footer ? ['', content.footer] : []),
+  ].join('\n');
+  return { html, text };
+}
+
 export function renderEmail(content: EmailContent, opts: { origin: string; testMode: boolean }): RenderedEmail {
+  if (content.plain) return renderPlain(content, opts);
   const body = 'margin:0 0 16px;font-size:16px;line-height:24px;color:' + INK;
   const small = 'margin:0 0 8px;font-size:13px;line-height:20px;color:' + MUTED;
   const button = content.button

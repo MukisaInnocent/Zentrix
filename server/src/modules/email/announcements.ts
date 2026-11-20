@@ -83,12 +83,16 @@ export interface AnnouncementContent {
   buttonUrl?: string | null;
 }
 
-// The email itself. A blank line in the body starts a new paragraph.
-export const announcementEmail = (a: AnnouncementContent) => ({
+// The email itself. A blank line in the body starts a new paragraph. Plain and personal (owner, 2026-11-20): a
+// greeting with the member's username, no banner or coloured button, so Gmail files it under Primary more often.
+export const announcementEmail = (a: AnnouncementContent, username?: string | null) => ({
   subject: a.subject.replace(/\s+/g, ' ').trim(),
   heading: a.heading,
   paragraphs: a.body.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean),
   ...(a.buttonLabel && a.buttonUrl ? { button: { label: a.buttonLabel, url: a.buttonUrl } } : {}),
+  plain: true,
+  greeting: username ? `Hi ${username},` : 'Hi,',
+  footer: 'You get these messages because announcements are on in your Pexerearn profile. To stop them, turn off Announcements under Profile > Emails.',
 });
 
 const SENT: SendOutcome[] = ['sent', 'queued', 'duplicate'];
@@ -104,9 +108,9 @@ export async function sendAnnouncementPortion(services: Services, max: number, d
       let left = Math.min(max, (await announcementBudget(services.pool)).budget);
       let sent = 0;
       while (left > 0 && Date.now() < deadline) {
-        const batch = await rows<{ announcement_id: string; user_id: string; email: string; subject: string; heading: string; body: string; button_label: string | null; button_url: string | null }>(
+        const batch = await rows<{ announcement_id: string; user_id: string; email: string; username: string; subject: string; heading: string; body: string; button_label: string | null; button_url: string | null }>(
           services.pool,
-          `SELECT r.announcement_id, r.user_id, u.email, a.subject, a.heading, a.body, a.button_label, a.button_url
+          `SELECT r.announcement_id, r.user_id, u.email, u.username, a.subject, a.heading, a.body, a.button_label, a.button_url
            FROM announcement_recipients r JOIN announcements a ON a.id = r.announcement_id JOIN users u ON u.id = r.user_id
            WHERE r.status = 'waiting' AND a.status = 'sending' ORDER BY r.announcement_id, r.user_id LIMIT $1`,
           [Math.min(left, 50)],
@@ -116,7 +120,7 @@ export async function sendAnnouncementPortion(services: Services, max: number, d
           const outcome = r.email
             ? await sendEmail(services, {
               to: r.email, userId: Number(r.user_id), kind: 'announcement', category: 'announcement', ref: `ann:${r.announcement_id}:${r.user_id}`,
-              ...announcementEmail({ subject: r.subject, heading: r.heading, body: r.body, buttonLabel: r.button_label, buttonUrl: r.button_url }),
+              ...announcementEmail({ subject: r.subject, heading: r.heading, body: r.body, buttonLabel: r.button_label, buttonUrl: r.button_url }, r.username),
             })
             : 'skipped';
           const delivered = SENT.includes(outcome);

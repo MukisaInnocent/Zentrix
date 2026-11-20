@@ -40,3 +40,20 @@ describe('Resend webhook signature', () => {
     expect(verifySignature(secret, '', ts, '', body, now)).toBe(false);
   });
 });
+
+// Owner, 2026-11-20: announcements read like a personal letter so Gmail files them under Primary more often.
+describe('announcement email (plain layout)', () => {
+  it('has a greeting and a plain link, no banner or coloured button, and escapes text', async () => {
+    const { announcementEmail } = await import('../../src/modules/email/announcements.js');
+    const content = announcementEmail({ subject: 'News', heading: 'Aviator <is> open', body: 'First.\n\nSecond & last.', buttonLabel: 'Play', buttonUrl: 'https://pexerearn.com/aviator' }, 'mukisa');
+    const { html, text } = renderEmail(content, { origin: 'https://pexerearn.com', testMode: false });
+    expect(html).toContain('Hi mukisa,');
+    expect(html).toContain('Play: <a href="https://pexerearn.com/aviator"');
+    expect(html).not.toContain('#5b2bd6'); // no brand banner or button
+    expect(html).not.toContain('<is>');
+    expect(text).toContain('Hi mukisa,\n\nAviator <is> open\n\nFirst.\n\nSecond & last.\n\nPlay: https://pexerearn.com/aviator');
+    expect(text).toContain('turn off Announcements');
+    // Other emails keep the branded layout.
+    expect(renderEmail({ heading: 'Reset', paragraphs: ['x'] }, { origin: 'https://pexerearn.com', testMode: false }).html).toContain('#5b2bd6');
+  });
+});
