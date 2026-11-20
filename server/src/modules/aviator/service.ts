@@ -467,7 +467,9 @@ export async function adjustBalance(db: Db, staffId: number, userId: number, mod
   return { mode, amount: credits(amount), before: credits(before), after: credits(after), reason: why };
 }
 
-const SETTLED = `result IN ('win', 'loss') AND currency_code IS NOT NULL`;
+// Settled real-money bets; `a` is the bets table's alias, so the condition never mixes up users.currency_code.
+const settled = (a = '') => `${a}result IN ('win', 'loss') AND ${a}currency_code IS NOT NULL`;
+const SETTLED = settled();
 const num = (v: string | null | undefined) => Number(v ?? 0);
 
 function totals(row: { bets: string; staked: string | null; paid: string | null; wins: string }) {
@@ -499,7 +501,7 @@ export async function reports(db: Db, days: number) {
      WHERE b.result = 'win' AND b.currency_code IS NOT NULL AND b.created_at >= ${since} ORDER BY b.payout - b.amount DESC LIMIT 10`, [days]);
   const players = (order: 'DESC' | 'ASC') => rows<{ public_id: string; username: string; bets: string; staked: string; paid: string }>(db,
     `SELECT u.public_id, u.username, count(*) AS bets, sum(b.amount) AS staked, sum(b.payout) AS paid
-     FROM aviator_bets b JOIN users u ON u.id = b.user_id WHERE b.${SETTLED} AND b.created_at >= ${since}
+     FROM aviator_bets b JOIN users u ON u.id = b.user_id WHERE ${settled('b.')} AND b.created_at >= ${since}
      GROUP BY u.id ORDER BY sum(b.payout) - sum(b.amount) ${order} LIMIT 10`, [days]);
   const playerView = (p: { public_id: string; username: string; bets: string; staked: string; paid: string }) => ({
     userId: p.public_id, username: p.username, bets: Number(p.bets), staked: credits(p.staked), paid: credits(p.paid), net: credits(num(p.paid) - num(p.staked)),
@@ -577,8 +579,8 @@ export async function listPlayers(db: Db, q: string) {
   const list = await rows<{ public_id: string; username: string; status: string; balance: string; bets: string; staked: string | null; paid: string | null; last_bet: Date | null }>(db,
     `SELECT u.public_id, u.username, u.status, (w.balance_minor * 10 ^ (2 - c.exponent))::bigint AS balance,
             (SELECT count(*) FROM aviator_bets b WHERE b.user_id = u.id AND b.currency_code IS NOT NULL) AS bets,
-            (SELECT sum(amount) FROM aviator_bets b WHERE b.user_id = u.id AND b.${SETTLED}) AS staked,
-            (SELECT sum(payout) FROM aviator_bets b WHERE b.user_id = u.id AND b.${SETTLED}) AS paid,
+            (SELECT sum(amount) FROM aviator_bets b WHERE b.user_id = u.id AND ${settled('b.')}) AS staked,
+            (SELECT sum(payout) FROM aviator_bets b WHERE b.user_id = u.id AND ${settled('b.')}) AS paid,
             (SELECT max(created_at) FROM aviator_bets b WHERE b.user_id = u.id AND b.currency_code IS NOT NULL) AS last_bet
      FROM accounts w JOIN users u ON u.id = w.user_id JOIN currencies c ON c.code = w.currency_code
      WHERE w.kind = 'member_aviator' AND ($1 = '' OR u.username ILIKE '%' || $1 || '%')
@@ -623,7 +625,7 @@ export const FLAG_RTP = 1.5;
 export async function flags(db: Db) {
   const list = await rows<{ public_id: string; username: string; bets: string; staked: string; paid: string }>(db,
     `SELECT u.public_id, u.username, count(*) AS bets, sum(b.amount) AS staked, sum(b.payout) AS paid
-     FROM aviator_bets b JOIN users u ON u.id = b.user_id WHERE b.${SETTLED}
+     FROM aviator_bets b JOIN users u ON u.id = b.user_id WHERE ${settled('b.')}
      GROUP BY u.id HAVING count(*) >= $1 AND sum(b.payout) >= $2 * sum(b.amount) ORDER BY sum(b.payout)::float / sum(b.amount) DESC LIMIT 100`,
     [FLAG_MIN_BETS, FLAG_RTP]);
   return {

@@ -179,6 +179,17 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
     const p = (await admin.get<Body>(`/api/admin/aviator/players?q=${m.input.username}`)).body.players[0];
     expect(p).toMatchObject({ username: m.input.username, balance: 0, bets: 2, staked: 30000, paid: 11000 });
     expect((await admin.post<Body>(`/api/admin/aviator/players/${p.userId}/balance`, { mode: 'add', amount: '10', reason: 'test' })).body.error?.code).toBe('aviator.real_money');
+    // Every staff dashboard tab loads (the Overview and Flags queries once mixed up users.currency_code, 2026-11-20).
+    const overview = await support.get<Body>('/api/admin/aviator/reports?days=7');
+    expect(overview.status, JSON.stringify(overview.body)).toBe(200);
+    expect(overview.body.totals).toMatchObject({ staked: 30000, paid: 11000, house_profit: 19000 });
+    expect(overview.body.top_losers.length).toBeGreaterThan(0);
+    for (const path of ['flags', 'live', 'rounds', 'players', 'transactions', 'settings', 'audit', 'money']) {
+      const r = await support.get<Body>(`/api/admin/aviator/${path}`);
+      expect(r.status, `${path}: ${JSON.stringify(r.body)}`).toBe(200);
+    }
+    expect((await admin.get<Body>(`/api/admin/aviator/players/${p.userId}`)).status).toBe(200);
+    expect((await admin.get<Body>(`/api/admin/aviator/rounds/${r2.round_id}`)).status).toBe(200);
     const csv = await admin.get<string>('/api/admin/aviator/export/bets.csv');
     expect(String(csv.body).split('\r\n')[0]).toBe('bet_id,round_id,username,currency,amount,result,multiplier,payout,created_at');
 
