@@ -748,3 +748,44 @@
 .avx .avx-gate-error { color: var(--red); margin-block: 0 1rem; }
 .avx .avx-gate .action-btn { min-height: 52px; inline-size: auto; padding-inline: 2rem; }
 .avx .avx-gate .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Owner, 2026-11-20: a calmer game section (smaller type) and the money panel as an aside beside the game. */
+.avx .avx-top h1 { font-size: 1.15rem; }
+.avx .game-heading { padding: 0.75rem 1rem; }
+.avx .game-heading h2 { margin: 0.1rem 0 0; font-size: 1rem; }
+.avx .multiplier-display { font-size: clamp(2.6rem, 6.5vw, 4.6rem); }
+.avx .flight-status { font-size: 0.72rem; }
+.avx .game-caption { font-size: 0.78rem; }
+.avx .stepper input { font-size: 1rem; }
+.avx .stepper button { font-size: 1rem; }
+.avx .chips button { font-size: 0.72rem; padding: 0.35rem 0; }
+.avx .action-btn { min-height: 74px; font-size: 0.98rem; }
+.avx .action-btn small { font-size: 0.72rem; }
+.avx #btn-cashout strong { font-size: 1.2rem; }
+.avx .bet-info, .avx .limits-hint { font-size: 0.74rem; }
+.avx .sidebar-heading h2 { font-size: 0.95rem; }
+.avx .mini-stat b { font-size: 0.9rem; }
+.avx .history-item { font-size: 0.74rem; }
+.avx .fair-box { font-size: 0.74rem; }
+
+.avx .side-col { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.avx .wallet-aside { padding: 1rem; display: grid; gap: 0.75rem; }
+.avx .wallet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.avx .wallet-balance { font-family: var(--font-display); font-size: 1.15rem; font-variant-numeric: tabular-nums; color: var(--text); }
+.avx .wallet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.avx .wallet-btn {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0.5rem 0.75rem;
+    border-radius: 10px; font-weight: 700; font-size: 0.88rem; text-decoration: none;
+}
+.avx .wallet-btn--in { background: var(--grad-go); color: #04140c; }
+.avx .wallet-btn--out { background: var(--panel-2); color: var(--text); border: 1px solid var(--line-strong); }
+.avx .wallet-btn:hover { filter: brightness(1.08); }
+.avx .wallet-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.avx .wallet-hint { margin: 0; color: var(--text-mute); font-size: 0.72rem; }
+.avx .wallet-more { border-top: 1px solid var(--line); padding-top: 0.6rem; }
+.avx .wallet-more summary { cursor: pointer; color: var(--text-dim); font-size: 0.8rem; font-weight: 600; }
+.avx .wallet-more[open] summary { margin-bottom: 0.6rem; }
+.avx .wallet-more .request-form p { font-size: 0.74rem; }
+.avx .wallet-more .input-row input { min-width: 0; }
+.avx .wallet-more .tx-list { max-height: 220px; overflow-y: auto; }
+.avx .wallet-more .tx-item { font-size: 0.74rem; padding: 0.45rem 0.6rem; }

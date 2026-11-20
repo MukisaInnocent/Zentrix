@@ -20,7 +20,6 @@
   <div id="message-box" class="avx-alert" role="status" aria-live="polite"></div>
   <div class="avx-top">
     <h1>Aviator</h1>
-    <span class="avx-balance">Aviator balance: <strong id="nav-balance" class="nav-balance" data-value="0">0</strong></span>
   </div>
 
   <!-- Owner, 2026-11-19: members accept the Aviator terms before they play (web/js/pages/aviator-gate.js). -->
@@ -97,6 +96,45 @@
       <p class="limits-hint"><a href="/aviator-terms">Aviator Terms and Conditions</a></p>
     </section>
 
+    <div class="side-col">
+    <!-- Owner, 2026-11-20: the money section is a compact panel beside the game, with Deposit and Withdraw buttons. -->
+    <aside class="card wallet-aside fade-in" aria-labelledby="wallet-title">
+      <div class="wallet-head">
+        <span class="eyebrow" id="wallet-title">Aviator balance</span>
+        <strong id="nav-balance" class="nav-balance wallet-balance" data-value="0">0</strong>
+      </div>
+      <div class="wallet-actions">
+        <a class="wallet-btn wallet-btn--in" href="/deposit?to=aviator">Deposit</a>
+        <a class="wallet-btn wallet-btn--out" href="/withdraw?from=aviator">Withdraw</a>
+      </div>
+      <p class="wallet-hint">Mobile money straight in and out. Usual withdrawal limits and charges.</p>
+      <details class="wallet-more">
+        <summary>Move between balances</summary>
+        <div class="segmented" role="tablist">
+          <button type="button" role="tab" data-tab="deposit" aria-selected="true">From my balances</button>
+          <button type="button" role="tab" data-tab="withdraw" aria-selected="false">To main balance</button>
+        </div>
+        <form id="dep-form" class="request-form">
+          <p>From your deposit balance first, then your main balance.</p>
+          <div class="input-row">
+            <input type="number" id="dep-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to add to Aviator">
+            <button type="submit" class="btn-success">Add</button>
+          </div>
+        </form>
+        <form id="with-form" class="request-form" hidden>
+          <p>Moves money to your main balance.</p>
+          <div class="input-row">
+            <input type="number" id="with-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to move to the main balance">
+            <button type="submit">Move</button>
+          </div>
+        </form>
+      </details>
+      <details class="wallet-more">
+        <summary>Activity</summary>
+        <ul class="tx-list" id="trans-list"><li class="history-empty">Loading...</li></ul>
+      </details>
+    </aside>
+
     <aside class="sidebar game-history card fade-in">
       <div class="sidebar-heading">
         <div>
@@ -124,36 +162,9 @@
         <div id="verify-result" class="verify-result" aria-live="polite"></div>
       </details>
     </aside>
+    </div>
   </div>
 
-  <div class="wallet-layout">
-    <section class="card">
-      <h2>Aviator balance</h2>
-      <p class="note">Real money. <a href="/deposit?to=aviator">Deposit with mobile money</a> straight into Aviator, or <a href="/withdraw?from=aviator">withdraw to your phone</a> straight from it (usual withdrawal limits and charges).</p>
-      <div class="segmented" role="tablist">
-        <button type="button" role="tab" data-tab="deposit" aria-selected="true">Add money</button>
-        <button type="button" role="tab" data-tab="withdraw" aria-selected="false">Move to main balance</button>
-      </div>
-      <form id="dep-form" class="request-form">
-        <p>Taken from your deposit balance first, then your main balance. To pay in new money, use <a href="/deposit">Deposit</a>.</p>
-        <div class="input-row">
-          <input type="number" id="dep-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to add to Aviator">
-          <button type="submit" class="btn-success">Add</button>
-        </div>
-      </form>
-      <form id="with-form" class="request-form" hidden>
-        <p>Moves money to your main balance. To send it to your phone instead, use <a href="/withdraw?from=aviator">Withdraw</a>.</p>
-        <div class="input-row">
-          <input type="number" id="with-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to move to the main balance">
-          <button type="submit">Move to main balance</button>
-        </div>
-      </form>
-    </section>
-    <aside class="card">
-      <h2>Activity</h2>
-      <ul class="tx-list" id="trans-list"><li class="history-empty">Loading...</li></ul>
-    </aside>
-  </div>
 </div>
 </div>
 </main>
