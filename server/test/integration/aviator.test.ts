@@ -265,7 +265,8 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
     app.services.now = () => new Date();
   });
 
-  it('takes no bets while the house is at its floor', async () => {
+  // Owner, 2026-11-20: bets are taken at the floor; the round ends at 1.00x.
+  it('takes bets while the house is at its floor and ends those rounds at 1.00x', async () => {
     await freshClock();
     const { m, id } = await player();
     await grant('member_main', 1_000n, id);
@@ -275,9 +276,16 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
       const r = await admin.post<Body>('/api/admin/aviator/house', { currency: 'UGX', direction: 'return', amount: back.toString(), reason: 'Test the floor' }, key());
       expect(r.status, JSON.stringify(r.body)).toBe(200);
     }
-    expect((await m.client.get<Body>('/api/aviator/game/state')).body.status).toBe('waiting');
-    expect((await m.client.post<Body>('/api/aviator/game/bet', { amount: '500' }, key())).body.error?.code).toBe('aviator.house_closed');
-    expect(await balanceOf('member_aviator', id)).toBe(1_000n);
+    const round = (await m.client.get<Body>('/api/aviator/game/state')).body;
+    expect(round.status).toBe('waiting');
+    await app.owner.query('UPDATE aviator_rounds SET crash_point = 5 WHERE id = $1', [round.round_id]);
+    const bet = await m.client.post<Body>('/api/aviator/game/bet', { amount: '500' }, key());
+    expect(bet.status, JSON.stringify(bet.body)).toBe(200);
+    expect(await balanceOf('member_aviator', id)).toBe(500n);
+    app.services.now = () => new Date(Date.parse(round.start_time) + 100);
+    await m.client.get<Body>('/api/aviator/game/state'); // takes off
+    expect((await m.client.get<Body>(`/api/aviator/game/verify/${round.round_id}`)).body).toMatchObject({ crash_point: 1, house_limit: true });
+    expect((await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bet.body.bet_id }, key())).body.error?.code).toBe('aviator.settled');
     app.services.now = () => new Date();
   });
 

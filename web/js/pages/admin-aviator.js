@@ -58,7 +58,7 @@ async function currencyAction(c, kind) {
   const isFund = kind === 'fund';
   const values = await askForm(kind === 'floor' ? {
     title: `Floor for ${c.currency}`,
-    text: 'The house money never goes below this: the house limit ends a round first, and no bets are taken at or below it.',
+    text: 'The house money never goes below this: the house limit ends a round first. At or below it, rounds with bets end at 1.00x.',
     fields: [{ name: 'floor', label: `Floor (${c.currency})`, inputmode: 'decimal', required: true, value: String(c.floor) }],
     submitLabel: 'Save',
     submit: v => api.put(`/api/admin/aviator/currencies/${c.currency}`, { floor: v.floor }),

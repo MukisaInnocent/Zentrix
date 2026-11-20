@@ -247,7 +247,7 @@ async function wallet(db: Db, userId: number, lock = false): Promise<bigint> {
 
 // Aviator Terms and Conditions (owner, 2026-11-19; web/aviator-terms.html). Change the version when the terms change:
 // every member then accepts again before betting.
-export const TERMS_VERSION = '2026-11-19-money';
+export const TERMS_VERSION = '2026-11-20-money';
 
 export async function termsStatus(db: Db, userId: number) {
   const row = await maybeOne(db, 'SELECT 1 FROM aviator_terms_acceptances WHERE user_id = $1 AND version = $2', [userId, TERMS_VERSION]);
@@ -261,8 +261,8 @@ export async function acceptTerms(db: Db, userId: number, version: string) {
 }
 
 // Real money (owner, 2026-11-19): the stake moves from the member's Aviator balance into the house. No minimum or
-// maximum bet: anything up to the Aviator balance (owner). While the house is at or below its floor no bet is taken,
-// since every round would end at once.
+// maximum bet: anything up to the Aviator balance (owner). Bets are taken even while the house is at or below its
+// floor (owner, 2026-11-20): the house limit then ends the round at 1.00x, as the accepted terms say.
 export async function placeBet(db: PoolClient, userId: number, rawAmount: unknown, now: Date) {
   if (!(await termsStatus(db, userId)).accepted) throw conflict('aviator.terms_required', 'Accept the Aviator Terms and Conditions before you play');
   const cur = await requireCurrency(db, userId);
@@ -275,7 +275,6 @@ export async function placeBet(db: PoolClient, userId: number, rawAmount: unknow
     throw conflict('aviator.already_bet', 'You already placed a bet in this round');
   }
   const house = await houseAccount(db, cur.code);
-  if (await balanceOf(db, house) <= cur.floorMinor) throw conflict('aviator.house_closed', 'Aviator is closed for the moment. Please try again later.');
   const wallet = await walletAccount(db, userId, cur.code);
   await recordStake(db, userId, cur.code, amount); // deposit money counts as bet (rolled back if the bet fails)
   let txn: number;
