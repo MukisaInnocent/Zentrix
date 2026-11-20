@@ -225,19 +225,22 @@ export function init() {
     function syncButtons() {
         const canBet = gameState === 'waiting' && !currentBet;
         btnBet.disabled = !canBet || requestInProgress;
-        betInput.disabled = !canBet || requestInProgress;
-        document.querySelectorAll('[data-step], [data-chip]').forEach((b) => { b.disabled = !canBet; });
+        // The stake can be changed at any time, also while the plane flies (owner, 2026-11-20): it is the amount for
+        // the next bet. Only placing the bet waits for the betting window; a bet already placed does not change.
+        betInput.disabled = false;
+        document.querySelectorAll('[data-step], [data-chip]').forEach((b) => { b.disabled = false; });
+        const nextBet = `Next bet: ${withCurrency(parseFloat(betInput.value) || 0)}`;
 
         if (gameState === 'waiting' && !currentBet) {
             setBetButton('Place bet', withCurrency(parseFloat(betInput.value) || 0));
         } else if (gameState === 'waiting') {
             setBetButton('Bet placed', 'Waiting for takeoff…');
         } else if (gameState === 'paused') {
-            setBetButton('Game paused', 'Betting is closed');
+            setBetButton('Game paused', nextBet);
         } else if (gameState === 'active') {
-            setBetButton('Betting closed', 'Wait for the next round');
+            setBetButton('Betting closed', nextBet);
         } else {
-            setBetButton('Next round', 'Starting soon');
+            setBetButton('Next round', nextBet);
         }
 
         const canCashout = gameState === 'active' && currentBet?.result === 'pending';
