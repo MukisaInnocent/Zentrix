@@ -37,7 +37,7 @@ export async function amountToMinor(db: Parameters<typeof exponentOf>[0], curren
 
 const Uuid = z.uuid();
 const DepositBody = z.strictObject({
-  purpose: z.enum(['activation', 'wallet']).default('activation'),
+  purpose: z.enum(['activation', 'wallet', 'aviator']).default('activation'),
   // Wallet deposits only. The activation amount is always the fee and cannot be sent.
   amount: AmountInput.optional(),
   channel: z.string().trim().min(2).max(40),
@@ -52,7 +52,7 @@ const CollectBody = z.strictObject({
   phone: z.string().trim().min(4).max(32).optional(),
   // The mobile-money network, for every currency except UGX (owner, 2026-11-11: Ghana).
   network: z.string().trim().toUpperCase().max(20).optional(),
-  purpose: z.enum(['activation', 'wallet']).default('activation'),
+  purpose: z.enum(['activation', 'wallet', 'aviator']).default('activation'),
   amount: AmountInput.optional(),
 });
 const WithdrawBody = z.strictObject({ source: z.enum(BALANCE_SOURCES).default('main'), amount: AmountInput });
@@ -77,7 +77,16 @@ export function paymentsRouter(services: Services): Router {
   router.use(requireAuth);
   const byUser = (req: Request) => `u${req.auth!.userId}`;
   // Withdrawals open only after the activation fee is confirmed; the activation payment itself must not wait.
-  router.use('/withdrawals', requireActivated(services));
+  // Aviator is open before activation (owner, 2026-11-11) and its balance is withdrawable (owner, 2026-11-20), so a
+  // member who has not activated may still read their withdrawals and charges, withdraw from the Aviator balance and
+  // cancel their own request. A withdrawal from the main balance still needs activation.
+  const activated = requireActivated(services);
+  router.use('/withdrawals', (req, res, next) => {
+    const aviatorRequest = req.method === 'POST' && req.path === '/' && (req.body as { source?: unknown } | undefined)?.source === 'aviator';
+    const ownCancel = req.method === 'POST' && /^\/[^/]+\/cancel$/.test(req.path);
+    if (req.method === 'GET' || aviatorRequest || ownCancel) return next();
+    return activated(req, res, next);
+  });
 
   // The activation payment page: the fee, the payment methods for the member's country (USSD and merchant
   // codes), and whether the account is already active.
@@ -127,7 +136,7 @@ export function paymentsRouter(services: Services): Router {
         throw badRequest('validation_failed', 'The activation amount is fixed.', { amount: ['The activation amount is fixed.'] });
       }
       const member = await memberInfo(db, req.auth!.userId);
-      const amountMinor = input.purpose === 'wallet' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
+      const amountMinor = input.purpose !== 'activation' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
       const deposit = await submitDeposit(db, req.auth!.userId, {
         purpose: input.purpose, ...(amountMinor === undefined ? {} : { amountMinor }),
         channelCode: input.channel, senderPhone: input.senderPhone, providerTxnId: input.providerTxnId, note: input.note,
@@ -153,7 +162,7 @@ export function paymentsRouter(services: Services): Router {
         throw badRequest('validation_failed', 'The activation amount is fixed.', { amount: ['The activation amount is fixed.'] });
       }
       const member = await memberInfo(db, req.auth!.userId);
-      const amountMinor = input.purpose === 'wallet' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
+      const amountMinor = input.purpose !== 'activation' ? await amountToMinor(db, member.currency, input.amount ?? '') : undefined;
       const started = await startCollection(db, services, req.auth!.userId, {
         channelCode: input.channel, phone: input.phone, network: input.network, purpose: input.purpose, ...(amountMinor === undefined ? {} : { amountMinor }),
       });

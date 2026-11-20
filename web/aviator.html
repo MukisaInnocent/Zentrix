@@ -29,7 +29,7 @@
     <p>Please read the <a href="/aviator-terms" target="_blank" rel="noopener">Aviator Terms and Conditions</a>. In short:</p>
     <ul>
       <li>Aviator is played with real money. Only bet what you can afford to lose.</li>
-      <li>Move money in from your deposit or main balance; move it back to your main balance to withdraw it.</li>
+      <li>Deposit with mobile money straight into Aviator, or move money in from your deposit or main balance. Withdraw from your Aviator balance at any time, with the usual withdrawal limits and charges.</li>
       <li>Cash out before the round ends to win; if the round ends first, your bet is lost.</li>
       <li>House limit: if paying every player still in the air would take the house balance below its floor, the round ends at that point and those bets lose.</li>
       <li>Bots, scripts and more than one account are not allowed.</li>
@@ -129,10 +129,10 @@
   <div class="wallet-layout">
     <section class="card">
       <h2>Aviator balance</h2>
-      <p class="note">Real money. Moves apply at once.</p>
+      <p class="note">Real money. <a href="/deposit?to=aviator">Deposit with mobile money</a> straight into Aviator, or <a href="/withdraw?from=aviator">withdraw to your phone</a> straight from it (usual withdrawal limits and charges).</p>
       <div class="segmented" role="tablist">
         <button type="button" role="tab" data-tab="deposit" aria-selected="true">Add money</button>
-        <button type="button" role="tab" data-tab="withdraw" aria-selected="false">Withdraw</button>
+        <button type="button" role="tab" data-tab="withdraw" aria-selected="false">Move to main balance</button>
       </div>
       <form id="dep-form" class="request-form">
         <p>Taken from your deposit balance first, then your main balance. To pay in new money, use <a href="/deposit">Deposit</a>.</p>
@@ -142,8 +142,7 @@
         </div>
       </form>
       <form id="with-form" class="request-form" hidden>
-        <p>Moves money to your main balance. From there, withdraw it to your phone on the <a href="/withdraw">Withdraw</a> page.</p>
-        <p id="withdraw-note" class="note" hidden></p>
+        <p>Moves money to your main balance. To send it to your phone instead, use <a href="/withdraw?from=aviator">Withdraw</a>.</p>
         <div class="input-row">
           <input type="number" id="with-amount" placeholder="Amount" min="1" step="1" inputmode="decimal" aria-label="Amount to move to the main balance">
           <button type="submit">Move to main balance</button>

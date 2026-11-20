@@ -858,13 +858,6 @@ export function init() {
             balance = data.balance;
             if (data.currency && !money.currency) { money.currency = data.currency; money.exponent = data.exponent ?? 0; }
             animateNumber($('nav-balance'), balance, { suffix: ` ${money.currency}` });
-            const note = $('withdraw-note');
-            if (note) {
-                note.hidden = !(data.mustBet > 0);
-                note.textContent = data.mustBet > 0
-                    ? `${withCurrency(data.mustBet)} came from your deposit balance and must be bet before it can be moved out. You can move out up to ${withCurrency(data.withdrawable)} now.`
-                    : '';
-            }
         } catch { /* shown on the next try */ }
     }
 

@@ -98,7 +98,7 @@ async function commandFor(db: Db, r: Pick<RequestRow, 'kind' | 'reference' | 'cu
 // (sendCommand), so no money call happens inside a transaction.
 export async function startCollection(
   db: PoolClient, services: Services, userId: number,
-  input: { channelCode: string; phone?: string | undefined; network?: string | undefined; purpose?: 'activation' | 'wallet'; amountMinor?: bigint },
+  input: { channelCode: string; phone?: string | undefined; network?: string | undefined; purpose?: 'activation' | 'wallet' | 'aviator'; amountMinor?: bigint },
 ): Promise<{ deposit: DepositView; command: ProviderCommand }> {
   const g = gateway(services);
   const member = await memberInfo(db, userId);

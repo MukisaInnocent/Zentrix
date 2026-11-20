@@ -112,10 +112,14 @@ describe('activation payment', () => {
 
   it('keeps the whole site shut until the fee is confirmed, then opens it', async () => {
     const member = await verifiedMember();
-    for (const path of ['/api/tasks', '/api/vouchers', '/api/referrals', '/api/payments/withdrawals', '/api/client-payments']) {
+    for (const path of ['/api/tasks', '/api/vouchers', '/api/referrals', '/api/client-payments']) {
       const res = await member.client.get<Body>(path);
       expect([path, res.status, res.body.error?.code]).toEqual([path, 403, 'activation.required']);
     }
+    // Owner, 2026-11-20: before activation a member may read their withdrawals (Aviator money is withdrawable), but a
+    // withdrawal from the main balance still needs activation.
+    const fromMain = await member.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key());
+    expect([fromMain.status, fromMain.body.error?.code]).toEqual([403, 'activation.required']);
     expect((await member.client.get('/api/wallet/summary')).status).toBe(200);
     expect(((await member.client.get<Body>('/api/me')).body.user as Body).activated).toBe(false);
     await activate(member);

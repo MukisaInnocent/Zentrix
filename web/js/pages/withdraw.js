@@ -8,7 +8,10 @@ import { toast } from '../core/toast.js';
 // Withdrawal request. The server previews the fee and limits, holds amount plus fee, and staff send the payout to
 // the member's verified phone. The page only displays server values.
 // Task earnings cannot be withdrawn yet (owner, 2026-11-03), so the main balance is the only choice.
-const SOURCES = { main: 'Balance' };
+// Withdraw from the main balance or straight from the Aviator balance (owner, 2026-11-20), same limits and charges.
+// Members who have not activated can withdraw only from Aviator. ?from=aviator comes from the Aviator page.
+const SOURCES = { main: 'Balance', aviator: 'Aviator balance' };
+let activated = true;
 
 // After a withdrawal request, the owner's message (2026-11-08: exactly this wording and format, in a green card). It shows
 // for a short time and then goes away; the request's progress is in the history below. Amounts come from the server.
@@ -55,15 +58,20 @@ async function updateQuote(amount) {
 }
 
 async function refresh() {
-  const [summary, list] = await Promise.all([api.get('/api/wallet/summary'), api.get('/api/payments/withdrawals')]);
+  const [summary, list, aviator] = await Promise.all([
+    api.get('/api/wallet/summary'), api.get('/api/payments/withdrawals'), api.get('/api/aviator/wallet/balance').catch(() => null),
+  ]);
   $('#stat-available').textContent = formatMoney(summary.availableBalanceMinor, summary.currency);
   $('#stat-held').textContent = formatMoney(summary.reservedBalanceMinor, summary.currency);
   $('#stat-withdrawn').textContent = formatMoney(summary.totalWithdrawnMinor, summary.currency);
   const source = $('#withdraw-source');
-  const current = source.value || 'main';
-  const balances = { main: summary.availableBalanceMinor, ...summary.taskBalancesMinor };
-  source.replaceChildren(...Object.entries(SOURCES).map(([key, label]) =>
-    h('option', { value: key, selected: key === current }, `${label}: ${formatMoney(balances[key] ?? '0', summary.currency)}`)));
+  const wanted = new URLSearchParams(location.search).get('from') === 'aviator' ? 'aviator' : 'main';
+  const current = source.value || (activated ? wanted : 'aviator');
+  // The Aviator balance comes in the currency's main unit; shown as the server sent it.
+  const aviatorText = aviator ? `${aviator.currency} ${Number(aviator.balance).toLocaleString()}` : '';
+  const shown = Object.entries(SOURCES).filter(([key]) => (key === 'main' ? activated : Boolean(aviator && (aviator.available || aviator.balance > 0))));
+  source.replaceChildren(...shown.map(([key, label]) =>
+    h('option', { value: key, selected: key === current }, key === 'aviator' ? `${label}: ${aviatorText}` : `${label}: ${formatMoney(summary.availableBalanceMinor, summary.currency)}`)));
 
   const body = $('#withdraw-history-body');
   if (!list.withdrawals.length) {
@@ -101,7 +109,8 @@ async function refresh() {
   }));
 }
 
-export async function init() {
+export async function init({ me } = {}) {
+  activated = me ? Boolean(me.activated || me.isStaff) : true;
   const info = await api.get('/api/payments/channels');
   $('#paused').hidden = !info.withdrawalsPaused;
   $('#no-phone').hidden = Boolean(info.payoutPhone);

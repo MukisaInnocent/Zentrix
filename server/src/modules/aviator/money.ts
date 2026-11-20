@@ -71,29 +71,12 @@ export function parseMoney(raw: unknown, exponent: number, allowZero = false): b
 export const walletAccount = (db: Db, userId: number, currency: string) => accountId(db, { kind: 'member_aviator', userId, currency });
 export const houseAccount = (db: Db, currency: string) => accountId(db, { kind: 'aviator_house', currency });
 
-// Deposit money must be bet before it can be moved out (owner, 2026-11-19): what is still to be bet. Locked, so a
-// transfer and a bet in the same moment cannot both use it. Lock order everywhere: round, wagering, accounts.
-export async function lockWagering(db: Db, userId: number, currency: string): Promise<bigint> {
-  await db.query('INSERT INTO aviator_wagering (user_id, currency_code) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, currency]);
-  return BigInt((await one<{ required_minor: string }>(db,
-    'SELECT required_minor FROM aviator_wagering WHERE user_id = $1 AND currency_code = $2 FOR UPDATE', [userId, currency])).required_minor);
-}
-export async function recordStake(db: Db, userId: number, currency: string, stakeMinor: bigint) {
-  await lockWagering(db, userId, currency);
-  await db.query('UPDATE aviator_wagering SET required_minor = greatest(0, required_minor - $3) WHERE user_id = $1 AND currency_code = $2',
-    [userId, currency, stakeMinor.toString()]);
-}
-
 export async function walletBalance(db: Db, userId: number) {
   const cur = await playCurrency(db, userId);
   const own = cur ?? await ownCurrency(db, userId);
   const held = await maybeOne<{ balance_minor: string }>(db, `SELECT balance_minor FROM accounts WHERE kind = 'member_aviator' AND user_id = $1 AND currency_code = $2`, [userId, own.code]);
-  const wager = await maybeOne<{ required_minor: string }>(db, 'SELECT required_minor FROM aviator_wagering WHERE user_id = $1 AND currency_code = $2', [userId, own.code]);
-  const balance = BigInt(held?.balance_minor ?? '0');
-  const required = BigInt(wager?.required_minor ?? '0');
-  const free = balance > required ? balance - required : 0n;
-  const show = (v: bigint) => (own.exponent <= 2 ? major(v, own.exponent) : 0);
-  return { balance: show(balance), withdrawable: show(free), mustBet: show(required), currency: own.code, exponent: own.exponent, available: Boolean(cur) };
+  const balance = own.exponent <= 2 ? major(BigInt(held?.balance_minor ?? '0'), own.exponent) : 0;
+  return { balance, withdrawable: balance, currency: own.code, exponent: own.exponent, available: Boolean(cur) };
 }
 
 // Money in: from the deposit balance first, then the main balance (owner, 2026-11-19). Money out: to the main
@@ -101,25 +84,13 @@ export async function walletBalance(db: Db, userId: number) {
 export async function transfer(db: PoolClient, userId: number, direction: 'in' | 'out', raw: unknown) {
   const cur = direction === 'in' ? await requireCurrency(db, userId) : await ownCurrency(db, userId);
   const amount = parseMoney(raw, cur.exponent);
-  const required = await lockWagering(db, userId, cur.code);
   const wallet = await walletAccount(db, userId, cur.code);
   const before = await balanceOf(db, wallet);
-  if (direction === 'out' && amount <= before && amount > before - required) {
-    const free = before > required ? before - required : 0n;
-    throw badRequest('aviator.bet_deposit_first',
-      `${cur.code} ${toDecimalString(required, cur.exponent)} of your Aviator balance came from your deposit balance and must be bet before it can be moved out. `
-      + `You can move out up to ${cur.code} ${toDecimalString(free, cur.exponent)} now.`);
-  }
   let txn: number;
   try {
     if (direction === 'in') {
-      const deposit = await accountId(db, { kind: 'member_deposit', userId, currency: cur.code });
       const legs = await spendLegs(db, userId, cur.code, amount, wallet);
       txn = await post(db, { kind: 'aviator_transfer_in', memo: 'Money moved into Aviator', refType: 'aviator_transfer', refId: String(userId), actorUserId: userId, legs });
-      const fromDeposit = legs.filter(l => l.account === deposit && l.side === 'debit').reduce((sum, l) => sum + l.amountMinor, 0n);
-      if (fromDeposit > 0n) {
-        await db.query('UPDATE aviator_wagering SET required_minor = required_minor + $3 WHERE user_id = $1 AND currency_code = $2', [userId, cur.code, fromDeposit.toString()]);
-      }
     } else {
       const main = await accountId(db, { kind: 'member_main', userId, currency: cur.code });
       txn = await post(db, { kind: 'aviator_transfer_out', memo: 'Money moved from Aviator to the main balance', refType: 'aviator_transfer', refId: String(userId), actorUserId: userId, legs: move(wallet, main, amount) });

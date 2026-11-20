@@ -137,8 +137,9 @@ export const withdrawalView = (w: WithdrawalRow): WithdrawalView => ({
 export async function requestWithdrawal(
   db: PoolClient, userId: number, input: { source: BalanceSource; amountMinor: bigint }, opts: { skipPhoneCheck?: boolean } = {},
 ): Promise<{ withdrawal: WithdrawalView; quote: Quote }> {
-  // Owner, 2026-11-03: task earnings stay in the task balances and cannot be withdrawn yet; only the main balance pays out.
-  if (input.source !== 'main') throw badRequest('withdrawal.task_balance', 'Task earnings cannot be withdrawn yet. Withdraw from your main balance.', { source: ['Task earnings cannot be withdrawn yet.'] });
+  // Owner, 2026-11-03: task earnings stay in the task balances and cannot be withdrawn yet; the main balance pays out,
+  // and since 2026-11-20 the Aviator balance too (same limits and charges; the daily limit counts both).
+  if (input.source !== 'main' && input.source !== 'aviator') throw badRequest('withdrawal.task_balance', 'Task earnings cannot be withdrawn yet. Withdraw from your main balance.', { source: ['Task earnings cannot be withdrawn yet.'] });
   await db.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [userId]);
   const member = await memberInfo(db, userId);
   requireActive(member);

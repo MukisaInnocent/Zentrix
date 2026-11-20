@@ -7,7 +7,8 @@ import { currentCountryConfig, type CountryConfig } from '../countries/service.j
 import { convert } from '../fx/service.js';
 import { accountId, balanceOf, move, post, TASK_MODULES, type Leg, type TaskModule } from '../ledger/ledger.js';
 
-export const BALANCE_SOURCES = ['main', ...TASK_MODULES] as const;
+// 'aviator': the Aviator balance, withdrawable like the main balance (owner, 2026-11-20).
+export const BALANCE_SOURCES = ['main', 'aviator', ...TASK_MODULES] as const;
 export type BalanceSource = (typeof BALANCE_SOURCES)[number];
 
 export interface MemberInfo {
@@ -48,11 +49,11 @@ export function requireActive(member: MemberInfo): void {
   if (member.status !== 'active') throw forbidden('account.frozen', 'Your account is on hold. Contact support.');
 }
 
-// The member's account for a balance source (main balance or one task module).
+// The member's account for a balance source (main balance, Aviator balance or one task module).
 export function sourceAccount(db: Db, userId: number, currency: string, source: BalanceSource): Promise<number> {
-  return source === 'main'
-    ? accountId(db, { kind: 'member_main', userId, currency })
-    : accountId(db, { kind: 'member_task', userId, module: source, currency });
+  if (source === 'main') return accountId(db, { kind: 'member_main', userId, currency });
+  if (source === 'aviator') return accountId(db, { kind: 'member_aviator', userId, currency });
+  return accountId(db, { kind: 'member_task', userId, module: source, currency });
 }
 
 export interface WalletSummary {

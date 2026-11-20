@@ -48,7 +48,7 @@ export async function notifyPayment(services: Services, event: PaymentEvent, ref
       [reference],
     );
     if (!row) return;
-    const kind = row.purpose === 'wallet' && event in WALLET_KIND ? WALLET_KIND[event]! : PAYMENT_KIND[event];
+    const kind = row.purpose !== 'activation' && event in WALLET_KIND ? WALLET_KIND[event]! : PAYMENT_KIND[event];
     if (row.email && kind) {
       const path = BUTTON_PATH[kind];
       await sendTemplated(services, {
@@ -90,7 +90,7 @@ export async function notifyStaffOfPayment(services: Services, kind: 'deposit' |
     for (const s of staff) {
       await sendTemplated(services, {
         kind: kind === 'deposit' ? 'staff_new_deposit' : 'staff_new_withdrawal', to: s.email, userId: Number(s.id), ref: `staff:${reference}:${s.id}`,
-        values: { staff: s.username, member: p.username, country: p.country, amount, reference, purpose: p.purpose === 'wallet' ? 'deposit' : 'activation payment' },
+        values: { staff: s.username, member: p.username, country: p.country, amount, reference, purpose: p.purpose === 'aviator' ? 'Aviator deposit' : p.purpose === 'wallet' ? 'deposit' : 'activation payment' },
         buttonUrl: `${services.config.publicOrigin}/admin/${page}?id=${p.public_id}`,
       });
     }

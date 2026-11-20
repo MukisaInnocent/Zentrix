@@ -64,6 +64,8 @@ Loaded at the start of every session. Requirements come from the owner's Pexerea
 
 - 2026-11-20 (owner): announcement emails use a plain, personal layout (`plain: true` in `renderEmail`: "Hi {username},", the heading in bold, plain paragraphs, the button as a plain link, "Thank you, The Pexerearn team", one line on turning them off) so Gmail files them under Primary more often; every other email keeps the branded layout. They already went to members' inboxes; Gmail had been sorting them into Promotions.
 
+- 2026-11-20 (owner; migration 0044): members deposit straight into their Aviator balance (`deposits.purpose = 'aviator'`, Deposit page "Deposit to", credited to `member_aviator` through the usual manual or LivePay deposit flow) and withdraw straight from it (`withdrawals.source = 'aviator'`, Withdraw page "From"), with the same withdrawal limits, charges, tax and approval steps; a failed or cancelled withdrawal goes back to the Aviator balance. Aviator money can be withdrawn at any time: the bet-first rule is dropped (`aviator_wagering` unused). Before activation a member may use the Deposit and Withdraw pages for Aviator money only (reading withdrawals, withdrawing from Aviator and cancelling are exempt from the activation check; the main balance still needs activation). Terms version `2026-11-20-money2`. The hourly announcement job was fixed the same day (it took a second lock and timed out in AWS's 2-connection pool; deployed, 1,000 emails sent at once).
+
 ## How to operate
 
 1. Plan before code. Update `docs/PLAN.md` and this file whenever a decision changes.

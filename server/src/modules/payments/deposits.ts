@@ -5,6 +5,7 @@ import { badRequest, conflict, DB_ERRORS, forbidden, notFound, pgErrorCode } fro
 import { toDecimalString } from '../../lib/money.js';
 import { accountId, move, post } from '../ledger/ledger.js';
 import { distributeReferralRewards } from '../referrals/service.js';
+import { requireCurrency } from '../aviator/money.js';
 import { memberInfo, newReference, requireActive, requireConfig } from '../wallet/service.js';
 import { assertNotPaused, channelByCode, exponentOf, normalizePhone, normalizeTxnId, setActor, settleProviderRequest } from './common.js';
 
@@ -16,8 +17,9 @@ import { assertNotPaused, channelByCode, exponentOf, normalizePhone, normalizeTx
 //   wallet      any amount, after activation: cash on the channel -> the member's deposit balance (kept apart
 //               from the balance, which holds referral money only).
 
-export type DepositPurpose = 'activation' | 'wallet';
-const MAX_PENDING: Record<DepositPurpose, number> = { activation: 1, wallet: 3 };
+// 'aviator': straight into the Aviator balance (owner, 2026-11-20).
+export type DepositPurpose = 'activation' | 'wallet' | 'aviator';
+const MAX_PENDING: Record<DepositPurpose, number> = { activation: 1, wallet: 3, aviator: 3 };
 
 export interface DepositClaim {
   purpose?: DepositPurpose;
@@ -77,6 +79,8 @@ export async function submitDeposit(db: PoolClient, userId: number, claim: Depos
   const activated = Boolean(await maybeOne(db, 'SELECT 1 FROM memberships WHERE user_id = $1', [userId]));
   if (purpose === 'activation' && activated) throw badRequest('deposit.already_active', 'Your account is already activated.');
   if (purpose === 'wallet' && !activated) throw forbidden('activation.required', 'Pay the activation fee before making a deposit.');
+  // Aviator is open before activation (owner, 2026-11-11); a deposit into it needs Aviator to play in the member's currency.
+  if (purpose === 'aviator') await requireCurrency(db, userId);
   // The activation fee is paid in the fee's currency (USD outside the owner's table, owner 2026-10-31) on a method in
   // that currency; deposits into the deposit balance are in the member's own currency.
   const config = purpose === 'activation' ? await requireConfig(db, member.countryCode) : null;
@@ -148,7 +152,7 @@ export async function confirmDeposit(db: PoolClient, staffId: number, publicId: 
   if (Number(d.user_id) === staffId) throw forbidden('admin.self_action', 'Another staff member must review your own payment.');
   if (d.status !== 'pending') throw conflict('deposit.not_pending', `This payment is already ${d.status}.`);
   await settleProviderRequest(db, { depositId: d.id }, 'succeeded', note ?? 'confirmed');
-  if (d.purpose === 'wallet') return confirmWalletDeposit(db, staffId, d, receivedMinor, note);
+  if (d.purpose === 'wallet' || d.purpose === 'aviator') return confirmWalletDeposit(db, staffId, d, receivedMinor, note);
   const fee = BigInt(d.claimed_amount_minor);
   if (receivedMinor !== fee) {
     const exponent = await exponentOf(db, d.currency_code);
@@ -250,9 +254,9 @@ async function confirmWalletDeposit(db: PoolClient, staffId: number, d: DepositR
   const member = await memberInfo(db, Number(d.user_id));
   if (member.status !== 'active') throw conflict('deposit.member_not_active', 'This member account is frozen or closed. Resolve that first.');
   const clearing = await accountId(db, { kind: 'payment_clearing', channelId: Number(d.channel_id), currency: d.currency_code });
-  const deposit = await accountId(db, { kind: 'member_deposit', userId: Number(d.user_id), currency: d.currency_code });
+  const deposit = await accountId(db, { kind: d.purpose === 'aviator' ? 'member_aviator' : 'member_deposit', userId: Number(d.user_id), currency: d.currency_code });
   const txn = await post(db, {
-    kind: 'deposit', memo: `Deposit via ${d.channel_name}`, refType: 'deposit', refId: d.reference, actorUserId: staffId,
+    kind: d.purpose === 'aviator' ? 'aviator_deposit' : 'deposit', memo: `${d.purpose === 'aviator' ? 'Aviator deposit' : 'Deposit'} via ${d.channel_name}`, refType: 'deposit', refId: d.reference, actorUserId: staffId,
     legs: move(clearing, deposit, receivedMinor),
   });
   await setActor(db, staffId, note ?? 'Confirmed against the channel statement');

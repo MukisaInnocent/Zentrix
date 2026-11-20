@@ -115,7 +115,7 @@ async function refresh() {
   if (info.autoApprove && !$('#deposit-txn').value) $('#deposit-txn').value = `TEST${Date.now().toString(36).toUpperCase()}`;
   $('#deposit-submit').disabled = info.depositsPaused || !info.channels.some(c => c.depositsEnabled && c.currency === info.currency);
   renderChannels();
-  const deposits = list.deposits.filter(d => d.purpose === 'wallet');
+  const deposits = list.deposits.filter(d => d.purpose !== 'activation');
   // A prompt on its way: say so, and check again every few seconds until LivePay answers.
   const prompt = deposits.find(d => d.status === 'pending' && d.method === 'api');
   waitingOnPrompt = Boolean(prompt);
@@ -125,24 +125,44 @@ async function refresh() {
     ? deposits.map(d => h('tr', {},
       h('td', { class: 'zx-td-muted' }, formatDate(d.createdAt, { withTime: true })),
       h('td', {}, d.channel.name),
+      h('td', {}, d.purpose === 'aviator' ? 'Aviator' : 'Deposit balance'),
       h('td', { class: 'zx-td-mono' }, d.providerTxnId),
       h('td', { class: 'zx-amount zx-amount--in' }, formatMoney(d.creditedAmountMinor ?? d.claimedAmountMinor, d.currency)),
       h('td', {}, paymentBadge(d.status), d.reviewNote ? h('div', { class: 'zx-hint' }, d.reviewNote) : null)))
-    : [h('tr', {}, h('td', { colspan: '5', class: 'zx-td-empty' }, 'No deposits yet.'))]));
+    : [h('tr', {}, h('td', { colspan: '6', class: 'zx-td-empty' }, 'No deposits yet.'))]));
+}
+
+// Where the deposit goes (owner, 2026-11-20): the deposit balance or straight into the Aviator balance. Members who
+// have not activated can deposit only to Aviator (open before activation); ?to=aviator comes from the Aviator page.
+async function setupTarget(me) {
+  const select = $('#deposit-target');
+  let aviator = false;
+  try { aviator = (await api.get('/api/aviator/wallet/balance')).available; } catch { /* Aviator not reachable: deposit balance only */ }
+  const activated = Boolean(me?.activated);
+  if (!activated) select.querySelector('option[value="wallet"]').remove();
+  if (!aviator) select.querySelector('option[value="aviator"]').remove();
+  if (!aviator && !activated) {
+    $('#deposit-submit').disabled = true;
+    return () => 'wallet';
+  }
+  if (aviator && (new URLSearchParams(location.search).get('to') === 'aviator' || !activated)) select.value = 'aviator';
+  $('#target-card').hidden = !aviator;
+  return () => select.value;
 }
 
 export async function init({ me }) {
   await refresh();
+  const purpose = await setupTarget(me);
   $('#deposit-phone').value = me?.phone ?? '';
   bindForm($('#deposit-form'), async (data, form) => {
     if (!selected) throw new Error('No payment method');
     if (selectedChannel()?.provider) {
-      const res = await api.post('/api/payments/collections', { purpose: 'wallet', channel: selected, amount: data.amount, phone: data.senderPhone, ...(data.network ? { network: data.network } : {}) }, { idempotencyKey: newIdempotencyKey() });
+      const res = await api.post('/api/payments/collections', { purpose: purpose(), channel: selected, amount: data.amount, phone: data.senderPhone, ...(data.network ? { network: data.network } : {}) }, { idempotencyKey: newIdempotencyKey() });
       if (res.deposit.status === 'confirmed') toast.success('Deposit received.');
       else if (res.deposit.status === 'rejected') toast.error(`The payment did not go through${res.deposit.reviewNote ? `: ${res.deposit.reviewNote}` : '.'}`);
       else toast.success('Prompt sent. Approve it on your phone.');
     } else {
-      const res = await api.post('/api/payments/deposits', { purpose: 'wallet', channel: selected, ...data }, { idempotencyKey: newIdempotencyKey() });
+      const res = await api.post('/api/payments/deposits', { purpose: purpose(), channel: selected, ...data }, { idempotencyKey: newIdempotencyKey() });
       toast.success(`Submitted. Reference ${res.deposit.reference}.`);
     }
     form.reset();

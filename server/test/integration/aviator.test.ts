@@ -248,31 +248,34 @@ describe('aviator with real money (owner, 2026-11-19)', () => {
     app.services.now = () => new Date();
   });
 
-  // Owner, 2026-11-19 (after the security review): deposit money must be bet before it can be moved out.
-  it('lets deposit money out only once it has been bet; winnings and main-balance money move freely', async () => {
-    const clock = await freshClock();
+  // Owner, 2026-11-20: deposit straight into Aviator and withdraw straight from it, with the usual withdrawal limits
+  // and charges. Aviator money can be withdrawn at any time (the bet-first rule is dropped).
+  it('takes deposits straight into Aviator and pays withdrawals straight from it, with the usual charges', async () => {
+    await freshClock();
     const { m, id } = await player();
-    await grant('member_deposit', 5_000n, id);
-    await grant('member_main', 1_000n, id);
-    await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '6000' }, key());
-    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body).toMatchObject({ balance: 6000, mustBet: 5000, withdrawable: 1000 });
-    expect((await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '1001' }, key())).body.error?.code).toBe('aviator.bet_deposit_first');
+    const deposited = await m.client.post<Body>('/api/payments/deposits', {
+      channel: 'mtn_aviator_test', senderPhone: m.input.phone, providerTxnId: `TEST${randomUUID().slice(0, 8)}`, purpose: 'aviator', amount: '40000',
+    }, key());
+    expect(deposited.status, JSON.stringify(deposited.body)).toBe(201);
+    // The test autopilot confirms it as finance would; the money lands in the Aviator balance, not the deposit balance.
+    expect([await balanceOf('member_aviator', id), await balanceOf('member_deposit', id)]).toEqual([40_000n, 0n]);
+    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body).toMatchObject({ balance: 40000, withdrawable: 40000 });
+    // Money moved in from the deposit balance can be moved out at once too (no bet needed).
+    await grant('member_deposit', 1_000n, id);
+    await m.client.post<Body>('/api/aviator/wallet/deposit', { amount: '1000' }, key());
+    expect((await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '1000' }, key())).status).toBe(201);
 
-    // Bet 3,000 and cash out at 1.1x: 2,000 still to be bet; the winnings move freely.
-    await m.client.get<Body>('/api/aviator/game/state');
-    const round = (await m.client.get<Body>('/api/aviator/game/state')).body;
-    expect(round.status).toBe('waiting');
-    await app.owner.query('UPDATE aviator_rounds SET crash_point = 5 WHERE id = $1', [round.round_id]);
-    const bet = await m.client.post<Body>('/api/aviator/game/bet', { amount: '3000' }, key());
-    expect(bet.status, JSON.stringify(bet.body)).toBe(200);
-    clock.set(Date.parse(round.start_time) + 1000);
-    await m.client.get<Body>('/api/aviator/game/state');
-    expect((await m.client.post<Body>('/api/aviator/game/cashout', { bet_id: bet.body.bet_id }, key())).body.payout).toBe(3300);
-    expect((await m.client.get<Body>('/api/aviator/wallet/balance')).body).toMatchObject({ balance: 6300, mustBet: 2000, withdrawable: 4300 });
-    expect((await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '4301' }, key())).body.error?.code).toBe('aviator.bet_deposit_first');
-    const out = await m.client.post<Body>('/api/aviator/wallet/withdraw', { amount: '4300' }, key());
-    expect([out.status, out.body.balance]).toEqual([201, 2000]);
-    expect(await balanceOf('member_main', id)).toBe(4_300n);
+    // Withdraw 20,000 from the Aviator balance: same quote (charge and tax) as from the main balance.
+    const quote = (await m.client.get<Body>('/api/payments/withdrawals/quote?amount=20000')).body.quote;
+    const out = await m.client.post<Body>('/api/payments/withdrawals', { source: 'aviator', amount: '20000' }, key());
+    expect(out.status, JSON.stringify(out.body)).toBe(201);
+    expect(out.body.withdrawal).toMatchObject({ source: 'aviator', amountMinor: '20000', feeMinor: quote.feeMinor });
+    expect(await balanceOf('member_aviator', id)).toBe(40_000n - BigInt(quote.totalMinor));
+    // Limits are the same: below the minimum is refused.
+    expect((await m.client.post<Body>('/api/payments/withdrawals', { source: 'aviator', amount: '100' }, key())).body.error?.fields?.amount).toBeDefined();
+    // This member has not activated: only the Aviator balance can be withdrawn; the main balance still needs activation.
+    expect((await m.client.post<Body>('/api/payments/withdrawals', { source: 'main', amount: '20000' }, key())).body.error?.code).toBe('activation.required');
+    expect((await m.client.get<Body>('/api/payments/withdrawals')).status).toBe(200);
     app.services.now = () => new Date();
   });
 

@@ -22,6 +22,19 @@
   <div id="auto-note" class="zx-banner zx-banner--success" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#info"></use></svg><span class="zx-banner__text">Test mode: deposits pass automatically.</span></div>
   <div id="paused" class="zx-banner zx-banner--warning" hidden><svg class="zx-icon" aria-hidden="true"><use href="/img/icons.svg#clock"></use></svg><span class="zx-banner__text">Deposits are paused for a short check. Please come back later.</span></div>
 
+  <!-- Owner, 2026-11-20: deposit straight into the Aviator balance (shown when Aviator plays in the member's currency). -->
+  <section id="target-card" class="zx-card zx-stack-3" hidden>
+    <h2>Deposit to</h2>
+    <div class="zx-field">
+      <label for="deposit-target">Balance</label>
+      <select id="deposit-target" class="zx-select">
+        <option value="wallet">Deposit balance</option>
+        <option value="aviator">Aviator balance</option>
+      </select>
+      <span class="zx-hint">Money deposited to Aviator can be played at once and withdrawn from the Withdraw page.</span>
+    </div>
+  </section>
+
   <section class="zx-card zx-stack-4">
     <h2>1. Pay with</h2>
     <div id="channel-pick" class="zx-channel-pick" role="radiogroup" aria-label="Payment method"></div>
@@ -65,8 +78,8 @@
     <div class="zx-section-title"><h2>Your deposits</h2></div>
     <div class="zx-table-wrap">
       <table class="zx-table">
-        <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Transaction ID</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
-        <tbody id="deposits-body"><tr><td colspan="5" class="zx-td-empty">Loading...</td></tr></tbody>
+        <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">To</th><th scope="col">Transaction ID</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead>
+        <tbody id="deposits-body"><tr><td colspan="6" class="zx-td-empty">Loading...</td></tr></tbody>
       </table>
     </div>
   </section>
