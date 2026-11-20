@@ -8,7 +8,7 @@ export const announcementsJob: Job = {
   name: 'announcements',
   schedule: '10 * * * *',
   async run(services) {
-    const sent = await sendAnnouncementPortion(services, 1_000, Date.now() + 90_000);
+    const sent = await sendAnnouncementPortion(services, 1_000, Date.now() + 90_000, { lockHeld: true }); // the runner holds the lock
     if (sent > 0) services.logger.info({ sent }, 'announcement emails sent');
   },
 };

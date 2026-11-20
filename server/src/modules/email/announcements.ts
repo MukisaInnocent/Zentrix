@@ -99,54 +99,64 @@ const SENT: SendOutcome[] = ['sent', 'queued', 'duplicate'];
 
 // Sends waiting announcement emails, at most `max` and never more than today's budget. One sender at a time
 // (advisory lock), so a recipient is never emailed twice. Returns how many went out.
-export async function sendAnnouncementPortion(services: Services, max: number, deadline = Number.POSITIVE_INFINITY): Promise<number> {
+// The same lock key as the job runner's lock for the announcements job (runner.ts), so the Send button's first
+// portion and the hourly job never send at once. The job already holds it and passes lockHeld (2026-11-20: taking a
+// second lock left no connection free in AWS's 2-connection pool, and every hourly run timed out).
+const LOCK_KEY = 'zentrix-job:announcements';
+
+export async function sendAnnouncementPortion(services: Services, max: number, deadline = Number.POSITIVE_INFINITY, opts: { lockHeld?: boolean } = {}): Promise<number> {
+  if (opts.lockHeld) return sendPortion(services, max, deadline);
   const lock = await services.pool.connect();
   try {
-    const { rows: got } = await lock.query<{ ok: boolean }>(`SELECT pg_try_advisory_lock(hashtext('zentrix-announcements')) AS ok`);
+    const { rows: got } = await lock.query<{ ok: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS ok', [LOCK_KEY]);
     if (!got[0]?.ok) return 0;
     try {
-      let left = Math.min(max, (await announcementBudget(services.pool)).budget);
-      let sent = 0;
-      while (left > 0 && Date.now() < deadline) {
-        const batch = await rows<{ announcement_id: string; user_id: string; email: string; username: string; subject: string; heading: string; body: string; button_label: string | null; button_url: string | null }>(
-          services.pool,
-          `SELECT r.announcement_id, r.user_id, u.email, u.username, a.subject, a.heading, a.body, a.button_label, a.button_url
-           FROM announcement_recipients r JOIN announcements a ON a.id = r.announcement_id JOIN users u ON u.id = r.user_id
-           WHERE r.status = 'waiting' AND a.status = 'sending' ORDER BY r.announcement_id, r.user_id LIMIT $1`,
-          [Math.min(left, 50)],
-        );
-        if (batch.length === 0) break;
-        for (const r of batch) {
-          const outcome = r.email
-            ? await sendEmail(services, {
-              to: r.email, userId: Number(r.user_id), kind: 'announcement', category: 'announcement', ref: `ann:${r.announcement_id}:${r.user_id}`,
-              ...announcementEmail({ subject: r.subject, heading: r.heading, body: r.body, buttonLabel: r.button_label, buttonUrl: r.button_url }, r.username),
-            })
-            : 'skipped';
-          const delivered = SENT.includes(outcome);
-          await services.pool.query(
-            `UPDATE announcement_recipients SET status = $3, outcome = $4, sent_at = now() WHERE announcement_id = $1 AND user_id = $2`,
-            [r.announcement_id, r.user_id, delivered ? 'sent' : 'skipped', outcome],
-          );
-          // Only emails that really went out use the allowance.
-          if (outcome === 'sent' || outcome === 'queued') {
-            sent++;
-            left--;
-            if (left === 0) break;
-          }
-        }
-      }
-      await services.pool.query(
-        `UPDATE announcements a SET status = 'done', finished_at = now()
-         WHERE a.status = 'sending' AND NOT EXISTS (SELECT 1 FROM announcement_recipients r WHERE r.announcement_id = a.id AND r.status = 'waiting')`,
-      );
-      return sent;
+      return await sendPortion(services, max, deadline);
     } finally {
-      await lock.query(`SELECT pg_advisory_unlock(hashtext('zentrix-announcements'))`);
+      await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [LOCK_KEY]);
     }
   } finally {
     lock.release();
   }
+}
+
+async function sendPortion(services: Services, max: number, deadline: number): Promise<number> {
+  let left = Math.min(max, (await announcementBudget(services.pool)).budget);
+  let sent = 0;
+  while (left > 0 && Date.now() < deadline) {
+    const batch = await rows<{ announcement_id: string; user_id: string; email: string; username: string; subject: string; heading: string; body: string; button_label: string | null; button_url: string | null }>(
+      services.pool,
+      `SELECT r.announcement_id, r.user_id, u.email, u.username, a.subject, a.heading, a.body, a.button_label, a.button_url
+       FROM announcement_recipients r JOIN announcements a ON a.id = r.announcement_id JOIN users u ON u.id = r.user_id
+       WHERE r.status = 'waiting' AND a.status = 'sending' ORDER BY r.announcement_id, r.user_id LIMIT $1`,
+      [Math.min(left, 50)],
+    );
+    if (batch.length === 0) break;
+    for (const r of batch) {
+      const outcome = r.email
+        ? await sendEmail(services, {
+          to: r.email, userId: Number(r.user_id), kind: 'announcement', category: 'announcement', ref: `ann:${r.announcement_id}:${r.user_id}`,
+          ...announcementEmail({ subject: r.subject, heading: r.heading, body: r.body, buttonLabel: r.button_label, buttonUrl: r.button_url }, r.username),
+        })
+        : 'skipped';
+      const delivered = SENT.includes(outcome);
+      await services.pool.query(
+        `UPDATE announcement_recipients SET status = $3, outcome = $4, sent_at = now() WHERE announcement_id = $1 AND user_id = $2`,
+        [r.announcement_id, r.user_id, delivered ? 'sent' : 'skipped', outcome],
+      );
+      // Only emails that really went out use the allowance.
+      if (outcome === 'sent' || outcome === 'queued') {
+        sent++;
+        left--;
+        if (left === 0) break;
+      }
+    }
+  }
+  await services.pool.query(
+    `UPDATE announcements a SET status = 'done', finished_at = now()
+     WHERE a.status = 'sending' AND NOT EXISTS (SELECT 1 FROM announcement_recipients r WHERE r.announcement_id = a.id AND r.status = 'waiting')`,
+  );
+  return sent;
 }
 
 export async function listAnnouncements(db: Db) {

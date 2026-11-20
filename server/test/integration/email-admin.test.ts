@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createPool } from '../../src/db/pool.js';
 import { announcementsJob } from '../../src/jobs/announcements.js';
+import { runExclusive } from '../../src/jobs/runner.js';
 import { startTestApp, type TestApp } from '../helpers/app.js';
 import type { TestClient } from '../helpers/client.js';
 import { createStaff, loginStaff, registerMember } from '../helpers/factories.js';
@@ -114,7 +116,15 @@ describe('announcements', () => {
     await announcementsJob.run(app.services);
     expect((await state()).waiting).toBeGreaterThan(0);
     await allowance(100_000);
-    await announcementsJob.run(app.services);
+    // As on AWS (2026-11-20): through the job runner, with a pool of 2 connections. The runner's lock took one and the
+    // sender's own lock the other, so every hourly run timed out waiting for a third and almost nothing was sent.
+    const c = app.services.config;
+    const twoConnections = createPool({ url: c.databaseUrl, ssl: c.databaseSsl, max: 2, appRole: c.databaseAppRole, logger: app.services.logger, connectTimeoutMs: 3000 });
+    try {
+      expect(await runExclusive({ ...app.services, pool: twoConnections }, announcementsJob)).toBe(true);
+    } finally {
+      await twoConnections.end();
+    }
     const done = await state();
     expect(done).toMatchObject({ status: 'done', waiting: 0, recipients: onlyActive });
     expect(done.sent + done.skipped).toBe(onlyActive);
